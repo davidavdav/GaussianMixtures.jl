@@ -4,7 +4,7 @@
 
 module Rasta
 
-## Freely adapted from Dan Ellis's rastamat matlab package.  We've kept routen names the same, but the interface has changed a bit. 
+## Freely adapted from Dan Ellis's rastamat matlab package.  We've kept routine names the same, but the interface has changed a bit. 
 ## We don't like matlab, which is a trademark. 
 
 ## we haven't implemented rasta filtering, yet, in fact.  These routines are a minimum for 
