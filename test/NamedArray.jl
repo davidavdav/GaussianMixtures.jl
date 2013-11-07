@@ -2,22 +2,24 @@
 
 type NamedArray{T,N} <: AbstractArray{T,N}
     array::Array{T,N}
-    names::Vector{Vector}
-    function NamedArray(names::Vector)
-        @assert N==length(names) > 0
-        @assert isa(names[1], Vector)
-        array = zeros(T,map(length,names)...)
+    names::NTuple{N,Vector}
+    function NamedArray(names::NTuple{N,Vector})
+        array = Array(T,map(length,names))
         new(array, names)
     end
 end
-#NamedArray(T::DataType, names::Vector) = NamedArray{T,length(names)}(names)
+NamedArray(T::DataType, names::NTuple) = NamedArray{T,length(names)}(names)
 function NamedArray(T::DataType, dims::Int...)
     ld = length(dims)
-    name = [[string(j) for j=1:i] for i=dims]
-    a = Array(T,dims...)
+    names = [[string(j) for j=1:i] for i=dims]
+    vec2tuple(x...) = x
     println("Type ", T, " lenghth dims ", ld)
-    NamedArray(a, name)
-#end
+    NamedArray(T, vec2tuple(names...))
+end
+
+import Base.size
+size(a::NamedArray) = arraysize(a.array)
+size(a::NamedArray, d) = arraysize(a.array)
 
 type Bug{d} 
     a::Int
@@ -27,9 +29,9 @@ type Bug{d}
     end
 end
 
-type Test
-    t::DataType
-    function Test(t::DataType)
-        new(t)
+type Test{T}
+    t
+    function Test(::Type{T})
+        new(T)
     end
 end
