@@ -10,7 +10,7 @@ module Rasta
 ## we haven't implemented rasta filtering, yet, in fact.  These routines are a minimum for 
 ## encoding HTK-style mfccs
 
-export powspec, audspec, fft2barkmx, fft2melmx, hz2bark, hz2mel, mel2hz, postaud, dolpc, lpc2cep, spec2cep, lifter, deltas
+export powspec, audspec, fft2barkmx, fft2melmx, hz2bark, hz2mel, mel2hz, postaud, dolpc, lpc2cep, spec2cep, lifter
 
 using SignalProcessing
 
@@ -20,7 +20,7 @@ function powspec(x::Vector, sr=8000.0; wintime=0.025, steptime=0.01, dither=true
     nstep = iround(steptime*sr)
 
     nfft = 1 << iceil(log2(nwin))
-    window = hamming(nwin)
+    window = hamming(nwin)      # overrule default in specgram which is hanning in Octave
     noverlap = nwin - nstep
     
     y = abs2(specgram(x * (1<<15), nfft; sr=sr, window=window, overlap=noverlap)[1])
@@ -115,9 +115,9 @@ function hz2mel(f::Vector, htk=false)
         brkpt = (brkfrq - f0) / fsp
         logstep = exp(log(6.4)/27)
         linpts = f .< brkfrq
-        z = similar(f)
-        z[linpts] = f[linpts]/brkfrq ./ log(logstep)
-        z[!linpts] = brkpt + log(f[!linpts]/brkfrq) ./ log(logstep)
+        z = zeros(size(f))      # prevent InexactError() by making these Float64
+        z[find(linpts)] = f[find(linpts)]/brkfrq ./ log(logstep)
+        z[find(!linpts)] = brkpt + log(f[find(!linpts)]/brkfrq) ./ log(logstep)
     end
     return z
 end
@@ -205,21 +205,21 @@ end
 function spec2cep(spec::Array, ncep::Int=13, dcttype::Int=2)
     (nr, nc) = size(spec)
     dctm = zeros(typeof(spec[1]), ncep, nr)
-    if dcttype>1
+    if 1 < dcttype < 4          # type 2,3
         for i=1:ncep
             dctm[i,:] = cos((i-1)*[1:2:2nr-1]π/(2nr)) * sqrt(2/nr)
         end
         if dcttype==2
             dctm[1,:] /= sqrt(2)
         end
-    elseif dcttype==4
+    elseif dcttype==4           # type 4
         for i=1:ncep
             dctm[i,:] = 2cos((i-1)*[1:nr]π/(nr+1))
             dctm[i,1] += 1
             dctm[i,nr] += (-1)^(i-1)
         end
         dctm /= 2(nr+1)
-    else
+    else                        # type 1
         for i=1:ncep
             dctm[i,:] = cos((i-1)*[0:nr-1]π/(nr-1)) / (nr-1)
         end
@@ -251,14 +251,5 @@ function lifter(x::Array, lift::Number=0.6, invs=false)
     return broadcast(*, x, liftw)
 end
 
-## our features run down with time
-function deltas(x, w::Int=9)
-    (nr, nc) = size(x)
-    hlen = ifloor(w/2)
-    w = 2hlen+1                 # make w odd
-    win = [hlen:-1:-hlen]
-    xx = vcat(repmat(x[1,:], hlen, 1), x, repmat(x[end,:], hlen, 1))
-    return (xx | Filter(win))[2hlen+(1:nr),:]
-end
 
 end
