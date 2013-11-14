@@ -3,7 +3,7 @@
 
 module Features
 
-export mfcc, warp
+export mfcc, deltas, warp, sdc
 
 using Rasta
 using SignalProcessing
@@ -13,25 +13,21 @@ using Misc
 ## i.e., multichannel data
 ## Recoded from rastamat's "melfcc.m" (c) Dan Ellis. 
 ## Defaults here are HTK parameters, this is contrary to melfcc
-function mfcc(x::Vector, sr::Number=16000.0; wintime=0.025, steptime=0.01, numcep=13, lifterexp=-22, 
-              sumpower=false, preemph=0.97, dither=false, minfreq=0.0, maxfreq=sr/2, 
+function mfcc(x::Vector, sr::Number=16000.0; wintime=0.025, steptime=0.01, numcep=13, 
+              lifterexp=-22, sumpower=false, preemph=0.97, dither=false, minfreq=0.0, maxfreq=sr/2,
               nbands=20, bwidth=1.0, dcttype=3, fbtype="htkmel", usecmp=false, modelorder=0)
-##    println("filter")
     if (preemph!=0) 
         x |= Filter([1, -preemph])
     end
-##    println("pspec")
     pspec = powspec(x, sr, wintime=wintime, steptime=steptime, dither=dither)
-##    println("aspec")
     aspec = audspec(pspec, sr, nfilts=nbands, fbtype=fbtype, minfreq=minfreq, maxfreq=maxfreq, sumpower=sumpower, bwidth=bwidth)
     if usecmp
         #  PLP-like weighting/compression
         aspec = postaud(aspec, maxfreq, fbtype)
     end
-##    println("cep")
     if modelorder>0
         if dcttype != 1
-            ## error
+            ## error, unimplemented
         end
         # LPC analysis 
         lpcas = dolpc(aspectrum, modelorder)
@@ -40,11 +36,37 @@ function mfcc(x::Vector, sr::Number=16000.0; wintime=0.025, steptime=0.01, numce
     else
         cepstra = spec2cep(aspec, numcep, dcttype)
     end
-##    println("lift")
     cepstra = lifter(cepstra, lifterexp)'
-    return (cepstra,pspec')
+    meta = {"sr" => sr, "wintime" => wintime, "steptime" => steptime, "numcep" => numcep,
+            "lifterexp" => lifterexp, "sumpower" => sumpower, "preemph" => preemph, 
+            "dither" => dither, "minfreq" => minfreq, "maxfreq" => maxfreq, "nbands" => nbands,
+            "bwidth" => bwidth, "dcttype" => dcttype, "fbtype" => fbtype, 
+            "usecmp" => usecmp, "modelorder" => modelorder}
+    return (cepstra, pspec', meta)
 end
 mfcc(x::Array, sr::Number=16000.0...) = @parallel (tuple) for i=1:size(x)[2] mfcc(x[:,i], sr...) end
+
+## default feature configurations, :rasta, :htk, :spkr_toolkit
+function mfcc(x::Vector, sr::Number, defaults::Symbol) 
+    if defaults==:rasta
+        mfcc(x, sr; lifterexp=0.6, sumpower=true, nbands=40, dcttype=2, fbtype="mel")
+    elseif defaults==:spkid_toolkit
+        mfcc(x, sr; lifterexp=0.6, sumpower=true, nbands=30, dcttype=2, fbtype="mel", minfreq=130., maxfreq=3900., numcep=20)
+    else
+        mfcc(x, sr)
+    end
+end
+
+## our features run down with time
+function deltas(x, w::Int=9)
+    (nr, nc) = size(x)
+    hlen = ifloor(w/2)
+    w = 2hlen+1                 # make w odd
+    win = [hlen:-1:-hlen]
+    xx = vcat(repmat(x[1,:], hlen, 1), x, repmat(x[end,:], hlen, 1))
+    return (xx | Filter(win))[2hlen+(1:nr),:]
+end
+
 
 function warp(x::Array, w=399)
     l = nrow(x)
