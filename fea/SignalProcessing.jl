@@ -2,6 +2,9 @@
 ## (c) 2013 David van Leeuwen
 ## Recoded from Octave's signal processing implementations, by Paul Kienzle, jwe && jh
 
+## These routines are styled after their matlab (we don't like matlab, which is a trademark)
+## counterparts.  
+
 module SignalProcessing
 
 export hamming, hanning, specgram, levinson, toeplitz, Filter, filter
@@ -25,15 +28,21 @@ function hanning(n::Int)
 end
 
 ## Freelyly after Paul Kienzle <pkienzle@users.sf.net>
+## Note: in Octave, the default is a hanning window (implemented here)
+## In Matlab, and we can't stress enough that we don't like Matlab, the default is hamming. 
+## So it is better to specify the window!
 
-function specgram(x::Vector, n::Int=256; sr=8000, window=hamming(n), overlap=n/2)
+## The spectogram is returned as nfreq * nframes array, so time is running right
+## This is different from the conventions we use in Features
+function specgram(x::Vector, n::Int=256; sr=8000., window=hamming(n), overlap::Int=n/2)
     if typeof(window) == Int
-        window = hanning(n)
+        window = hanning(n)     # this is sort-of odd
     end
+#    println(length(window), " ", n)
     winsize = min(length(window),n)
     step = winsize - overlap
 
-    offset = 1:step:length(x)-winsize
+    offset = 1:step:length(x)-winsize # truncate frames to integer amount
     lo = length(offset)
     S = zeros(n, lo)
     for (i,j)=zip(1:lo, offset)
