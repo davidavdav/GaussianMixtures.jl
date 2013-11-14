@@ -4,7 +4,12 @@
 ## This module also contains some rudimentary code for speaker
 ## recpognition, perhaps this should move to another module.
 
-require("gmm/types.jl")
+module GMMs
+
+include("gmmtypes.jl")
+
+export GMM, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat
+
 using Misc
 
 import Base.copy
@@ -20,7 +25,7 @@ function copy(gmm::GMM)
 end
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-function GMM1(x::Array{Float64,2})
+function GMM(x::Array{Float64,2})
     d=size(x, 2)
     gmm = GMM(1,d)
     gmm.μ = mean(x, 1)
@@ -31,14 +36,17 @@ end
 
 ## This kind of initialization is deterministic, but doesn't work particularily well
 ## We start with one Gaussian, and consecutively split.  
-function GMM(n::Int, x::Array{Float64,2};nIter::Int=10)
+function GMM(n::Int, x::Array{Float64,2};nIter::Int=10, nFinal::Int=nIter)
     log2n = int(log2(n))
     @assert 2^log2n == n
-    gmm=GMM1(x)
+    gmm=GMM(x)
     tll = avll(gmm,x)
+    println("1: avll = ", tll)
     for i=1:log2n
         gmm=split(gmm)
-        tll = vcat(tll, em!(gmm, x; logll=true, nIter=nIter))
+        avll = em!(gmm, x; logll=true, nIter=i==log2n ? nFinal : nIter)
+        println(i, ": avll = ", avll)
+        tll = vcat(tll, avll)
     end
     println(tll)
     gmm
@@ -119,13 +127,13 @@ function em!(gmm::GMM, x::Array{Float64,2}; nIter::Int = 10, varfloor::Float64=1
         ## var flooring
         tooSmall = any(gmm.Σ .< varfloor, 2)
         if (any(tooSmall))
-            println("Variances had tp be floored")
+            println("Variances had to be floored")
             ind = find(tooSmall)
             gmm.Σ[ind,:] = initc[ind,:]
         end
     end
     ll /= nx * d
-    gmm.hist = vcat(gmm.hist, History(@sprintf "EM with %f data points %d iterations avll %f" nx nIter ll[nIter]))
+    gmm.hist = vcat(gmm.hist, History(@sprintf "EM with %d data points %d iterations avll %f" nx nIter ll[nIter]))
     ll
 end
     
@@ -340,3 +348,4 @@ function test_GMM()
 #    GMM(N, data)
 end
 
+end
