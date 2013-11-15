@@ -8,7 +8,7 @@ module GMMs
 
 include("gmmtypes.jl")
 
-export GMM, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat
+export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat
 
 using Misc
 
@@ -91,7 +91,7 @@ end
 
 # This function runs the Expectation Maximization algorithm on the GMM, and returns
 # the log-likelihood history, per data frame per dimension
-function em!(gmm::GMM, x::Array{Float64,2}; nIter::Int = 10, varfloor::Float64=1e-3, logll=true) 
+function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Float64=1e-3, logll=true) 
     @assert size(x,2)==gmm.d
     MEM = 2*2<<30               # 2GB
     d = gmm.d                   # dim
@@ -139,7 +139,7 @@ end
     
 ## this function returns the contributions of the individual Gaussians to the LL
 ## ll_ij = log p(x_i | gauss_j)
-function llpg(gmm::GMM, x::Array{Float64,2})
+function llpg{T<:Real}(gmm::GMM, x::Array{T,2})
     (nx, d) = size(x)
     ng = gmm.n
     @assert d==gmm.d    
@@ -198,7 +198,7 @@ end
 ## stats(gmm, x) computes zero, first, and second order statistics of a feature 
 ## file aligned to the gmm.  The statistics are ordered (ng * d), as by the general 
 ## rule for dimension order in types.jl.  Note: these are _uncentered_ statistics. 
-function stats(gmm::GMM, x::Array{Float64,2}, order=2)
+function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order=2)
     ng = gmm.n
     (nx, d) = size(x)
     @assert d==gmm.d
@@ -230,7 +230,7 @@ function stats(gmm::GMM, x::Array{Float64,2}, order=2)
 end
 
 ## Same, but UBM centered stats
-function cstats(gmm::GMM, x::Array{Float64,2}, order=2)
+function cstats{T<:Real}(gmm::GMM, x::Array{T,2}, order=2)
     if order==1
         (N,F) = stats(gmm, x, order)
     else
@@ -247,7 +247,7 @@ function cstats(gmm::GMM, x::Array{Float64,2}, order=2)
 end
 ## You can also get centered stats in a Cstats structure directly by 
 ## using the constructor with a GMM argument
-Cstats(gmm::GMM, x::Array{Float64,2}) = Cstats(cstats(gmm, x, 1))
+Cstats{T<:Real}(gmm::GMM, x::Array{T,2}) = Cstats(cstats(gmm, x, 1))
 
 ## This function computes the `dotscoring' linear appoximation of a GMM/UBM log likelihood ratio
 ## of test data y using MAP adapted model for x.  
@@ -306,9 +306,9 @@ function savemat(file::String, gmm::GMM)
                }})
 end
                                                                                     
-function readmat(file, t::DataType) 
+function readmat{T}(file, ::Type{T})
     vars = matread(file)
-    if t==GMM
+    if T==GMM
         g = vars["gmm"]        
         n = int(g["ncentres"])
         d = int(g["nin"])
