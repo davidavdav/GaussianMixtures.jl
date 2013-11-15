@@ -1,0 +1,20 @@
+#!/usr/bin/env julia -F
+
+const dynrange = 30.0
+
+using HDF5
+using Feacalc
+
+if length(ARGS) < 1
+   error("Expected .wav file")
+end
+
+wavfile=ARGS[1]
+outfile=string(replace(wavfile, Regex("\.wav\$"), ""), ".fea")
+
+mfcc, data, fea = feacalc(wavfile)
+
+fd = h5open(outfile, "w")
+fd["mfcc"] = mfcc
+close(fd)
+
