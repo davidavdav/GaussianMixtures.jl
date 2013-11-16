@@ -63,7 +63,7 @@ end
     
 
 import Base.split
-## Split a gmm according to double the amount of gaussians
+## Split a gmm in order to to double the amount of gaussians
 function split(gmm::GMM; minweight=1e-5, covfactor=0.2)
     ## In this function i, j, and k all index Gaussians
     maxi = reverse(sortperm(gmm.w))
