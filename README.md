@@ -6,6 +6,6 @@ The project Elftal has a goal to produce a spoken language recogntion system.  W
 The goals is to write the bulk of the code in julia. 
 
 The code thus far is very limited (see fea/).  We have
- - some [signal processing](src/README.md)
+ - some [signal processing](fea/README.md)
  - some feature extraction
  - Gaussian Mixture Modeling (diagonal covariance)
