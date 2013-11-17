@@ -5,7 +5,7 @@ This julia type is more specific than Dahua Lin [MixtureModels](https://github.c
 
 At this moment, we have implemented only diagonal covariance GMMs.  
 
-Vector dimenesions
+Vector dimensions
 ------------------
 
 Some remarks on the dimension.  There are three main indexing variables:
