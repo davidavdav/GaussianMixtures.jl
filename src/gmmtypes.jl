@@ -36,7 +36,7 @@ type GMM
         new(n, d, kind, w, μ, Σ, hist)
     end
 end
-GMM(n,d) = GMM(n,d, :diag)
+GMM(n::Int,d::Int) = GMM(n,d, :diag)
 
 ## UBM-centered stats.  This structure currently is useful for dotscoring, so we've limited the
 ## order to 1.  Maybe we can make this more general allowing for uninitialized second order
