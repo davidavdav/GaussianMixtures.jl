@@ -64,7 +64,7 @@ end
 
 import Base.split
 ## Split a gmm in order to to double the amount of gaussians
-function split(gmm::GMM; minweight=1e-5, covfactor=0.2)
+function split(gmm::GMM; minweight::Real=1e-5, covfactor::Real=0.2)
     ## In this function i, j, and k all index Gaussians
     maxi = reverse(sortperm(gmm.w))
     offInd = find(gmm.w .< minweight)
@@ -91,7 +91,7 @@ end
 
 # This function runs the Expectation Maximization algorithm on the GMM, and returns
 # the log-likelihood history, per data frame per dimension
-function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Float64=1e-3, logll=true) 
+function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1e-3, logll=true) 
     @assert size(x,2)==gmm.d
     MEM = 2*2<<30               # 2GB
     d = gmm.d                   # dim
@@ -198,7 +198,7 @@ end
 ## stats(gmm, x) computes zero, first, and second order statistics of a feature 
 ## file aligned to the gmm.  The statistics are ordered (ng * d), as by the general 
 ## rule for dimension order in types.jl.  Note: these are _uncentered_ statistics. 
-function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order=2)
+function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     ng = gmm.n
     (nx, d) = size(x)
     @assert d==gmm.d
@@ -230,7 +230,7 @@ function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order=2)
 end
 
 ## Same, but UBM centered stats
-function cstats{T<:Real}(gmm::GMM, x::Array{T,2}, order=2)
+function cstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     if order==1
         (N,F) = stats(gmm, x, order)
     else
@@ -252,17 +252,17 @@ Cstats{T<:Real}(gmm::GMM, x::Array{T,2}) = Cstats(cstats(gmm, x, 1))
 ## This function computes the `dotscoring' linear appoximation of a GMM/UBM log likelihood ratio
 ## of test data y using MAP adapted model for x.  
 ## We can compute this with just the stats:
-function dotscore(x::Cstats, y::Cstats, r::Float64=1.) 
+function dotscore(x::Cstats, y::Cstats, r::Real=1.) 
     sum(broadcast(/, x.f, x.n + r) .* y.f)
 end
 ## or directly from the UBM and the data x and y
-dotscore(gmm::GMM, x::Array{Float64,2}, y::Array{Float64,2}, r::Float64=1.) =
+dotscore{T<:Real}(gmm::GMM, x::Array{T,2}, y::Array{T,2}, r::Real=1.) =
     dotscore(Cstats(gmm, x), Cstats(gmm, y), r)
 
 import Base.map
 
 ## Maximum A Posteriori adapt a gmm
-function map(gmm::GMM, x::Array{Float64,2}, r::Float64=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
+function map{T<:Real(gmm::GMM, x::Array{T,2}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
     (n, F, S) = stats(gmm, x)
     α = n ./ (n+r)
     g = GMM(gmm.n, gmm.d, gmm.kind)
