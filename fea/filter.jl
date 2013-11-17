@@ -9,7 +9,7 @@ export Filter, filter
 
 import Base.filter
 
-function filter(x::Vector, f::Filter) 
+function filter{T<:Real}(x::Vector{T}, f::Filter) 
     N = length(f.c)             # length of yhist
     M = length(f.d)-1           # length of xhist
     y = vcat(f.yhist, zero(x))  # N y history
@@ -30,9 +30,10 @@ function filter(x::Vector, f::Filter)
     f.yhist=y[end-N+1:]
     return(y[N+1:])
 end
-|(x::Vector, f::Filter) = filter(x, f)
+|{T<:Real}(x::Vector{T}, f::Filter) = filter(x, f)
 
 ## Array generalization, possibly in parallel
-filter(x::Array, f::Filter) = @parallel (hcat) for i=1:size(x,2) x[:,i] | copy(f) end
-|(x::Array, f::Filter) = filter(x, f)
+filter{T<:Real}(x::Array{T}, f::Filter) = @parallel (hcat) for i=1:size(x,2) x[:,i] | copy(f) end
+|{T<:Real}(x::Array{T}, f::Filter) = filter(x, f)
+
 ##end
