@@ -262,7 +262,7 @@ dotscore{T<:Real}(gmm::GMM, x::Array{T,2}, y::Array{T,2}, r::Real=1.) =
 import Base.map
 
 ## Maximum A Posteriori adapt a gmm
-function map{T<:Real(gmm::GMM, x::Array{T,2}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
+function map{T<:Real}(gmm::GMM, x::Array{T,2}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
     (n, F, S) = stats(gmm, x)
     α = n ./ (n+r)
     g = GMM(gmm.n, gmm.d, gmm.kind)
