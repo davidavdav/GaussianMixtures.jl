@@ -1,4 +1,5 @@
-## This should not be reloaded
+## filtertype.jl.  The type used in Filter.  
+## (c) 2013 David A. van Leeuwen
 
 type Filter
     a::Vector
