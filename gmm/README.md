@@ -30,8 +30,8 @@ type GMM
     d::Int                      # dimension of Gaussian
     kind::Symbol                # :diag or :full---we'll take 'diag' for now
     w::Vector{Float64}          # weights: n
-    Î¼::Array{Float64}		      # means: n x d
-    Î£::Array{Float64}          # covars n x d
+    μ::Array{Float64}           # means: n x d
+    Σ::Array{Float64}           # covars n x d
     hist::Array{History}        # history
 end
 ```
