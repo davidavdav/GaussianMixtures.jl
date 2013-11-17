@@ -25,7 +25,7 @@ function copy(gmm::GMM)
 end
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-function GMM(x::Array{Float64,2})
+function GMM{T<:Real}(x::Array{T,2})
     d=size(x, 2)
     gmm = GMM(1,d)
     gmm.μ = mean(x, 1)
@@ -36,7 +36,7 @@ end
 
 ## This kind of initialization is deterministic, but doesn't work particularily well
 ## We start with one Gaussian, and consecutively split.  
-function GMM(n::Int, x::Array{Float64,2};nIter::Int=10, nFinal::Int=nIter)
+function GMM{T<:Real}(n::Int, x::Array{T,2};nIter::Int=10, nFinal::Int=nIter)
     log2n = int(log2(n))
     @assert 2^log2n == n
     gmm=GMM(x)
@@ -51,10 +51,10 @@ function GMM(n::Int, x::Array{Float64,2};nIter::Int=10, nFinal::Int=nIter)
     println(tll)
     gmm
 end
-GMM(n::Int,x::Array{Float64,1};nIter::Int=10) = GMM(n, reshape(x, length(x), 1);  nIter=nIter)
+GMM{T<:Real}(n::Int,x::Vector{T};nIter::Int=10) = GMM(n, reshape(x, length(x), 1);  nIter=nIter)
 
 ## Average log-likelihood per data point and per dimension gor a given GMM and 
-function avll(gmm::GMM, x::Array{Float64,2})
+function avll{T<:Real}(gmm::GMM, x::Array{T,2})
     @assert gmm.d == size(x,2)
     llpfpg = llpg(gmm, x)
     llpf = log(exp(llpfpg) * gmm.w)
@@ -157,7 +157,7 @@ function llpg{T<:Real}(gmm::GMM, x::Array{T,2})
 end
 
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
-post = function(gmm, x)      # nx * ng
+function post{T}(gmm, x::Array{T,2})      # nx * ng
     (nx, d) = size(x)
     ng = gmm.n
     @assert d==gmm.d
