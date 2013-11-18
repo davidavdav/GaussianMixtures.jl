@@ -15,7 +15,7 @@ export powspec, audspec, fft2barkmx, fft2melmx, hz2bark, hz2mel, mel2hz, postaud
 using SignalProcessing
 
 # powspec tested against octave with simple vectors
-function powspec(x::Vector, sr=8000.0; wintime=0.025, steptime=0.01, dither=true)
+function powspec{T<:FloatingPoint}(x::Vector{T}, sr::FloatingPoint=8000.0; wintime=0.025, steptime=0.01, dither=true)
     nwin = iround(wintime*sr)
     nstep = iround(steptime*sr)
 
@@ -30,7 +30,7 @@ function powspec(x::Vector, sr=8000.0; wintime=0.025, steptime=0.01, dither=true
 end
 
 # audspec tested against octave with simple vectors for all fbtypes
-function audspec(x::Array, sr=16000.0; nfilts=iceil(hz2bark(sr/2)), fbtype="bark", 
+function audspec{T<:FloatingPoint}(x::Array{T}, sr::FloatingPoint=16000.0; nfilts=iceil(hz2bark(sr/2)), fbtype="bark", 
                  minfreq=0, maxfreq=sr/2, sumpower=true, bwidth=1.0)
     (nfreqs,nframes)=size(x)
     nfft = 2(nfreqs-1)
@@ -70,7 +70,7 @@ function fft2barkmx(nfft::Int, nfilts::Int; sr=8000.0, width=1.0, minfreq=0, max
     return wts
 end
 
-function hz2bark(f)
+function hz2bark(f::Real)
     return 6asinh(f/600)
 end
 
@@ -105,7 +105,7 @@ function fft2melmx(nfft::Int, nfilts::Int; sr=8000.0, width=1.0, minfreq=0.0, ma
     return wts
 end
 
-function hz2mel(f::Vector, htk=false)
+function hz2mel{T<:Real}(f::Vector{T}, htk=false)
     if htk
         return 2595 * log10(1+f/700)
     else
@@ -123,7 +123,7 @@ function hz2mel(f::Vector, htk=false)
 end
 hz2mel(f::Number, htk=false)  = hz2mel([f], htk)[1]
 
-function mel2hz(z, htk=false) 
+function mel2hz{T<:Real}(z::Array{T}, htk=false) 
     if htk
         f = 700*(10.^(z/2595)-1)
     else
@@ -140,7 +140,7 @@ function mel2hz(z, htk=false)
     return f
 end
 
-function postaud(x::Array, fmax::Number, fbtype="bark", broaden=false)
+function postaud{T<:FloatingPoint}(x::Array{T}, fmax::Real, fbtype="bark", broaden=false)
     (nbands,nframes) = size(x)
     nfpts = nbands+2broaden
     if fbtype=="bark"
@@ -171,7 +171,7 @@ function postaud(x::Array, fmax::Number, fbtype="bark", broaden=false)
     return z
 end
     
-function dolpc(x::Array, modelorder=8) 
+function dolpc{T<:FloatingPoint}(x::Array{T}, modelorder::Int=8) 
     (nbands, nframes) = size(x)
     r = real(ifft(vcat(x, x[[nbands-1:-1:2],:]), 1)[1:nbands,:])
     # Find LPC coeffs by durbin
@@ -180,7 +180,7 @@ function dolpc(x::Array, modelorder=8)
     y = broadcast(/, y, e)'
 end
 
-function lpc2cep(a::Array, ncep=0) 
+function lpc2cep{T<:FloatingPoint}(a::Array{T}, ncep::Int=0) 
     (nlpc, nc) = size(a)
     order = nlpc-1
     if ncep==0
@@ -202,7 +202,7 @@ function lpc2cep(a::Array, ncep=0)
     return c
 end
 
-function spec2cep(spec::Array, ncep::Int=13, dcttype::Int=2)
+function spec2cep{T<:FloatingPoint}(spec::Array{T}, ncep::Int=13, dcttype::Int=2)
     (nr, nc) = size(spec)
     dctm = zeros(typeof(spec[1]), ncep, nr)
     if 1 < dcttype < 4          # type 2,3
@@ -228,7 +228,7 @@ function spec2cep(spec::Array, ncep::Int=13, dcttype::Int=2)
     return dctm*log(spec)
 end
 
-function lifter(x::Array, lift::Number=0.6, invs=false)
+function lifter{T<:FloatingPoint}(x::Array{T}, lift::Real=0.6, invs=false)
     (ncep, nf) = size(x)
     if lift==0
         return x
