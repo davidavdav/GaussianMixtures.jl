@@ -1,14 +1,14 @@
 ## filtertype.jl.  The type used in Filter.  
 ## (c) 2013 David A. van Leeuwen
 
-type Filter
-    a::Vector
-    b::Vector
-    c::Vector
-    d::Vector
-    xhist::Vector
-    yhist::Vector
-    function Filter(a::Vector, b::Vector)
+type Filter{T<:Real}
+    a::Vector{T}
+    b::Vector{T}
+    c::Vector{T}
+    d::Vector{T}
+    xhist::Vector{T}
+    yhist::Vector{T}
+    function Filter(a::Vector{T}, b::Vector{T})
         xhist=zeros(length(b)-1)
         yhist=zeros(length(a)-1)
         c = reverse(a[2:])/a[1]
@@ -16,10 +16,17 @@ type Filter
         new(a, b, c, d, xhist, yhist)
     end
 end
-Filter(a::Number, b::Vector) = Filter([a], b)
-Filter(a::Vector, b::Number) = Filter(a, [b])
-Filter(b::Vector) = Filter([1.0], b)
+Filter{T<:Real}(a::Vector{T}, b::Vector{T}) = Filter{T}(a,b)
+Filter{T<:Real}(a::T, b::Vector{T}) = Filter{T}([a], b)
+Filter{T<:Real}(a::Vector{T}, b::T) = Filter{T}(a, [b])
+Filter{T<:Real}(a::T, b::T) = Filter{T}([a], [b])
+Filter{T<:Real}(b::Vector{T}) = Filter{T}([convert(T,1)], b)
+Filter{T<:Real}(b::T) = Filter([b])
 
 import Base.copy
-copy(f::Filter) = Filter(f.a, f.b)
+copy{T}(f::Filter{T}) = Filter{T}(f.a, f.b)
+
+import Base.convert
+convert{T<:Real}(::Type{Filter{T}}, f::Filter) = Filter{T}(convert(Vector{T},f.a), convert(Vector{T}, f.b))
+Filter{T<:Real}(::Type{T}, a, b) = convert(Filter{T}, Filter(a,b))
 
