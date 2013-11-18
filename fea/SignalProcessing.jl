@@ -34,7 +34,7 @@ end
 
 ## The spectogram is returned as nfreq * nframes array, so time is running right
 ## This is different from the conventions we use in Features
-function specgram(x::Vector, n::Int=256; sr=8000., window=hamming(n), overlap::Int=n/2)
+function specgram{T}(x::Vector{T}, n::Int=256; sr::Real=8000., window=hamming(n), overlap::Int=n/2)
     if typeof(window) == Int
         window = hanning(n)     # this is sort-of odd
     end
@@ -61,7 +61,7 @@ end
 ## Freely after octave's implementation, by Paul Kienzle <pkienzle@users.sf.net>
 ## untested
 ## only returns a, v
-function levinson(acf::Vector, p::Int)
+function levinson{T<:Real}(acf::Vector{T}, p::Int)
     if length(acf)<1
         ## error
     end
@@ -93,7 +93,8 @@ function levinson(acf::Vector, p::Int)
     end
     return (a,v)
 end
-function levinson(acf::Array, p::Int) 
+
+function levinson{T<:Real}(acf::Array{T}, p::Int) 
     (nr,nc) = size(acf)
     a = zeros(p+1, nc)
     v = zeros(p+1, nc)
@@ -106,7 +107,7 @@ end
 
 ## Freely after octave's implementation, ver 3.2.4, by  jwe && jh
 ## skipped sparse implementation
-function toeplitz(c::Vector, r::Vector=c)
+function toeplitz{T<:Real}(c::Vector{T}, r::Vector{T}=c)
     nc = length(r)
     nr = length(c)
     res = zeros(typeof(c[1]), nr, nc)
