@@ -46,14 +46,18 @@ function mfcc{T<:FloatingPoint}(x::Vector{T}, sr::FloatingPoint=16000.0; wintime
 end
 mfcc{T<:FloatingPoint}(x::Array{T}, sr::FloatingPoint=16000.0...) = @parallel (tuple) for i=1:size(x)[2] mfcc(x[:,i], sr...) end
 
-## default feature configurations, :rasta, :htk, :spkr_toolkit
+## default feature configurations, :rasta, :htk, :spkid_toolkit, :wbspeaker
 function mfcc{T<:FloatingPoint}(x::Vector{T}, sr::FloatingPoint, defaults::Symbol) 
     if defaults==:rasta
         mfcc(x, sr; lifterexp=0.6, sumpower=true, nbands=40, dcttype=2, fbtype="mel")
     elseif defaults==:spkid_toolkit
         mfcc(x, sr; lifterexp=0.6, sumpower=true, nbands=30, dcttype=2, fbtype="mel", minfreq=130., maxfreq=3900., numcep=20)
-    else
+    elseif defaults == :wbspeaker
+        mfcc(x, sr; lifterexp=0.6, sumpower=true, nbands=63, dcttype=2, fbtype="mel", minfreq=62.5, maxfreq=7937.5, numcep=20)
+    elseif defaults==:htk
         mfcc(x, sr)
+    else
+        error("Unknown set of defaults ", fefaults)
     end
 end
 
