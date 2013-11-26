@@ -2,7 +2,7 @@
 ## (c) 2013 David A. van Leeuwen
 
 ## This module also contains some rudimentary code for speaker
-## recpognition, perhaps this should move to another module.
+## recognition, perhaps this should move to another module.
 
 module GMMs
 
@@ -36,7 +36,7 @@ end
 
 ## This kind of initialization is deterministic, but doesn't work particularily well
 ## We start with one Gaussian, and consecutively split.  
-function GMM{T<:Real}(n::Int, x::Array{T,2};nIter::Int=10, nFinal::Int=nIter)
+function GMM{T<:Real}(n::Int, x::Array{T,2};nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
     log2n = int(log2(n))
     @assert 2^log2n == n
     gmm=GMM(x)
@@ -44,7 +44,7 @@ function GMM{T<:Real}(n::Int, x::Array{T,2};nIter::Int=10, nFinal::Int=nIter)
     println("1: avll = ", tll)
     for i=1:log2n
         gmm=split(gmm)
-        avll = em!(gmm, x; logll=true, nIter=i==log2n ? nFinal : nIter)
+        avll = em!(gmm, x; logll=true, nIter=i==log2n ? nFinal : nIter, fast=fast, logll=logll)
         println(i, ": avll = ", avll)
         tll = vcat(tll, avll)
     end
@@ -53,7 +53,7 @@ function GMM{T<:Real}(n::Int, x::Array{T,2};nIter::Int=10, nFinal::Int=nIter)
 end
 GMM{T<:Real}(n::Int,x::Vector{T};nIter::Int=10) = GMM(n, reshape(x, length(x), 1);  nIter=nIter)
 
-## Average log-likelihood per data point and per dimension gor a given GMM and 
+## Average log-likelihood per data point and per dimension for a given GMM 
 function avll{T<:Real}(gmm::GMM, x::Array{T,2})
     @assert gmm.d == size(x,2)
     llpfpg = llpg(gmm, x)
@@ -91,9 +91,9 @@ end
 
 # This function runs the Expectation Maximization algorithm on the GMM, and returns
 # the log-likelihood history, per data frame per dimension
-function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1e-3, logll=true) 
+function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true) 
     @assert size(x,2)==gmm.d
-    MEM = 2*2<<30               # 2GB
+    MEM = 2*(2<<30)             # 2GB
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
     initc = gmm.Σ
@@ -110,14 +110,24 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
             e=min(b+blocksize, nf)
             xx = x[b+1:e,:]
             nxx = e-b
-            (p,a) = post(gmm, xx) # nx * ng
-            denom += sum(p,1)'
-            sx += p' * xx
-            sxx += p' * xx.^2
-            b += nxx             # b=e
-            if (logll || i==nIter) 
-                ll[i] += sum(log(a*gmm.w))
+            if fast
+                (N, F, S, llpf) = stats(gmm, xx, 2, llpf=true)
+                denom += N
+                sx += F
+                sxx += S
+                if (logll || i==nIter) 
+                    ll[i] += sum(log(llpf))
+                end
+            else
+                (p,a) = post(gmm, xx) # nx * ng
+                denom += sum(p,1)'
+                sx += p' * xx
+                sxx += p' * xx.^2
+                if (logll || i==nIter) 
+                    ll[i] += sum(log(a*gmm.w))
+                end
             end
+            b += nxx             # b=e
         end
         nx = b
         ## M-step
@@ -191,14 +201,15 @@ end
     
 ## This function is admittedly hairy: in Octave this is much more efficient than a 
 ## straightforward calculation.  I don't know if this holds for Julia.  We'd have to re-implement 
-## using loops and less memoty. 
+## using loops and less memory.  I've done this now in several ways, it seems that the matrix 
+## implementation is always much faster. 
  
 ## The shifting in dimensions (for Gaussian index k) is a nightmare.  
 
 ## stats(gmm, x) computes zero, first, and second order statistics of a feature 
 ## file aligned to the gmm.  The statistics are ordered (ng * d), as by the general 
 ## rule for dimension order in types.jl.  Note: these are _uncentered_ statistics. 
-function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
+function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2; llpf=false)
     ng = gmm.n
     (nx, d) = size(x)
     @assert d==gmm.d
@@ -211,21 +222,29 @@ function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     xx = x.^2                           # nx * d
     pxx = xx * prec'                    # nx * ng
     mpx = x * mp'                       # nx * ng
-    L = broadcast(*, a', exp(mpx-pxx/2)) # nx * ng
+    L = broadcast(*, a', exp(mpx-pxx/2)) # nx * ng, Likelihood per frame per Gaussian
     pxx=mpx=0                   # save memory
     
-    denom=sum(L,2)                        # nx * 1
-    γ = broadcast(/, L, denom + (denom==0))' # ng * nx
+    denom=sum(L,2)                        # nx * 1, Likelihood per frame
+    γ = broadcast(/, L, denom + (denom==0))' # ng * nx, posterior per frame per gaussian
     ## zeroth order
     N = reshape(sum(γ, 2), ng)               # ng * 1
     ## first order
     F =  γ * x                  # ng * d
     if order==1
-        return(N, F)
+        if llpf
+            return (N, F, denom)
+        else
+            return(N, F)
+        end
     else
         ## second order
         S = γ * xx                  # ng * d
-        return (N, F, S)
+        if llpf
+            return (N, F, S, denom)
+        else
+            return (N, F, S)
+        end
     end
 end
 
