@@ -201,7 +201,8 @@ end
     
 ## This function is admittedly hairy: in Octave this is much more efficient than a 
 ## straightforward calculation.  I don't know if this holds for Julia.  We'd have to re-implement 
-## using loops and less memoty. 
+## using loops and less memory.  I've done this now in several ways, it seems that the matrix 
+## implementation is always much faster. 
  
 ## The shifting in dimensions (for Gaussian index k) is a nightmare.  
 
