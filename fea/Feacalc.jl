@@ -71,6 +71,8 @@ end
 function feacalc(wavfile::String, application::Symbol)
     if (application==:speaker)
         feacalc(wavfile; defaults=:spkid_toolkit)
+    elseif application==:wbspeaker
+        feacalc(wavfile; defaults=:wbspeaker)
     elseif (application==:language)
         feacalc(wavfile; defaults=:rasta, warp=299, augtype=:sdc)
     elseif (application==:diarization)
