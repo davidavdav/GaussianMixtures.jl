@@ -30,7 +30,7 @@ function copy(gmm::GMM)
     x.w = copy(gmm.w)
     x.μ = copy(gmm.μ)
     x.Σ = copy(gmm.Σ)
-    x.hist = vcat(gmm.hist, History("copy"))
+    addhist!(x,"copy")
     x
 end
 
@@ -40,7 +40,7 @@ function GMM{T<:Real}(x::Array{T,2})
     gmm = GMM(1,d)
     gmm.μ = mean(x, 1)
     gmm.Σ = var(x, 1)
-    gmm.hist = vcat(gmm.hist, History(@sprintf "Initlialized single Gaussian with %d data points" size(x,1)))
+    addhist!(gmm, @sprintf "Initlialized single Gaussian with %d data points" size(x,1))
     gmm
 end
 
@@ -176,7 +176,7 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
         end
     end
     ll /= nx * d
-    gmm.hist = vcat(gmm.hist, History(@sprintf "EM with %d data points %d iterations avll %f" nx nIter ll[nIter]))
+    addhist!(gmm,@sprintf "EM with %d data points %d iterations avll %f" nx nIter ll[nIter])
     ll
 end
     
@@ -334,7 +334,7 @@ function map{T<:Real}(gmm::GMM, x::Array{T,2}, r::Real=16.; means::Bool=true, we
     else
         g.Σ = gmm.Σ
     end
-    g.hist = vcat(gmm.hist, History(@sprintf "MAP adapted with %d data points relevance %3.1f %s %s %s" nrow(x) r means ? "means" : ""  weights ? "weights" : "" covars ? "covars" : ""))
+    addhist!(g,@sprintf "MAP adapted with %d data points relevance %3.1f %s %s %s" nrow(x) r means ? "means" : ""  weights ? "weights" : "" covars ? "covars" : "")
     return(g)
 end
 
@@ -344,7 +344,7 @@ using MAT
 
 ## for compatibility with good-old Netlab's GMM
 function savemat(file::String, gmm::GMM) 
-    gmm.hist = vcat(gmm.hist, History(string("GMM written to file ", file)))
+    addhist!(gmm,string("GMM written to file ", file))
     matwrite(file, 
              { "gmm" =>         # the default name
               { "ncentres" => gmm.n,
