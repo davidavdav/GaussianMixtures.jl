@@ -6,13 +6,23 @@
 
 module GMMs
 
+## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
+ccall(:jl_zero_subnormals, Bool, (Bool,), true)
+
 include("gmmtypes.jl")
 
-export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat
+export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams
+
+nparams(GMM) = sum(map(length, (GMM.w, GMM.μ, GMM.Σ)))
 
 using Misc
+using Clustering
 
 import Base.copy
+
+function addhist!(gmm::GMM, s::String) 
+    gmm.hist = vcat(gmm.hist, History(s))
+end
 
 ## copy a GMM, deep-copying all internal information. 
 function copy(gmm::GMM)
@@ -34,14 +44,37 @@ function GMM{T<:Real}(x::Array{T,2})
     gmm
 end
 
-## This kind of initialization is deterministic, but doesn't work particularily well
+function GMM{T<:Real}(n::Int, x::Array{T,2}, method::Symbol=:kmeans; nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+    if method==:split
+        GMM2(n, x, nIter=nIter, nFinal=nFinal, fast=fast, logll=logll)
+    elseif method==:kmeans
+        GMMk(n, x, nInit=nInit, nIter=nIter)
+    else
+        error("Unknown method ", method)
+    end
+end
+
+## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
+function GMMk{T<:Real}(n::Int, x::Array{T,2}; nInit::Int=50, nIter::Int=10, logll=true)
+    gmm = GMM(n, ncol(x))
+    km = kmeans(convert(Array{Float64},x'), n, max_iter=nInit, display = logll ? :iter : :none)
+    gmm.μ = km.centers'
+    gmm.Σ = convert(Array{Float64,2},vcat(map(i -> var(x[km.assignments.==i,:],1), 1:n)...))
+    gmm.w = km.counts ./ sum(km.counts)
+    addhist!(gmm, string("K-means with ", nrow(x), " data points using ", km.iterations, " iteration"))
+    em!(gmm, x; nIter=nIter, logll=logll)
+    gmm
+end    
+
+## Train a GMM by consecutively splitting all means.  n most be a power of 2
+## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.  
-function GMM{T<:Real}(n::Int, x::Array{T,2};nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+function GMM2{T<:Real}(n::Int, x::Array{T,2};nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
     log2n = int(log2(n))
     @assert 2^log2n == n
     gmm=GMM(x)
     tll = avll(gmm,x)
-    println("1: avll = ", tll)
+    println("0: avll = ", tll)
     for i=1:log2n
         gmm=split(gmm)
         avll = em!(gmm, x; logll=true, nIter=i==log2n ? nFinal : nIter, fast=fast, logll=logll)
