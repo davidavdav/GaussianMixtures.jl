@@ -12,11 +12,12 @@ Some remarks on the dimension.  There are three main indexing variables:
  - The gaussian index 
  - The data point
  - The feature dimension
-Often data is stores in 2D arrays, and computations can be done efficiently in 
-matrix multiplications.  For this it is nice to have the data in standard row,column order
-however, we can't have these consistently over all three indexes. 
 
-My approach is do have:
+Often data is stored in 2D slices, and computations can be done efficiently as 
+matrix multiplications.  For this it is nice to have the data in standard row,column order
+however, we can't have these consistently over all three indices. 
+
+My approach is to have:
  - The data index (`i`) always be a row-index
  - The feature dimenssion index (`k`) always to be a column index
  - The Gaussian index (`j`) to be mixed, depending on how it is used
@@ -52,12 +53,12 @@ Create a GMM with 1 mixture, i.e., a multivaviate Gaussian, and initialize with 
 ```julia
 GMM(x::Array, n::Int; nIter=10, nFinal=nIter)
 ```
-Create a GMM with `n` mixtures (diagonal covariance multivariate Gaussians), by initializing with the data `x` and subsequently splitting the Gaussians and retaining using the EM algorithm until `n` Gaussians are obtained.  `n` mus t be a power of 2.  `nIter` is the number of iterations in the EM algorithm, and `nFinal` the number of iterations in the final step. 
+Create a GMM with `n` mixtures (diagonal covariance multivariate Gaussians), by initializing with the data `x` and subsequently splitting the Gaussians and retaining using the EM algorithm until `n` Gaussians are obtained.  `n` must be a power of 2.  `nIter` is the number of iterations in the EM algorithm, and `nFinal` the number of iterations in the final step. 
 
 ```julia
 split(gmm::GMM; minweight=1e-5, covfactor=0.2)
 ```
-Double the number of Gaussians by splitting each Gaussian in two Gaussians.  `minweight` is used for pruning Gaussians with too littel weight, these are replaced by an extra split of the Gaussian with the highest weight.  `covfactor` controls how far apart the means of the split Gaussian are positioned. 
+Double the number of Gaussians by splitting each Gaussian into two Gaussians.  `minweight` is used for pruning Gaussians with too little weight, these are replaced by an extra split of the Gaussian with the highest weight.  `covfactor` controls how far apart the means of the split Gaussian are positioned. 
 
 ```julia
 em!(gmm::GMM, x::Array; nIter::Int = 10, varfloor::Float64=1e-3, logll=true)
@@ -77,12 +78,12 @@ Computes the averave log likelihood of the GMM given all data points, normalized
 ```julia 
 post(gmm::GMM, x::Array)
 ```
-Returns p\_ij = p(j | gmm, x\_i), the posterior probability that data point `x_i` belongs to Gaussian `j`.  
+Returns p\_ij = p(j | gmm, x\_i), the posterior probability that data point `x_i` 'belongs' to Gaussian `j`.  
 
-```julis
+```julia
 history(gmm::GMM)
 ```
-Shows the history of the GMM, i.e., how it was initialized, split, how the paramteres were trained, etc.  A history item contains a time of completion and a event string. 
+Shows the history of the GMM, i.e., how it was initialized, split, how the paramteres were trained, etc.  A history item contains a time of completion and an event string. 
 
 Speaker recognition methods
 ----------------------------
@@ -106,7 +107,7 @@ This constructor return a `Cstats` object for centered stats of order 1.  The ty
 ```julia
 type Cstats
     n::Vector{Float64}           # zero-order stats, ng
-    f::Array{Float64,2}          # second-order stats, ng * d
+    f::Array{Float64,2}          # first-order stats, ng * d
 end
 ```
 The Cstats type can be used for i-vector extraction (not implemented yet), MAP adaptation and a simple but elegant dotscoring speaker recognition system. 
@@ -114,7 +115,7 @@ The Cstats type can be used for i-vector extraction (not implemented yet), MAP a
 ```julia
 dotscore(x::Cstats, y::Cstats, r::Float64=1.) 
 ```
-Computes the dot-scoring apporiximation to the GMM/UBM likelihood ratio for a GMM MAP adapted from the UBM (means only) using the data from `x` and a relevance factor of `r`, and test data from `y`. 
+Computes the dot-scoring apporiximation to the GMM/UBM log likelihood ratio for a GMM MAP adapted from the UBM (means only) using the data from `x` and a relevance factor of `r`, and test data from `y`. 
 
 ```julia
 map(gmm::GMM, x::Array, r::Float64=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
