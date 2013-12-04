@@ -15,10 +15,13 @@ export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, 
 
 nparams(GMM) = sum(map(length, (GMM.w, GMM.μ, GMM.Σ)))
 
-using Misc
 using Clustering
 
 import Base.copy
+
+# call me old-fashioned
+nrow(x) = size(x,1)
+ncol(x) = size(x,2)
 
 function addhist!(gmm::GMM, s::String) 
     gmm.hist = vcat(gmm.hist, History(s))
