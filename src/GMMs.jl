@@ -11,9 +11,12 @@ ccall(:jl_zero_subnormals, Bool, (Bool,), true)
 
 include("gmmtypes.jl")
 
-export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams
+export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams, means, covars, weights
 
-nparams(GMM) = sum(map(length, (GMM.w, GMM.μ, GMM.Σ)))
+nparams(gmm::GMM) = sum(map(length, (gmm.w, gmm.μ, gmm.Σ)))
+weights(gmm::GMM) = gmm.weights
+means(gmm::GMM) = gmm.μ
+covars(gmm.GMM) = gmm.Σ
 
 using Clustering
 
