@@ -129,11 +129,11 @@ end
 # the log-likelihood history, per data frame per dimension
 function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true) 
     @assert size(x,2)==gmm.d
-    MEM = 2*(2<<30)             # 2GB
+    MEM = .1*(2<<30)             # 2GB
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
     initc = gmm.Σ
-    blocksize = floor(MEM/((3+3ng)sizeof(Float64)))
+    blocksize = floor(MEM/((3+3ng*d)sizeof(Float64)))
     nf = size(x, 1)             # n frames
     ll = zeros(nIter)
     nx = 0
