@@ -16,7 +16,7 @@ export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, 
 nparams(gmm::GMM) = sum(map(length, (gmm.w, gmm.μ, gmm.Σ)))
 weights(gmm::GMM) = gmm.weights
 means(gmm::GMM) = gmm.μ
-covars(gmm.GMM) = gmm.Σ
+covars(gmm::GMM) = gmm.Σ
 
 using Clustering
 
@@ -132,11 +132,11 @@ end
 # the log-likelihood history, per data frame per dimension
 function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true) 
     @assert size(x,2)==gmm.d
-    MEM = 2*(2<<30)             # 2GB
+    MEM = 0.1*(2<<30)           # 100MB
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
     initc = gmm.Σ
-    blocksize = floor(MEM/((3+3ng)sizeof(Float64)))
+    blocksize = floor(MEM/((3+3ng)sizeof(Float64))) # 3 instances of nx*ng
     nf = size(x, 1)             # n frames
     ll = zeros(nIter)
     nx = 0
@@ -176,8 +176,8 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
         ## var flooring
         tooSmall = any(gmm.Σ .< varfloor, 2)
         if (any(tooSmall))
-            println("Variances had to be floored")
             ind = find(tooSmall)
+            println("Variances had to be floored ", join(ind, " "))
             gmm.Σ[ind,:] = initc[ind,:]
         end
     end
@@ -254,15 +254,15 @@ function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2; llpf=false)
     @assert d==gmm.d
     prec = 1./gmm.Σ             # ng * d
     mp = gmm.μ .* prec              # mean*precision, ng * d
-    sm2p = sum(mp .* gmm.μ, 2)      # sum over d mean^2*precision, ng * 1
-    a = gmm.w ./ (((2π)^(d/2)) * sqrt(prod(gmm.Σ,2))) .* exp(-sm2p/2) # ng * 1
-    sm2p=0                      # save memory
+    ## note that we add exp(-sm2p/2) later to pxx for numerical stability
+    a = gmm.w ./ (((2π)^(d/2)) * sqrt(prod(gmm.Σ,2))) # ng * 1
     
+    sm2p = sum(mp .* gmm.μ, 2)      # sum over d mean^2*precision, ng * 1
     xx = x.^2                           # nx * d
-    pxx = xx * prec'                    # nx * ng
+    pxx = broadcast(+, sm2p', xx * prec') # nx * ng
     mpx = x * mp'                       # nx * ng
-    L = broadcast(*, a', exp(mpx-pxx/2)) # nx * ng, Likelihood per frame per Gaussian
-    pxx=mpx=0                   # save memory
+    L = broadcast(*, a', exp(mpx-0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
+    sm2p=pxx=mpx=0                   # save memory
     
     denom=sum(L,2)                        # nx * 1, Likelihood per frame
     γ = broadcast(/, L, denom + (denom==0))' # ng * nx, posterior per frame per gaussian
