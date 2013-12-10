@@ -11,7 +11,13 @@ ccall(:jl_zero_subnormals, Bool, (Bool,), true)
 
 include("gmmtypes.jl")
 
-export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams, means, covars, weights
+export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams, means, covars, weights, setmem
+
+mem=2.                          # Gig
+
+function setmem(m::Float64) 
+    mem=m
+end
 
 nparams(gmm::GMM) = sum(map(length, (gmm.w, gmm.μ, gmm.Σ)))
 weights(gmm::GMM) = gmm.weights
@@ -130,9 +136,9 @@ end
 
 # This function runs the Expectation Maximization algorithm on the GMM, and returns
 # the log-likelihood history, per data frame per dimension
-function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true) 
+function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true)
     @assert size(x,2)==gmm.d
-    MEM = 0.1*(2<<30)           # 100MB
+    MEM = mem*(2<<30)           # now a parameter
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
     initc = gmm.Σ
@@ -252,9 +258,26 @@ end
 ## stats(gmm, x) computes zero, first, and second order statistics of a feature 
 ## file aligned to the gmm.  The statistics are ordered (ng * d), as by the general 
 ## rule for dimension order in types.jl.  Note: these are _uncentered_ statistics. 
-function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2; llhpf=false)
+function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2; parallel=true, llhpf=false)
     ng = gmm.n
     (nx, d) = size(x)
+    np = min(nx, nprocs())
+    if parallel && np>1
+        l = nx/(np-1)     # chop array into smaller pieces xx
+        xx = {x[round(i*l+1):round((i+1)l),:] for i=0:np-2}
+        r = pmap(x->stats(gmm, x, order, parallel=false, llhpf=llhpf), xx)
+        ## reduce is less easy
+        res = {r[1]...}           # first stats tuple, as array
+        for i=2:length(r)
+            for j = 1:order+1
+                res[j] += r[i][j]
+            end
+            if llhpf
+                res[order+2] = vcat(res[order+2], r[i][order+2])
+            end
+        end
+        return tuple(res...)
+    end
     @assert d==gmm.d
     prec = 1./gmm.Σ             # ng * d
     mp = gmm.μ .* prec              # mean*precision, ng * d
