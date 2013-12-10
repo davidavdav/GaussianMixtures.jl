@@ -3,7 +3,7 @@
 
 ## This module also contains some rudimentary code for speaker
 ## recognition, perhaps this should move to another module.
-
+`
 module GMMs
 
 ## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
@@ -143,23 +143,23 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
     for i=1:nIter
         ## E-step
         b = 0                  # pointer to start
-        denom = zeros(ng)
+        sn = zeros(ng)
         sx = sxx = zeros(ng,d)
         while (b < nf) 
             e=min(b+blocksize, nf)
             xx = x[b+1:e,:]
             nxx = e-b
             if fast
-                (N, F, S, llpf) = stats(gmm, xx, 2, llpf=true)
-                denom += N
+                (N, F, S, llhpf) = stats(gmm, xx, 2, llhpf=true)
+                sn += N
                 sx += F
                 sxx += S
                 if (logll || i==nIter) 
-                    ll[i] += sum(log(llpf))
+                    ll[i] += sum(log(llhpf))
                 end
             else
                 (p,a) = post(gmm, xx) # nx * ng
-                denom += sum(p,1)'
+                sn += sum(p,1)'
                 sx += p' * xx
                 sxx += p' * xx.^2
                 if (logll || i==nIter) 
@@ -170,9 +170,9 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
         end
         nx = b
         ## M-step
-        gmm.w = denom[:]/nx
-        gmm.μ = broadcast(/, sx, denom)
-        gmm.Σ = broadcast(/, sxx, denom) - gmm.μ.^2
+        gmm.w = sn[:]/nx
+        gmm.μ = broadcast(/, sx, sn)
+        gmm.Σ = broadcast(/, sxx, sn) - gmm.μ.^2
         ## var flooring
         tooSmall = any(gmm.Σ .< varfloor, 2)
         if (any(tooSmall))
@@ -248,7 +248,7 @@ end
 ## stats(gmm, x) computes zero, first, and second order statistics of a feature 
 ## file aligned to the gmm.  The statistics are ordered (ng * d), as by the general 
 ## rule for dimension order in types.jl.  Note: these are _uncentered_ statistics. 
-function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2; llpf=false)
+function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2; llhpf=false)
     ng = gmm.n
     (nx, d) = size(x)
     @assert d==gmm.d
@@ -264,23 +264,23 @@ function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2; llpf=false)
     L = broadcast(*, a', exp(mpx-0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
     sm2p=pxx=mpx=0                   # save memory
     
-    denom=sum(L,2)                        # nx * 1, Likelihood per frame
-    γ = broadcast(/, L, denom + (denom==0))' # ng * nx, posterior per frame per gaussian
+    lpf=sum(L,2)                        # nx * 1, Likelihood per frame
+    γ = broadcast(/, L, lpf + (lpf==0))' # ng * nx, posterior per frame per gaussian
     ## zeroth order
     N = reshape(sum(γ, 2), ng)               # ng * 1
     ## first order
     F =  γ * x                  # ng * d
     if order==1
-        if llpf
-            return (N, F, denom)
+        if llhpf
+            return (N, F, lpf)
         else
             return(N, F)
         end
     else
         ## second order
         S = γ * xx                  # ng * d
-        if llpf
-            return (N, F, S, denom)
+        if llhpf
+            return (N, F, S, lpf)
         else
             return (N, F, S)
         end
