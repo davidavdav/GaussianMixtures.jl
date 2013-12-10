@@ -3,7 +3,7 @@
 
 ## This module also contains some rudimentary code for speaker
 ## recognition, perhaps this should move to another module.
-`
+
 module GMMs
 
 ## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
@@ -46,7 +46,7 @@ function GMM{T<:Real}(x::Array{T,2})
     gmm = GMM(1,d)
     gmm.μ = mean(x, 1)
     gmm.Σ = var(x, 1)
-    addhist!(gmm, @sprintf "Initlialized single Gaussian with %d data points" size(x,1))
+    addhist!(gmm, @sprintf("Initlialized single Gaussian with %d data points",size(x,1)))
     gmm
 end
 
@@ -67,7 +67,7 @@ function GMMk{T<:Real}(n::Int, x::Array{T,2}; nInit::Int=50, nIter::Int=10, logl
     gmm.μ = km.centers'
     gmm.Σ = convert(Array{Float64,2},vcat(map(i -> var(x[km.assignments.==i,:],1), 1:n)...))
     gmm.w = km.counts ./ sum(km.counts)
-    addhist!(gmm, string("K-means with ", nrow(x), " data points using ", km.iterations, " iteration"))
+    addhist!(gmm, string("K-means with ", nrow(x), " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",nrow(x)/nparams(gmm))))
     em!(gmm, x; nIter=nIter, logll=logll)
     gmm
 end    
@@ -124,7 +124,7 @@ function split(gmm::GMM; minweight::Real=1e-5, covfactor::Real=0.2)
             new.Σ[k,:] = gmm.Σ[i,:]
         end
     end
-    new.hist = vcat(gmm.hist, History(@sprintf "split to %d Gaussians" new.n))
+    new.hist = vcat(gmm.hist, History(@sprintf("split to %d Gaussians",new.n)))
     new
 end
 
@@ -182,7 +182,7 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
         end
     end
     ll /= nx * d
-    addhist!(gmm,@sprintf "EM with %d data points %d iterations avll %f" nx nIter ll[nIter])
+    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,ll[nIter],nrow(x)/nparams(gmm)))
     ll
 end
     
@@ -221,7 +221,11 @@ end
 function history(gmm::GMM) 
     t0 = gmm.hist[1].t
     for h=gmm.hist
-        print(@sprintf "%6.3f\t%s\n" h.t-t0 h.s)
+        s = split(h.s, "\n")
+        print(@sprintf("%6.3f\t%s\n", h.t-t0, s[1]))
+        for i=2:length(s) 
+            print(@sprintf("%6s\t%s\n", " ", s[i]))
+        end
     end
 end
 
