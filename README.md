@@ -3,7 +3,9 @@ Gaussian Mixture Models (GMMs)
 
 This julia type is more specific than Dahua Lin's [MixtureModels](https://github.com/lindahua/MixtureModels.jl), in that it deals only with normal (multivariate) distributions (a.k.a Gaussians), but it does so more efficiently. 
 
-At this moment, we have implemented only diagonal covariance GMMs.  
+At this moment, we have implemented only diagonal covariance GMMs. 
+
+In training the parameters of a GMM using the Expectation Maximization algorithms the inner loop (computing the Baum-Welch statistics) can be carried out efficiently using Julia's standard parallelization infrastructure, e.g., using SGE. 
 
 Vector dimensions
 ------------------
@@ -51,9 +53,9 @@ GMM(x::Array)
 Create a GMM with 1 mixture, i.e., a multivaviate Gaussian, and initialize with mean an variance of the data in `x`.  The data in `x` must be a `nx` x `d` data array, where `nx` is the number of data points. 
 
 ```julia
-GMM(x::Array, n::Int; nIter=10, nFinal=nIter)
+GMM(x::Array, n::Int, method=:kmeans; nInit=50, nIter=10, nFinal=nIter)
 ```
-Create a GMM with `n` mixtures (diagonal covariance multivariate Gaussians), by initializing with the data `x` and subsequently splitting the Gaussians and retaining using the EM algorithm until `n` Gaussians are obtained.  `n` must be a power of 2.  `nIter` is the number of iterations in the EM algorithm, and `nFinal` the number of iterations in the final step. 
+Create a GMM with `n` mixtures (diagonal covariance multivariate Gaussians).  There are two ways of getting to `n` Gaussians: `method=:kmeans` uses K-means clustering from the Clustering package to initialize with `n` centers.  `nInit` is the number of iterations for the K-means algorithm, `nIter` the number of iterations in EM.  The method `:split` works by initializing a single Gaussian with the data `x` and subsequently splitting the Gaussians and retaining using the EM algorithm until `n` Gaussians are obtained.  `n` must be a power of 2 for `method=:split`.  `nIter` is the number of iterations in the EM algorithm, and `nFinal` the number of iterations in the final step. 
 
 ```julia
 split(gmm::GMM; minweight=1e-5, covfactor=0.2)
@@ -63,7 +65,7 @@ Double the number of Gaussians by splitting each Gaussian into two Gaussians.  `
 ```julia
 em!(gmm::GMM, x::Array; nIter::Int = 10, varfloor::Float64=1e-3, logll=true)
 ```
-Update the parameters of the GMM using the Expectation Maximization (EM) algoritm `nIter` times, optimizing the log-likelihood given the data `x`.  
+Update the parameters of the GMM using the Expectation Maximization (EM) algoritm `nIter` times, optimizing the log-likelihood given the data `x`.  If `logll==true`, the average log likelihood is collected after every iteration.  
 
 ```julia
 llpg(gmm::GMM, x::Array)
@@ -85,13 +87,25 @@ history(gmm::GMM)
 ```
 Shows the history of the GMM, i.e., how it was initialized, split, how the paramteres were trained, etc.  A history item contains a time of completion and an event string. 
 
+Paralellization
+---------------
+
+The method `stats`, which is at the heart of EM, can detect multiple processors available (through `nprocs()`).  If there is more than 1 processor available, the data is split into chunks, each chunk is mapped to a separate processor, and afterwards an aggregating operation collects all the statistcs from the sub-processes.  In an SGE environment you can obtain more cores (in the example below 20) by issuing
+
+```julia
+using ClusterManagers
+ClusterManagers.addprocs_sge(20)                                        
+@everywhere using GMMs                                                  
+```
+
+
 Speaker recognition methods
 ----------------------------
 
 The following methods are used in speaker- and language recogntion, they may eventually move to another module. 
 
 ```julia
-stats(gmm::GMM, x::Array, order=2)
+stats(gmm::GMM, x::Array, order=2; parallel=true, llhpf=false)
 ```
 Computes the Baum-Welch statistics up to order `order` for the alignment of the data `x` to the Universal Background GMM `gmm`.  The 1st and 2nd order statistics are retuned as an `n` x `d` matrix, so for obtaining a supervector flattening needs to be carried out in the rigt direction.  Theses statistics are _uncentered_. 
 
