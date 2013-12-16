@@ -16,11 +16,11 @@ export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, 
 mem=2.                          # Gig
 
 function setmem(m::Float64) 
-    mem=m
+    global mem=m
 end
 
 nparams(gmm::GMM) = sum(map(length, (gmm.w, gmm.μ, gmm.Σ)))
-weights(gmm::GMM) = gmm.weights
+weights(gmm::GMM) = gmm.w
 means(gmm::GMM) = gmm.μ
 covars(gmm::GMM) = gmm.Σ
 
@@ -71,7 +71,15 @@ function GMMk{T<:Real}(n::Int, x::Array{T,2}; nInit::Int=50, nIter::Int=10, logl
     gmm = GMM(n, ncol(x))
     km = kmeans(convert(Array{Float64},x'), n, max_iter=nInit, display = logll ? :iter : :none)
     gmm.μ = km.centers'
-    gmm.Σ = convert(Array{Float64,2},vcat(map(i -> var(x[km.assignments.==i,:],1), 1:n)...))
+    ## helper that deals with centers with singleton datapoints. 
+    function variance(i::Int)
+        sel = km.assignments .== i
+        if length(i)<2
+            return ones(1,ncol(x))
+        end
+        return var(x[sel,:],1)
+    end
+    gmm.Σ = convert(Array{Float64,2},vcat(map(variance, 1:n)...))
     gmm.w = km.counts ./ sum(km.counts)
     addhist!(gmm, string("K-means with ", nrow(x), " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",nrow(x)/nparams(gmm))))
     em!(gmm, x; nIter=nIter, logll=logll)
@@ -136,6 +144,8 @@ end
 
 # This function runs the Expectation Maximization algorithm on the GMM, and returns
 # the log-likelihood history, per data frame per dimension
+## Note: 0 iterations is allowed, this just computes the average log likelihood
+## of the data and stores this in the history.  
 function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true)
     @assert size(x,2)==gmm.d
     MEM = mem*(2<<30)           # now a parameter
@@ -187,8 +197,14 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
             gmm.Σ[ind,:] = initc[ind,:]
         end
     end
-    ll /= nx * d
-    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,ll[nIter],nrow(x)/nparams(gmm)))
+    if nIter>0
+        ll /= nx * d
+        finalll = ll[nIter]
+    else
+        finalll = avll(gmm, x)
+        nx = nrow(x)
+    end
+    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,finalll,nrow(x)/nparams(gmm)))
     ll
 end
     
@@ -248,16 +264,18 @@ function show(io::IO, gmm::GMM)
     end
 end
     
-## This function is admittedly hairy: in Octave this is much more efficient than a 
-## straightforward calculation.  I don't know if this holds for Julia.  We'd have to re-implement 
-## using loops and less memory.  I've done this now in several ways, it seems that the matrix 
-## implementation is always much faster. 
+## This function is admittedly hairy: in Octave this is much more
+## efficient than a straightforward calculation.  I don't know if this
+## holds for Julia.  We'd have to re-implement using loops and less
+## memory.  I've done this now in several ways, it seems that the
+## matrix implementation is always much faster.
  
 ## The shifting in dimensions (for Gaussian index k) is a nightmare.  
 
-## stats(gmm, x) computes zero, first, and second order statistics of a feature 
-## file aligned to the gmm.  The statistics are ordered (ng * d), as by the general 
-## rule for dimension order in types.jl.  Note: these are _uncentered_ statistics. 
+## stats(gmm, x) computes zero, first, and second order statistics of
+## a feature file aligned to the gmm.  The statistics are ordered (ng
+## * d), as by the general rule for dimension order in types.jl.
+## Note: these are _uncentered_ statistics.
 function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2; parallel=true, llhpf=false)
     ng = gmm.n
     (nx, d) = size(x)
