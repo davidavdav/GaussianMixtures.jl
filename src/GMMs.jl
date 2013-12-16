@@ -11,7 +11,13 @@ ccall(:jl_zero_subnormals, Bool, (Bool,), true)
 
 include("gmmtypes.jl")
 
-export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams, means, covars, weights
+export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams, means, covars, weights, setmem
+
+mem=2.                          # Gig
+
+function setmem(m::Float64) 
+    mem=m
+end
 
 nparams(gmm::GMM) = sum(map(length, (gmm.w, gmm.μ, gmm.Σ)))
 weights(gmm::GMM) = gmm.weights
@@ -46,7 +52,7 @@ function GMM{T<:Real}(x::Array{T,2})
     gmm = GMM(1,d)
     gmm.μ = mean(x, 1)
     gmm.Σ = var(x, 1)
-    addhist!(gmm, @sprintf "Initlialized single Gaussian with %d data points" size(x,1))
+    addhist!(gmm, @sprintf("Initlialized single Gaussian with %d data points",size(x,1)))
     gmm
 end
 
@@ -67,7 +73,7 @@ function GMMk{T<:Real}(n::Int, x::Array{T,2}; nInit::Int=50, nIter::Int=10, logl
     gmm.μ = km.centers'
     gmm.Σ = convert(Array{Float64,2},vcat(map(i -> var(x[km.assignments.==i,:],1), 1:n)...))
     gmm.w = km.counts ./ sum(km.counts)
-    addhist!(gmm, string("K-means with ", nrow(x), " data points using ", km.iterations, " iteration"))
+    addhist!(gmm, string("K-means with ", nrow(x), " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",nrow(x)/nparams(gmm))))
     em!(gmm, x; nIter=nIter, logll=logll)
     gmm
 end    
@@ -124,42 +130,42 @@ function split(gmm::GMM; minweight::Real=1e-5, covfactor::Real=0.2)
             new.Σ[k,:] = gmm.Σ[i,:]
         end
     end
-    new.hist = vcat(gmm.hist, History(@sprintf "split to %d Gaussians" new.n))
+    new.hist = vcat(gmm.hist, History(@sprintf("split to %d Gaussians",new.n)))
     new
 end
 
 # This function runs the Expectation Maximization algorithm on the GMM, and returns
 # the log-likelihood history, per data frame per dimension
-function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true) 
+function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true)
     @assert size(x,2)==gmm.d
-    MEM = .1*(2<<30)             # 2GB
+    MEM = mem*(2<<30)           # now a parameter
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
     initc = gmm.Σ
-    blocksize = floor(MEM/((3+3ng*d)sizeof(Float64)))
+    blocksize = floor(MEM/((3+3ng)sizeof(Float64))) # 3 instances of nx*ng
     nf = size(x, 1)             # n frames
     ll = zeros(nIter)
     nx = 0
     for i=1:nIter
         ## E-step
         b = 0                  # pointer to start
-        denom = zeros(ng)
+        sn = zeros(ng)
         sx = sxx = zeros(ng,d)
         while (b < nf) 
             e=min(b+blocksize, nf)
             xx = x[b+1:e,:]
             nxx = e-b
             if fast
-                (N, F, S, llpf) = stats(gmm, xx, 2, llpf=true)
-                denom += N
+                (N, F, S, llhpf) = stats(gmm, xx, 2, llhpf=true)
+                sn += N
                 sx += F
                 sxx += S
                 if (logll || i==nIter) 
-                    ll[i] += sum(log(llpf))
+                    ll[i] += sum(log(llhpf))
                 end
             else
                 (p,a) = post(gmm, xx) # nx * ng
-                denom += sum(p,1)'
+                sn += sum(p,1)'
                 sx += p' * xx
                 sxx += p' * xx.^2
                 if (logll || i==nIter) 
@@ -170,19 +176,19 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
         end
         nx = b
         ## M-step
-        gmm.w = denom[:]/nx
-        gmm.μ = broadcast(/, sx, denom)
-        gmm.Σ = broadcast(/, sxx, denom) - gmm.μ.^2
+        gmm.w = sn[:]/nx
+        gmm.μ = broadcast(/, sx, sn)
+        gmm.Σ = broadcast(/, sxx, sn) - gmm.μ.^2
         ## var flooring
         tooSmall = any(gmm.Σ .< varfloor, 2)
         if (any(tooSmall))
-            println("Variances had to be floored")
             ind = find(tooSmall)
+            println("Variances had to be floored ", join(ind, " "))
             gmm.Σ[ind,:] = initc[ind,:]
         end
     end
     ll /= nx * d
-    addhist!(gmm,@sprintf "EM with %d data points %d iterations avll %f" nx nIter ll[nIter])
+    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,ll[nIter],nrow(x)/nparams(gmm)))
     ll
 end
     
@@ -221,7 +227,11 @@ end
 function history(gmm::GMM) 
     t0 = gmm.hist[1].t
     for h=gmm.hist
-        print(@sprintf "%6.3f\t%s\n" h.t-t0 h.s)
+        s = split(h.s, "\n")
+        print(@sprintf("%6.3f\t%s\n", h.t-t0, s[1]))
+        for i=2:length(s) 
+            print(@sprintf("%6s\t%s\n", " ", s[i]))
+        end
     end
 end
 
@@ -248,39 +258,56 @@ end
 ## stats(gmm, x) computes zero, first, and second order statistics of a feature 
 ## file aligned to the gmm.  The statistics are ordered (ng * d), as by the general 
 ## rule for dimension order in types.jl.  Note: these are _uncentered_ statistics. 
-function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2; llpf=false)
+function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2; parallel=true, llhpf=false)
     ng = gmm.n
     (nx, d) = size(x)
+    np = min(nx, nprocs())
+    if parallel && np>1
+        l = nx/(np-1)     # chop array into smaller pieces xx
+        xx = {x[round(i*l+1):round((i+1)l),:] for i=0:np-2}
+        r = pmap(x->stats(gmm, x, order, parallel=false, llhpf=llhpf), xx)
+        ## reduce is less easy
+        res = {r[1]...}           # first stats tuple, as array
+        for i=2:length(r)
+            for j = 1:order+1
+                res[j] += r[i][j]
+            end
+            if llhpf
+                res[order+2] = vcat(res[order+2], r[i][order+2])
+            end
+        end
+        return tuple(res...)
+    end
     @assert d==gmm.d
     prec = 1./gmm.Σ             # ng * d
     mp = gmm.μ .* prec              # mean*precision, ng * d
+    ## note that we add exp(-sm2p/2) later to pxx for numerical stability
+    a = gmm.w ./ (((2π)^(d/2)) * sqrt(prod(gmm.Σ,2))) # ng * 1
+    
     sm2p = sum(mp .* gmm.μ, 2)      # sum over d mean^2*precision, ng * 1
-    a = gmm.w ./ (((2π)^(d/2)) * sqrt(prod(gmm.Σ,2))) .* exp(-sm2p/2) # ng * 1
-    sm2p=0                      # save memory
-    
     xx = x.^2                           # nx * d
-    pxx = xx * prec'                    # nx * ng
+    pxx = broadcast(+, sm2p', xx * prec') # nx * ng
     mpx = x * mp'                       # nx * ng
-    L = broadcast(*, a', exp(mpx-pxx/2)) # nx * ng, Likelihood per frame per Gaussian
-    pxx=mpx=0                   # save memory
+    L = broadcast(*, a', exp(mpx-0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
+    sm2p=pxx=mpx=0                   # save memory
     
-    denom=sum(L,2)                        # nx * 1, Likelihood per frame
-    γ = broadcast(/, L, denom + (denom==0))' # ng * nx, posterior per frame per gaussian
+    lpf=sum(L,2)                        # nx * 1, Likelihood per frame
+    γ = broadcast(/, L, lpf + (lpf==0))' # ng * nx, posterior per frame per gaussian
     ## zeroth order
     N = reshape(sum(γ, 2), ng)               # ng * 1
     ## first order
     F =  γ * x                  # ng * d
     if order==1
-        if llpf
-            return (N, F, denom)
+        if llhpf
+            return (N, F, lpf)
         else
             return(N, F)
         end
     else
         ## second order
         S = γ * xx                  # ng * d
-        if llpf
-            return (N, F, S, denom)
+        if llhpf
+            return (N, F, S, lpf)
         else
             return (N, F, S)
         end
