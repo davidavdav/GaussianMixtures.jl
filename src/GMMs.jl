@@ -16,7 +16,7 @@ export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, 
 nparams(gmm::GMM) = sum(map(length, (gmm.w, gmm.μ, gmm.Σ)))
 weights(gmm::GMM) = gmm.weights
 means(gmm::GMM) = gmm.μ
-covars(gmm.GMM) = gmm.Σ
+covars(gmm::GMM) = gmm.Σ
 
 using Clustering
 
