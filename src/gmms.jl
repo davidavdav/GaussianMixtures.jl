@@ -8,6 +8,7 @@
 ccall(:jl_zero_subnormals, Bool, (Bool,), true)
 
 require("gmmtypes.jl")
+require("datatype.jl")
 
 mem=2.                          # Working memory, in Gig
 
@@ -49,6 +50,28 @@ function GMM{T<:Real}(x::Array{T,2})
     gmm.μ = mean(x, 1)
     gmm.Σ = var(x, 1)
     addhist!(gmm, @sprintf("Initlialized single Gaussian with %d data points",size(x,1)))
+    gmm
+end
+
+## Same, but initialize using type Data
+function GMM(x::Data)
+    function nsumx(i) 
+        xi = x[i]
+        (size(x[i],1),sum(x[i],1))
+    end
+    ns = pmap(nsumx, 1:length(x))          # compute N and sum simultaneously
+    N = [n for (n,s) in ns]
+    μ = sum([s for (n,s) in ns]) / sum(N)
+    function sumsqdiffx(i)
+        xi = x[i]
+        varm(xi, μ, 1) * (size(xi,1)-1)
+    end
+    Σ = sum(pmap(sumsqdiff, x)) / (sum(N)-1)
+    d = size(μ, 2)
+    gmm = GMM(1,d)
+    gmm.μ = μ
+    gmm.Σ = Σ
+    addhist!(gmm, @sprintf("Initlialized single Gaussian with %d data points", sum(N)))
     gmm
 end
 

@@ -1,5 +1,5 @@
 ## gmm/types.jl  The type that implements a GMM. 
-## (c) 2013 David A. van Leeuwen
+## (c) 2013--2014 David A. van Leeuwen
 
 ## Some remarks on the dimension.  There are three main indexing variables:
 ## - The gaussian index 
@@ -13,6 +13,8 @@
 ## - The data index (i) always be a row-index
 ## - The feature dimenssion index (k) always to be a column index
 ## - The Gaussian index (j) to be mixed, depending on how it is used
+
+## force Emacs utf-8: αβγδεζηθικλμνξοπρστυφχψω 
 
 type History
     t::Float64
@@ -54,3 +56,13 @@ type Cstats
 end
 ## Cstats(n::Array{Float64,2}, f::Array{Float64,2}) = Cstats(reshape(n, prod(size(n))), reshape(f, prod(size(f))))
 Cstats(t::Tuple) = Cstats(t[1], t[2])
+
+## A data handle, either in memory or on disk, perhaps even mmapped but I haven't seen any 
+## advantage of that.  It contains a list of either files (where the data is stored)
+## or data units.  The point is, that in processing, these units can naturally be processed
+## independently.  
+type Data
+    datatype::Type
+    list::Vector
+    read::Union(Function,Nothing)
+end
