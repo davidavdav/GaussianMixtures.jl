@@ -53,29 +53,20 @@ function GMM{T<:Real}(x::Array{T,2})
     gmm
 end
 
-## Same, but initialize using type Data
+## Same, but initialize using type Data, possibly doing things in parallel in stats()
 function GMM(x::Data)
-    function nsumx(i) 
-        xi = x[i]
-        (size(x[i],1),sum(x[i],1))
-    end
-    ns = pmap(nsumx, 1:length(x))          # compute N and sum simultaneously
-    N = [n for (n,s) in ns]
-    μ = sum([s for (n,s) in ns]) / sum(N)
-    function sumsqdiffx(i)
-        xi = x[i]
-        varm(xi, μ, 1) * (size(xi,1)-1)
-    end
-    Σ = sum(pmap(sumsqdiff, x)) / (sum(N)-1)
-    d = size(μ, 2)
+    n, sx, sxx = stats(x)
+    μ = sx ./ n
+    Σ = (sxx - n*μ.^2) ./ (n-1)
+    d = length(μ)
     gmm = GMM(1,d)
-    gmm.μ = μ
-    gmm.Σ = Σ
-    addhist!(gmm, @sprintf("Initlialized single Gaussian with %d data points", sum(N)))
+    gmm.μ = μ'
+    gmm.Σ = Σ'
+    addhist!(gmm, @sprintf("Initlialized single Gaussian with %d data points", n))
     gmm
 end
 
-function GMM{T<:Real}(n::Int, x::Array{T,2}, method::Symbol=:kmeans; nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+function GMM{T<:Real}(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
     if method==:split
         GMM2(n, x, nIter=nIter, nFinal=nFinal, fast=fast, logll=logll)
     elseif method==:kmeans
@@ -86,7 +77,7 @@ function GMM{T<:Real}(n::Int, x::Array{T,2}, method::Symbol=:kmeans; nInit::Int=
 end
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
-function GMMk{T<:Real}(n::Int, x::Array{T,2}; nInit::Int=50, nIter::Int=10, logll=true)
+function GMMk{T<:Real}(n::Int, x::DataOrMatrix; nInit::Int=50, nIter::Int=10, logll=true)
     gmm = GMM(n, ncol(x))
     km = kmeans(convert(Array{Float64},x'), n, max_iter=nInit, display = logll ? :iter : :none)
     gmm.μ = km.centers'
@@ -108,7 +99,7 @@ end
 ## Train a GMM by consecutively splitting all means.  n most be a power of 2
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.  
-function GMM2{T<:Real}(n::Int, x::Array{T,2}; nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+function GMM2{T<:Real}(n::Int, x::DataOrMatrix; nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
     log2n = int(log2(n))
     @assert 2^log2n == n
     gmm=GMM(x)
@@ -129,10 +120,15 @@ GMM{T<:Real}(n::Int,x::Vector{T};nIter::Int=10) = GMM(n, reshape(x, length(x), 1
 function avll{T<:Real}(gmm::GMM, x::Array{T,2})
     @assert gmm.d == size(x,2)
     llpfpg = llpg(gmm, x)
-    llpf = log(exp(llpfpg) * gmm.w)
+    llpf = log(exp(llpfpg) * gmm.w)     # this possibly loses some accuracy
     mean(llpf) / gmm.d
 end
-    
+
+## Data version
+function avll(gmm::GMM, d::Data)
+    llpf = map(x->log(exp(llpg(gmm,x)) * gmm.w), d)
+    sum(map(sum, llpf)) / sum(map(length, llpf)) / gmm.d
+end
 
 import Base.split
 ## Split a gmm in order to to double the amount of gaussians
@@ -226,7 +222,68 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
     addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,finalll,nrow(x)/nparams(gmm)))
     ll
 end
-    
+
+
+## almost identical, but then for a data of type Data.  Perhaps we can code more efficiently
+function em!(gmm::GMM, data::Data; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true)
+    nrow, ncol = size(data)
+    @assert ncol==gmm.d
+    MEM = mem*(2<<30)           # now a parameter
+    d = gmm.d                   # dim
+    ng = gmm.n                  # n gaussians
+    initc = gmm.Σ
+    blocksize = floor(MEM/((3+3ng)sizeof(Float64))) # 3 instances of nx*ng
+    ll = zeros(nIter)
+    nx = 0
+    function mystats(i::Int)
+        x = data[i]                            # load the data
+        println(size(x))
+        nf = size(x,1)
+        b = 0                  # pointer to start
+        sn = zeros(ng)
+        sx = sxx = zeros(ng,d)
+        while (b < nf) 
+            e=min(b+blocksize, nf)
+            xx = x[b+1:e,:]
+            nxx = e-b
+            (N, F, S, llhpf) = stats(gmm, xx, 2, llhpf=true)
+            sn += N
+            sx += F
+            sxx += S
+#            if (logll || i==nIter) 
+#                ll[i] += sum(log(llhpf))
+#            end
+            b += nxx             # b=e
+        end
+        nx = b
+        Any[nx, sn, sx, sxx]
+    end
+    for i=1:nIter
+        ## E-step
+        nx, sn, sx, sxx = reduce(+, map(mystats, 1:length(d)))
+        ## M-step
+        gmm.w = sn[:]/nx
+        gmm.μ = broadcast(/, sx, sn)
+        gmm.Σ = broadcast(/, sxx, sn) - gmm.μ.^2
+        ## var flooring
+        tooSmall = any(gmm.Σ .< varfloor, 2)
+        if (any(tooSmall))
+            ind = find(tooSmall)
+            println("Variances had to be floored ", join(ind, " "))
+            gmm.Σ[ind,:] = initc[ind,:]
+        end
+    end
+    if nIter>0
+        ll /= nx * d
+        finalll = ll[nIter]
+    else
+        finalll = avll(gmm, x)
+        nx = nrow
+    end
+    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,finalll,nrow/nparams(gmm)))
+    ll
+end
+
 ## this function returns the contributions of the individual Gaussians to the LL
 ## ll_ij = log p(x_i | gauss_j)
 function llpg{T<:Real}(gmm::GMM, x::Array{T,2})
