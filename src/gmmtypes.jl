@@ -66,3 +66,5 @@ type Data
     list::Vector
     read::Union(Function,Nothing)
 end
+
+typealias DataOrMatrix{T<:FloatingPoint} Union(Data, Matrix{T})
