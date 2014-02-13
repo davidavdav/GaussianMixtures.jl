@@ -8,6 +8,8 @@ module GMMs
 
 include("gmmtypes.jl")
 include("gmms.jl")
+include("stats.jl")
+include("recognizer.jl")
 
 export GMM, Cstats, History, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams, means, covars, weights, setmem
 

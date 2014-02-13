@@ -12,6 +12,7 @@ function Data{T<:FloatingPoint}(x::Matrix{T}, rowvectors=true)
 end
 
 ## constructor for a vector of plain matrices
+## x = Matrix{Float64}[rand(1000,10), rand(1000,10)]
 function Data{T<:FloatingPoint}(x::Vector{Matrix{T}}, rowvectors=true)
     if rowvectors
         Data(T, x, nothing)
@@ -66,7 +67,7 @@ end
 
 ## this function calls pmap as an option for parallelism
 function stats(d::Data, order::Int=2)
-    s = pmap(stats, d)
+    s = pmap(i->stats(d[i]), 1:length(d))
     reduce(+, s)     
 end
 

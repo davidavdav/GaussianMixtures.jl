@@ -1,20 +1,11 @@
 ## gmms.jl  Some functions for a Gaussia Mixture Model
 ## (c) 2013--2014 David A. van Leeuwen
 
-## This also contains some rudimentary code for speaker
-## recognition, perhaps this should move to another module.
-
 ## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
 ccall(:jl_zero_subnormals, Bool, (Bool,), true)
 
 require("gmmtypes.jl")
 require("datatype.jl")
-
-mem=2.                          # Working memory, in Gig
-
-function setmem(m::Float64) 
-    global mem=m
-end
 
 nparams(gmm::GMM) = sum(map(length, (gmm.w, gmm.μ, gmm.Σ)))
 weights(gmm::GMM) = gmm.w
@@ -173,22 +164,16 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
     nx = 0
     for i=1:nIter
         ## E-step
-        b = 0                  # pointer to start
-        sn = zeros(ng)
-        sx = sxx = zeros(ng,d)
-        while (b < nf) 
-            e=min(b+blocksize, nf)
-            xx = x[b+1:e,:]
-            nxx = e-b
-            if fast
-                (N, F, S, llhpf) = stats(gmm, xx, 2, llhpf=true)
-                sn += N
-                sx += F
-                sxx += S
-                if (logll || i==nIter) 
-                    ll[i] += sum(log(llhpf))
-                end
-            else
+        if fast
+            nx, llh[i], N, F, S = stats(gmm, x, parallel=true)
+        else
+            b = 0                  # pointer to start
+            sn = zeros(ng)
+            sx = sxx = zeros(ng,d)
+            while (b < nf) 
+                e=min(b+blocksize, nf)
+                xx = x[b+1:e,:]
+                nxx = e-b
                 (p,a) = post(gmm, xx) # nx * ng
                 sn += sum(p,1)'
                 sx += p' * xx
@@ -198,8 +183,8 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
                 end
             end
             b += nxx             # b=e
+            nx = b
         end
-        nx = b
         ## M-step
         gmm.w = sn[:]/nx
         gmm.μ = broadcast(/, sx, sn)
@@ -340,131 +325,6 @@ function show(io::IO, gmm::GMM)
     end
 end
     
-## This function is admittedly hairy: in Octave this is much more
-## efficient than a straightforward calculation.  I don't know if this
-## holds for Julia.  We'd have to re-implement using loops and less
-## memory.  I've done this now in several ways, it seems that the
-## matrix implementation is always much faster.
- 
-## The shifting in dimensions (for Gaussian index k) is a nightmare.  
-
-## stats(gmm, x) computes zero, first, and second order statistics of
-## a feature file aligned to the gmm.  The statistics are ordered (ng
-## * d), as by the general rule for dimension order in types.jl.
-## Note: these are _uncentered_ statistics.
-function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2; parallel=true, llhpf=false)
-    ng = gmm.n
-    (nx, d) = size(x)
-    np = min(nx, nprocs())
-    if parallel && np>1
-        l = nx/(np-1)     # chop array into smaller pieces xx
-        xx = {x[round(i*l+1):round((i+1)l),:] for i=0:np-2}
-        r = pmap(x->stats(gmm, x, order, parallel=false, llhpf=llhpf), xx)
-        ## reduce is less easy
-        res = {r[1]...}           # first stats tuple, as array
-        for i=2:length(r)
-            for j = 1:order+1
-                res[j] += r[i][j]
-            end
-            if llhpf
-                res[order+2] = vcat(res[order+2], r[i][order+2])
-            end
-        end
-        return tuple(res...)
-    end
-    @assert d==gmm.d
-    prec = 1./gmm.Σ             # ng * d
-    mp = gmm.μ .* prec              # mean*precision, ng * d
-    ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    a = gmm.w ./ (((2π)^(d/2)) * sqrt(prod(gmm.Σ,2))) # ng * 1
-    
-    sm2p = sum(mp .* gmm.μ, 2)      # sum over d mean^2*precision, ng * 1
-    xx = x.^2                           # nx * d
-    pxx = broadcast(+, sm2p', xx * prec') # nx * ng
-    mpx = x * mp'                       # nx * ng
-    L = broadcast(*, a', exp(mpx-0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
-    sm2p=pxx=mpx=0                   # save memory
-    
-    lpf=sum(L,2)                        # nx * 1, Likelihood per frame
-    γ = broadcast(/, L, lpf + (lpf==0))' # ng * nx, posterior per frame per gaussian
-    ## zeroth order
-    N = reshape(sum(γ, 2), ng)               # ng * 1
-    ## first order
-    F =  γ * x                  # ng * d
-    if order==1
-        if llhpf
-            return (N, F, lpf)
-        else
-            return(N, F)
-        end
-    else
-        ## second order
-        S = γ * xx                  # ng * d
-        if llhpf
-            return (N, F, S, lpf)
-        else
-            return (N, F, S)
-        end
-    end
-end
-
-## Same, but UBM centered stats
-function cstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
-    if order==1
-        (N,F) = stats(gmm, x, order)
-    else
-        (N, F, S) = stats(gmm, x)
-    end
-    Nμ = broadcast(*, N, gmm.μ)
-    f = (F - Nμ) ./ gmm.Σ
-    if order==1
-        return(N, f)
-    else
-        s = (S - (2F+Nμ).*gmm.μ) ./ gmm.Σ
-        return(N, f, s)
-    end
-end
-## You can also get centered stats in a Cstats structure directly by 
-## using the constructor with a GMM argument
-Cstats{T<:Real}(gmm::GMM, x::Array{T,2}) = Cstats(cstats(gmm, x, 1))
-
-## This function computes the `dotscoring' linear appoximation of a GMM/UBM log likelihood ratio
-## of test data y using MAP adapted model for x.  
-## We can compute this with just the stats:
-function dotscore(x::Cstats, y::Cstats, r::Real=1.) 
-    sum(broadcast(/, x.f, x.n + r) .* y.f)
-end
-## or directly from the UBM and the data x and y
-dotscore{T<:Real}(gmm::GMM, x::Array{T,2}, y::Array{T,2}, r::Real=1.) =
-    dotscore(Cstats(gmm, x), Cstats(gmm, y), r)
-
-import Base.map
-
-## Maximum A Posteriori adapt a gmm
-function map{T<:Real}(gmm::GMM, x::Array{T,2}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
-    (n, F, S) = stats(gmm, x)
-    α = n ./ (n+r)
-    g = GMM(gmm.n, gmm.d, gmm.kind)
-    if weights
-        g.w = α .* n / sum(n) + (1-α) .* gmm.w
-        g.w ./= sum(g.w)
-    else
-        g.w = gmm.w
-    end
-    if means
-        g.μ = broadcast(*, α./n, F) + broadcast(*, 1-α, gmm.μ)
-    else
-        g.μ = gmm.μ
-    end
-    if covars
-        g.Σ = broadcast(*, α./n, S) + broadcast(*, 1-α, gmm.Σ .^2 + gmm.μ .^2) - g.μ .^2
-    else
-        g.Σ = gmm.Σ
-    end
-    addhist!(g,@sprintf "MAP adapted with %d data points relevance %3.1f %s %s %s" nrow(x) r means ? "means" : ""  weights ? "weights" : "" covars ? "covars" : "")
-    return(g)
-end
-
 ## This code is for exchange with our octave / matlab based system
 
 using MAT
