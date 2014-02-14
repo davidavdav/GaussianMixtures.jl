@@ -56,7 +56,7 @@ function GMM(x::Data)
     gmm
 end
 
-function GMM{T<:FloatingPoint}(n::Int, x::DataOrMatrix{T}, method::Symbol=:kmeans; nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
     if method==:split
         GMM2(n, x, nIter=nIter, nFinal=nFinal, fast=fast, logll=logll)
     elseif method==:kmeans
@@ -67,7 +67,7 @@ function GMM{T<:FloatingPoint}(n::Int, x::DataOrMatrix{T}, method::Symbol=:kmean
 end
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
-function GMMk{T<:FloatingPoint}(n::Int, x::DataOrMatrix{T}; nInit::Int=50, nIter::Int=10, logll=true)
+function GMMk(n::Int, x::DataOrMatrix; nInit::Int=50, nIter::Int=10, logll=true)
     gmm = GMM(n, ncol(x))
     km = kmeans(convert(Array{Float64},x'), n, max_iter=nInit, display = logll ? :iter : :none)
     gmm.μ = km.centers'
@@ -89,7 +89,7 @@ end
 ## Train a GMM by consecutively splitting all means.  n most be a power of 2
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.  
-function GMM2{T<:FloatingPoint}(n::Int, x::DataOrMatrix{T}; nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+function GMM2(n::Int, x::DataOrMatrix; nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
     log2n = int(log2(n))
     @assert 2^log2n == n
     gmm=GMM(x)

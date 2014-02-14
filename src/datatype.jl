@@ -98,3 +98,11 @@ function Base.size(d::Data)
     end
     nrow, ncol
 end
+
+function Base.size(d::Data, dim::Int)
+    if dim==2
+        size(d[1],dim)
+    else
+        size(d)[dim]
+    end
+end
