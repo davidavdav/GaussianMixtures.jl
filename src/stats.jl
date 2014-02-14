@@ -1,7 +1,7 @@
 ## stats.jl  Various ways of computing Baum Welch statistics for a GMM
 ## (c) 2013--2014 David A. van Leeuwen
 
-require("GMMs.jl")
+## require("GMMs.jl")
 
 mem=2.                          # Working memory, in Gig
 
@@ -28,6 +28,9 @@ end
 ## The memory footprint is sizeof(T) * ((4d +2) ng + (d + 4ng + 1) nx,
 ## This is not very efficient, since this is designed for speed, and
 ## wo don't want to do too much in-memory yet.  
+##
+## you can dispatch this routine by specifying 3 parameters, 
+## i.e., an unnamed explicit parameter order
 function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     ng = gmm.n
     (nx, d) = size(x)
@@ -47,7 +50,7 @@ function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     lpf=sum(L,2)                        # nx * 1, Likelihood per frame
     γ = broadcast(/, L, lpf + (lpf==0))' # ng * nx, posterior per frame per gaussian
     ## zeroth order
-    N = reshape(sum(γ, 2), ng)          # ng * 1
+    N = reshape(sum(γ, 2), ng)          # ng * 1, vec()
     ## first order
     F =  γ * x                          # ng * d
     llh = sum(log(lpf))                 # total log likeliood
@@ -110,15 +113,13 @@ function stats(gmm::GMM, d::Data; order::Int=2, parallel=false)
         return r
     end
 end
-    
-    
-    
+
 ## Same, but UBM centered stats
 function cstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     if order==1
-        (N,F) = stats(gmm, x, order)
+        nx, llh, N, F = stats(gmm, x, order)
     else
-        (N, F, S) = stats(gmm, x)
+        nx, llh, N, F, S = stats(gmm, x, order)
     end
     Nμ = broadcast(*, N, gmm.μ)
     f = (F - Nμ) ./ gmm.Σ

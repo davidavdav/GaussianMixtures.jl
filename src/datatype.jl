@@ -1,6 +1,6 @@
 ## datatype.jl Julia code to handle data on disc
 
-require("gmmtypes.jl")
+# require("gmmtypes.jl")
 
 ## constructor for a plain matrix.  rowvectors: data points x represented as rowvectors
 function Data{T<:FloatingPoint}(x::Matrix{T}, rowvectors=true) 

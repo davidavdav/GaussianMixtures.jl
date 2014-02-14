@@ -4,8 +4,7 @@
 ## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
 ccall(:jl_zero_subnormals, Bool, (Bool,), true)
 
-require("gmmtypes.jl")
-require("datatype.jl")
+#require("gmmtypes.jl")
 
 nparams(gmm::GMM) = sum(map(length, (gmm.w, gmm.μ, gmm.Σ)))
 weights(gmm::GMM) = gmm.w
@@ -17,8 +16,8 @@ using Clustering
 import Base.copy
 
 # call me old-fashioned
-nrow(x) = size(x,1)
-ncol(x) = size(x,2)
+#nrow(x) = size(x,1)
+#ncol(x) = size(x,2)
 
 function addhist!(gmm::GMM, s::String) 
     gmm.hist = vcat(gmm.hist, History(s))
@@ -35,7 +34,7 @@ function copy(gmm::GMM)
 end
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-function GMM{T<:Real}(x::Array{T,2})
+function GMM{T<:FloatingPoint}(x::Array{T,2})
     d=size(x, 2)
     gmm = GMM(1,d)
     gmm.μ = mean(x, 1)
@@ -57,7 +56,7 @@ function GMM(x::Data)
     gmm
 end
 
-function GMM{T<:Real}(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+function GMM{T<:FloatingPoint}(n::Int, x::DataOrMatrix{T}, method::Symbol=:kmeans; nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
     if method==:split
         GMM2(n, x, nIter=nIter, nFinal=nFinal, fast=fast, logll=logll)
     elseif method==:kmeans
@@ -68,7 +67,7 @@ function GMM{T<:Real}(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; nInit::In
 end
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
-function GMMk{T<:Real}(n::Int, x::DataOrMatrix; nInit::Int=50, nIter::Int=10, logll=true)
+function GMMk{T<:FloatingPoint}(n::Int, x::DataOrMatrix{T}; nInit::Int=50, nIter::Int=10, logll=true)
     gmm = GMM(n, ncol(x))
     km = kmeans(convert(Array{Float64},x'), n, max_iter=nInit, display = logll ? :iter : :none)
     gmm.μ = km.centers'
@@ -82,7 +81,7 @@ function GMMk{T<:Real}(n::Int, x::DataOrMatrix; nInit::Int=50, nIter::Int=10, lo
     end
     gmm.Σ = convert(Array{Float64,2},vcat(map(variance, 1:n)...))
     gmm.w = km.counts ./ sum(km.counts)
-    addhist!(gmm, string("K-means with ", nrow(x), " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",nrow(x)/nparams(gmm))))
+    addhist!(gmm, string("K-means with ", size(x,1), " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",size(x,1)/nparams(gmm))))
     em!(gmm, x; nIter=nIter, logll=logll)
     gmm
 end    
@@ -90,7 +89,7 @@ end
 ## Train a GMM by consecutively splitting all means.  n most be a power of 2
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.  
-function GMM2{T<:Real}(n::Int, x::DataOrMatrix; nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+function GMM2{T<:FloatingPoint}(n::Int, x::DataOrMatrix{T}; nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
     log2n = int(log2(n))
     @assert 2^log2n == n
     gmm=GMM(x)
@@ -105,10 +104,10 @@ function GMM2{T<:Real}(n::Int, x::DataOrMatrix; nIter::Int=10, nFinal::Int=nIter
     println(tll)
     gmm
 end
-GMM{T<:Real}(n::Int,x::Vector{T};nIter::Int=10) = GMM(n, reshape(x, length(x), 1);  nIter=nIter)
+GMM{T<:FloatingPoint}(n::Int,x::Vector{T};nIter::Int=10) = GMM(n, reshape(x, length(x), 1);  nIter=nIter)
 
 ## Average log-likelihood per data point and per dimension for a given GMM 
-function avll{T<:Real}(gmm::GMM, x::Array{T,2})
+function avll{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
     @assert gmm.d == size(x,2)
     llpfpg = llpg(gmm, x)
     llpf = log(exp(llpfpg) * gmm.w)     # this possibly loses some accuracy
@@ -152,7 +151,7 @@ end
 # the log-likelihood history, per data frame per dimension
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
 ## of the data and stores this in the history.  
-function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true)
+function em!{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true)
     @assert size(x,2)==gmm.d
     MEM = mem*(2<<30)           # now a parameter
     d = gmm.d                   # dim
@@ -165,19 +164,20 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
     for i=1:nIter
         ## E-step
         if fast
-            nx, llh[i], N, F, S = stats(gmm, x, parallel=true)
+            nx, ll[i], N, F, S = stats(gmm, x, parallel=true)
         else
             b = 0                  # pointer to start
-            sn = zeros(ng)
-            sx = sxx = zeros(ng,d)
+            N = zeros(ng)
+            S = zeros(ng,d)
+            F = zeros(ng,d)
             while (b < nf) 
                 e=min(b+blocksize, nf)
                 xx = x[b+1:e,:]
                 nxx = e-b
                 (p,a) = post(gmm, xx) # nx * ng
-                sn += sum(p,1)'
-                sx += p' * xx
-                sxx += p' * xx.^2
+                N += sum(p,1)'
+                F += p' * xx
+                S += p' * xx.^2
                 if (logll || i==nIter) 
                     ll[i] += sum(log(a*gmm.w))
                 end
@@ -186,9 +186,9 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
             nx = b
         end
         ## M-step
-        gmm.w = sn[:]/nx
-        gmm.μ = broadcast(/, sx, sn)
-        gmm.Σ = broadcast(/, sxx, sn) - gmm.μ.^2
+        gmm.w = N / nx
+        gmm.μ = broadcast(/, F, N)
+        gmm.Σ = broadcast(/, S, N) - gmm.μ.^2
         ## var flooring
         tooSmall = any(gmm.Σ .< varfloor, 2)
         if (any(tooSmall))
@@ -202,76 +202,15 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
         finalll = ll[nIter]
     else
         finalll = avll(gmm, x)
-        nx = nrow(x)
+        nx = size(x,1)
     end
-    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,finalll,nrow(x)/nparams(gmm)))
-    ll
-end
-
-
-## almost identical, but then for a data of type Data.  Perhaps we can code more efficiently
-function em!(gmm::GMM, data::Data; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true)
-    nrow, ncol = size(data)
-    @assert ncol==gmm.d
-    MEM = mem*(2<<30)           # now a parameter
-    d = gmm.d                   # dim
-    ng = gmm.n                  # n gaussians
-    initc = gmm.Σ
-    blocksize = floor(MEM/((3+3ng)sizeof(Float64))) # 3 instances of nx*ng
-    ll = zeros(nIter)
-    nx = 0
-    function mystats(i::Int)
-        x = data[i]                            # load the data
-        println(size(x))
-        nf = size(x,1)
-        b = 0                  # pointer to start
-        sn = zeros(ng)
-        sx = sxx = zeros(ng,d)
-        while (b < nf) 
-            e=min(b+blocksize, nf)
-            xx = x[b+1:e,:]
-            nxx = e-b
-            (N, F, S, llhpf) = stats(gmm, xx, 2, llhpf=true)
-            sn += N
-            sx += F
-            sxx += S
-#            if (logll || i==nIter) 
-#                ll[i] += sum(log(llhpf))
-#            end
-            b += nxx             # b=e
-        end
-        nx = b
-        Any[nx, sn, sx, sxx]
-    end
-    for i=1:nIter
-        ## E-step
-        nx, sn, sx, sxx = reduce(+, map(mystats, 1:length(d)))
-        ## M-step
-        gmm.w = sn[:]/nx
-        gmm.μ = broadcast(/, sx, sn)
-        gmm.Σ = broadcast(/, sxx, sn) - gmm.μ.^2
-        ## var flooring
-        tooSmall = any(gmm.Σ .< varfloor, 2)
-        if (any(tooSmall))
-            ind = find(tooSmall)
-            println("Variances had to be floored ", join(ind, " "))
-            gmm.Σ[ind,:] = initc[ind,:]
-        end
-    end
-    if nIter>0
-        ll /= nx * d
-        finalll = ll[nIter]
-    else
-        finalll = avll(gmm, x)
-        nx = nrow
-    end
-    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,finalll,nrow/nparams(gmm)))
+    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,finalll,size(x,1)/nparams(gmm)))
     ll
 end
 
 ## this function returns the contributions of the individual Gaussians to the LL
 ## ll_ij = log p(x_i | gauss_j)
-function llpg{T<:Real}(gmm::GMM, x::Array{T,2})
+function llpg{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
     (nx, d) = size(x)
     ng = gmm.n
     @assert d==gmm.d    
