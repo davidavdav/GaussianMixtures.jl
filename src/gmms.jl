@@ -209,66 +209,6 @@ function em!{T<:Real}(gmm::GMM, x::Array{T,2}; nIter::Int = 10, varfloor::Real=1
 end
 
 
-## almost identical, but then for a data of type Data.  Perhaps we can code more efficiently
-function em!(gmm::GMM, data::Data; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true)
-    nrow, ncol = size(data)
-    @assert ncol==gmm.d
-    MEM = mem*(2<<30)           # now a parameter
-    d = gmm.d                   # dim
-    ng = gmm.n                  # n gaussians
-    initc = gmm.Σ
-    blocksize = floor(MEM/((3+3ng)sizeof(Float64))) # 3 instances of nx*ng
-    ll = zeros(nIter)
-    nx = 0
-    function mystats(i::Int)
-        x = data[i]                            # load the data
-        println(size(x))
-        nf = size(x,1)
-        b = 0                  # pointer to start
-        sn = zeros(ng)
-        sx = sxx = zeros(ng,d)
-        while (b < nf) 
-            e=min(b+blocksize, nf)
-            xx = x[b+1:e,:]
-            nxx = e-b
-            (N, F, S, llhpf) = stats(gmm, xx, 2, llhpf=true)
-            sn += N
-            sx += F
-            sxx += S
-#            if (logll || i==nIter) 
-#                ll[i] += sum(log(llhpf))
-#            end
-            b += nxx             # b=e
-        end
-        nx = b
-        Any[nx, sn, sx, sxx]
-    end
-    for i=1:nIter
-        ## E-step
-        nx, sn, sx, sxx = reduce(+, map(mystats, 1:length(d)))
-        ## M-step
-        gmm.w = sn[:]/nx
-        gmm.μ = broadcast(/, sx, sn)
-        gmm.Σ = broadcast(/, sxx, sn) - gmm.μ.^2
-        ## var flooring
-        tooSmall = any(gmm.Σ .< varfloor, 2)
-        if (any(tooSmall))
-            ind = find(tooSmall)
-            println("Variances had to be floored ", join(ind, " "))
-            gmm.Σ[ind,:] = initc[ind,:]
-        end
-    end
-    if nIter>0
-        ll /= nx * d
-        finalll = ll[nIter]
-    else
-        finalll = avll(gmm, x)
-        nx = nrow
-    end
-    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,finalll,nrow/nparams(gmm)))
-    ll
-end
-
 ## this function returns the contributions of the individual Gaussians to the LL
 ## ll_ij = log p(x_i | gauss_j)
 function llpg{T<:Real}(gmm::GMM, x::Array{T,2})

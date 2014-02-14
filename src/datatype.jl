@@ -5,9 +5,9 @@ require("gmmtypes.jl")
 ## constructor for a plain matrix.  rowvectors: data points x represented as rowvectors
 function Data{T<:FloatingPoint}(x::Matrix{T}, rowvectors=true) 
     if rowvectors
-        Data(T, Array{T,2}[x], nothing)
+        Data{T}(Array{T,2}[x], nothing)
     else
-        Data(T, Array{T,2}[x'], nothing)
+        Data{T}(Array{T,2}[x'], nothing)
     end
 end
 
@@ -15,20 +15,20 @@ end
 ## x = Matrix{Float64}[rand(1000,10), rand(1000,10)]
 function Data{T<:FloatingPoint}(x::Vector{Matrix{T}}, rowvectors=true)
     if rowvectors
-        Data(T, x, nothing)
+        Data{T}(x, nothing)
     else
-        Data(T, map(transpose, x), nothing)
+        Data{T}(map(transpose, x), nothing)
     end
 end
 
 ## constructor for a plain file.
 function Data(file::String, datatype::Type, read::Function)
-    Data(datatype, [file], read)
+    Data{datatype}([file], read)
 end
 
 ## constructor for a vector of files
 function Data{S<:String}(files::Vector{S}, datatype::Type, read::Function)
-    Data(datatype, files, read)
+    Data{datatype}(files, read)
 end
 
 kind(x::Data) = eltype(x.list) <: String ? :file : :matrix

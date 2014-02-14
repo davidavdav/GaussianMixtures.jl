@@ -61,10 +61,11 @@ Cstats(t::Tuple) = Cstats(t[1], t[2])
 ## advantage of that.  It contains a list of either files (where the data is stored)
 ## or data units.  The point is, that in processing, these units can naturally be processed
 ## independently.  
-type Data
+type Data{T}
     datatype::Type
     list::Vector
     read::Union(Function,Nothing)
+    Data{T}(list::Vector, read::Union(Function,Nothing)) = new(T,list,read)
 end
 
-typealias DataOrMatrix{T<:FloatingPoint} Union(Data, Matrix{T})
+typealias DataOrMatrix{T<:FloatingPoint} Union(Data{T}, Matrix{T})
