@@ -15,26 +15,26 @@ import Base.map
 
 ## Maximum A Posteriori adapt a gmm
 function map{T<:Real}(gmm::GMM, x::Array{T,2}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
-    (n, F, S) = stats(gmm, x)
-    α = n ./ (n+r)
+    nx, ll, N, F, S = stats(gmm, x)
+    α = N ./ (N+r)
     g = GMM(gmm.n, gmm.d, gmm.kind)
     if weights
-        g.w = α .* n / sum(n) + (1-α) .* gmm.w
+        g.w = α .* N / sum(N) + (1-α) .* gmm.w
         g.w ./= sum(g.w)
     else
         g.w = gmm.w
     end
     if means
-        g.μ = broadcast(*, α./n, F) + broadcast(*, 1-α, gmm.μ)
+        g.μ = broadcast(*, α./N, F) + broadcast(*, 1-α, gmm.μ)
     else
         g.μ = gmm.μ
     end
     if covars
-        g.Σ = broadcast(*, α./n, S) + broadcast(*, 1-α, gmm.Σ .^2 + gmm.μ .^2) - g.μ .^2
+        g.Σ = broadcast(*, α./N, S) + broadcast(*, 1-α, gmm.Σ .^2 + gmm.μ .^2) - g.μ .^2
     else
         g.Σ = gmm.Σ
     end
-    addhist!(g,@sprintf "MAP adapted with %d data points relevance %3.1f %s %s %s" nrow(x) r means ? "means" : ""  weights ? "weights" : "" covars ? "covars" : "")
+    addhist!(g,@sprintf "MAP adapted with %d data points relevance %3.1f %s %s %s" size(x,1) r means ? "means" : ""  weights ? "weights" : "" covars ? "covars" : "")
     return(g)
 end
 
