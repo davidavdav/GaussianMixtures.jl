@@ -41,6 +41,10 @@ function getindex(x::Data, i::Int)
     end
 end
 
+function getindex(x::Data, r::Range1)
+    Data(x.datatype, x.list[r], x.read)
+end
+
 ## define an iterator for Data
 Base.length(x::Data) = length(x.list)
 Base.start(x::Data) = 0

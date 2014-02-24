@@ -38,3 +38,11 @@ function map{T<:Real}(gmm::GMM, x::Array{T,2}, r::Real=16.; means::Bool=true, we
     return(g)
 end
 
+## compute a supervector from a MAP adapted utterance. 
+function Base.vec(gmm::GMM, x::Matrix, r=16.)
+    nx, ll, N, F, S = stats(gmm, x)
+    α = N ./ (N+r)
+    Δμ = broadcast(*, α./N, F) - broadcast(*, α, gmm.μ)
+    v = Δμ .* sqrt(broadcast(/, gmm.w, gmm.Σ))
+    return vec(v)
+end

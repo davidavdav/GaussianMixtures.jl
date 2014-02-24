@@ -12,6 +12,6 @@ include("gmms.jl")
 include("stats.jl")
 include("recognizer.jl")
 
-export GMM, Cstats, History, Data, DataOrMatrix, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams, means, covars, weights, setmem
+export GMM, Cstats, History, Data, DataOrMatrix, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams, means, covars, weights, setmem, vec
 
 end
