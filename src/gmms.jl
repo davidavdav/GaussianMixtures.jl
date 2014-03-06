@@ -153,19 +153,18 @@ end
 ## of the data and stores this in the history.  
 function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true)
     @assert size(x,2)==gmm.d
-    MEM = mem*(2<<30)           # now a parameter
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
     initc = gmm.Σ
-    blocksize = floor(MEM/((3+3ng)sizeof(Float64))) # 3 instances of nx*ng
-    nf = size(x, 1)             # n frames
     ll = zeros(nIter)
-    nx = 0
     for i=1:nIter
         ## E-step
         if fast
             nx, ll[i], N, F, S = stats(gmm, x, parallel=true)
         else
+            MEM = mem*(2<<30)           # now a parameter
+            blocksize = floor(MEM/((3+3ng)sizeof(Float64))) # 3 instances of nx*ng
+            nf = size(x, 1)             # n frames
             b = 0                  # pointer to start
             N = zeros(ng)
             S = zeros(ng,d)
@@ -178,11 +177,9 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Real=1e-3, lo
                 N += sum(p,1)'
                 F += p' * xx
                 S += p' * xx.^2
-                if (logll || i==nIter) 
-                    ll[i] += sum(log(a*gmm.w))
-                end
+                ll[i] += sum(log(a*gmm.w))
+                b += nxx             # b=e
             end
-            b += nxx             # b=e
             nx = b
         end
         ## M-step
