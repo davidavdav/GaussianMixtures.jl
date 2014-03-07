@@ -48,7 +48,7 @@ GMM(n::Int,d::Int) = GMM(n,d, :diag)
 ## Perhaps in ivector processing a supervector is easier. 
 type Cstats
     n::Vector{Float64}          # zero-order stats, ng
-    f::Array{Float64,2}          # second-order stats, ng * d
+    f::Array{Float64,2}          # first-order stats, ng * d
     function Cstats(n::Vector{Float64}, f::Array{Float64,2})
         @assert size(n,1)==size(f, 1)
         new(n,f)
@@ -56,6 +56,18 @@ type Cstats
 end
 ## Cstats(n::Array{Float64,2}, f::Array{Float64,2}) = Cstats(reshape(n, prod(size(n))), reshape(f, prod(size(f))))
 Cstats(t::Tuple) = Cstats(t[1], t[2])
+
+## Stats is a sype of uncentered stats, necessary for i-vector extraction
+type Stats{T}
+    N::Vector{T}
+    F::Matrix{T}
+    S::Matrix{T}
+    function Stats{T}(n::Vector{T}, f::Matrix{T}, s::Matrix{T})
+        @assert size(n,1) == size(f,1)
+        @assert size(f) == size(s)
+        new(n, f, s)
+    end
+end
 
 ## A data handle, either in memory or on disk, perhaps even mmapped but I haven't seen any 
 ## advantage of that.  It contains a list of either files (where the data is stored)
