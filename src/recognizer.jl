@@ -4,12 +4,12 @@
 ## This function computes the `dotscoring' linear appoximation of a GMM/UBM log likelihood ratio
 ## of test data y using MAP adapted model for x.  
 ## We can compute this with just the stats:
-function dotscore(x::Cstats, y::Cstats, r::Real=1.) 
+function dotscore(x::CSstats, y::CSstats, r::Real=1.) 
     sum(broadcast(/, x.f, x.n + r) .* y.f)
 end
 ## or directly from the UBM and the data x and y
 dotscore{T<:Real}(gmm::GMM, x::Array{T,2}, y::Array{T,2}, r::Real=1.) =
-    dotscore(Cstats(gmm, x), Cstats(gmm, y), r)
+    dotscore(CSstats(gmm, x), CSstats(gmm, y), r)
 
 import Base.map
 
