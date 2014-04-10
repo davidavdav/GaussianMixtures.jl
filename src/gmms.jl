@@ -302,24 +302,3 @@ function readmat{T}(file, ::Type{T})
     gmm
 end
 
-using Distributions
-
-## this could be better
-function test_GMM()
-    N = 4
-    d = 2
-    nx = 100
-    φ = π/2
-    data = zeros(nx * N, d)
-    for j=1:N
-        data[(j-1)*nx+1 : j*nx, : ] = rand(DiagNormal(5*[sin(φ + 2π*j/N), cos(φ + 2π*j/N)], ones(d)), nx)'
-    end
-    data
-#    g = GMM(N, d)
-#    g.μ = randn(N, d)
-#    for i=1:10
-#        println(em!(g, data; nIter=5, logll=true))
-#    end
-#    GMM(N, data)
-end
-
