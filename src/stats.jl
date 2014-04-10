@@ -99,7 +99,7 @@ function stats{T}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
     end
     reduce(+, r)
 end
-
+    
 ## This function calls stats() for the elements in d::Data, irrespective of the size
 function stats(gmm::GMM, d::Data; order::Int=2, parallel=false)
     if parallel
@@ -113,10 +113,10 @@ function stats(gmm::GMM, d::Data; order::Int=2, parallel=false)
         return r
     end
 end
-
+    
 ## Same, but UBM centered+scaled stats
 ## f and s are ng * d
-function cstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
+function csstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     if order==1
         nx, llh, N, F = stats(gmm, x, order)
     else
@@ -134,7 +134,7 @@ end
 
 ## You can also get centered+scaled stats in a Cstats structure directly by 
 ## using the constructor with a GMM argument
-Cstats{T<:Real}(gmm::GMM, x::Array{T,2}) = Cstats(cstats(gmm, x, 1))
+CSstats{T<:Real}(gmm::GMM, x::Array{T,2}) = CSstats(csstats(gmm, x, 1))
 
 ## centered stats, but not scaled by UBM covariance
 function Stats{T}(gmm::GMM, x::Matrix{T}) 
@@ -148,7 +148,7 @@ end
 ## compute variance and mean of the posterior distribution of the hidden variables
 ## s: centered statistics (.N .F .S),
 ## v: svl x Nvoices matrix, initially random
-## Σ: sv diagonal covariancem intially gmm.Σ
+## Σ: ng x nfea supervector diagonal covariance matrix, intially gmm.Σ
 function posterior{T<:FloatingPoint}(s::Stats{T}, v::Matrix{T}, Σ::Matrix{T})
     svl, nv = size(v)
     @assert prod(size(s.F)) == prod(size(Σ)) == svl
@@ -171,7 +171,10 @@ function expectation{T}(s::Vector{Stats{T}}, v::Matrix, Σ::Matrix)
     map(x->expectation(x, v,  Σ), s)
 end
 
-## update v and Σ according to the maximum likelihood re-estimation, 
+## update v and Σ according to the maximum likelihood re-estimation,
+## S: vector of Stats (0th, 1st, 2nd order stats)
+## ex: vectopr of expectations, i.e., tuples E[y], E[y y']
+## v: projection matrix
 function updatevΣ{T}(S::Vector{Stats{T}}, ex::Vector{Tuple}, v::Matrix)
     ng, nfea = size(first(S).F)     # number of components or Gaussians
     svl = ng*nfea                   # supervector lenght, CF
@@ -201,4 +204,26 @@ function updatevΣ{T}(S::Vector{Stats{T}}, ex::Vector{Tuple}, v::Matrix)
     broadcast!(/, Σ, Σ, N)
     v, Σ
 end
-    
+
+## Train an ivector extractor matrix
+function IExtractor{T}(S::Vector{Stats{T}}, ubm::GMM, nvoices::Int, nIter=7)
+    ng, nfea = size(first(S).F)
+    v = randn(ng*nfea, nvoices) * sum(ubm.Σ) * 0.001
+    Σ = ubm.Σ
+    for i=1:nIter
+        print("Iteration ", i, "...")
+        ex = expectation(S, v, Σ)
+        v, Σnew = updatevΣ(S, ex, v)
+        println("done")
+    end
+    IExtractor{T}(v, Σ)
+end
+
+function ivector(ie::IExtractor, s::Stats)
+    nv = size(ie.Tt,1)
+    ng = length(s.N)
+    nfea = div(length(ie.prec), ng)
+    TtΣF = ie.Tt * (vec(s.F') .* ie.prec)
+    Nprec = vec(broadcast(*, s.N', reshape(ie.prec, nfea, ng))) # Kenny-order
+    w = inv(eye(nv) + ie.Tt * broadcast(*, Nprec, ie.Tt')) * TtΣF
+end
