@@ -39,23 +39,62 @@ type GMM
     end
 end
 GMM(n::Int,d::Int) = GMM(n,d, :diag)
+function GMM(weights::Vector, means::Array, covars::Array)
+    n = length(weights)
+    @assert n == size(means,1) == size(covars,1)
+    d = size(means,2)
+    @assert d == size(covars,2)
+    gmm = GMM(n, d)
+    gmm.w = weights
+    gmm.μ = means
+    gmm.Σ = covars
+    hist = {History(@sprintf "Initialized from weights, means, covars; n=%d, d=%d, kind=diag" n d)}
+    gmm
+end
 
-## UBM-centered stats.  This structure currently is useful for dotscoring, so we've limited the
+## UBM-centered and scaled stats.
+## This structure currently is useful for dotscoring, so we've limited the
 ## order to 1.  Maybe we can make this more general allowing for uninitialized second order
 ## stats?
 
 ## We store the stats in a (ng * d) structure, i.e., not as a super vector yet.  
 ## Perhaps in ivector processing a supervector is easier. 
-type Cstats
+type CSstats
     n::Vector{Float64}          # zero-order stats, ng
-    f::Array{Float64,2}          # second-order stats, ng * d
+    f::Array{Float64,2}          # first-order stats, ng * d
     function Cstats(n::Vector{Float64}, f::Array{Float64,2})
         @assert size(n,1)==size(f, 1)
         new(n,f)
     end
 end
-## Cstats(n::Array{Float64,2}, f::Array{Float64,2}) = Cstats(reshape(n, prod(size(n))), reshape(f, prod(size(f))))
-Cstats(t::Tuple) = Cstats(t[1], t[2])
+## CSstats(n::Array{Float64,2}, f::Array{Float64,2}) = Cstats(reshape(n, prod(size(n))), reshape(f, prod(size(f))))
+CSstats(t::Tuple) = CSstats(t[1], t[2])
+
+## Stats is a type of centered but un-scaled stats, necessary for i-vector extraction
+type Stats{T}
+    N::Vector{T}
+    F::Matrix{T}
+    S::Matrix{T}
+    function Stats{T}(n::Vector{T}, f::Matrix{T}, s::Matrix{T})
+        @assert size(n,1) == size(f,1)
+        @assert size(f) == size(s)
+        new(n, f, s)
+    end
+end
+
+## Iextractor is a type that contains the information necessary for i-vector extraction:
+## The T-matrix and an updated precision matrix prec
+## It is difficult to decide how to store T and Σ, as T' and vec(prec)?
+type IExtractor{T}
+    Tt::Matrix{T}
+    prec::Vector{T}
+    function IExtractor{T}(Tee::Matrix{T}, prec::Vector{T})
+        @assert size(Tee,1) == length(prec)
+        new(Tee', prec)
+    end
+end
+## or initialize with a traditional covariance matrix
+IExtractor{T}(Tee::Matrix{T}, Σ::Matrix{T}) = IExtractor(Tee, vec(1./Σ'))
 
 ## A data handle, either in memory or on disk, perhaps even mmapped but I haven't seen any 
 ## advantage of that.  It contains a list of either files (where the data is stored)
