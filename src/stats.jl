@@ -103,7 +103,7 @@ end
 ## This function calls stats() for the elements in d::Data, irrespective of the size
 function stats(gmm::GMM, d::Data; order::Int=2, parallel=false)
     if parallel
-        r = pmap(i->stats(gmm, d[i], order=order, parallel=false), 1:length(d))
+        r = dmap(x->stats(gmm, x, order=order, parallel=false), d)
         return reduce(+, r)
     else
         r = stats(gmm, d[1], order=order, parallel=false)
