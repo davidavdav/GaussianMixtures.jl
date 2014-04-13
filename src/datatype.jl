@@ -115,7 +115,7 @@ end
 
 ## this is potentially slow because it reads all file just to find out the size
 function Base.size(d::Data)
-    s = map(size, d)
+    s = dmap(size, d)
     nrow, ncol = s[1]
     ok = true
     for i in 2:length(s)
