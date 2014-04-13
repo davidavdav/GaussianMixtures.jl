@@ -68,14 +68,15 @@ end
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
 function GMMk(n::Int, x::DataOrMatrix; nInit::Int=50, nIter::Int=10, logll=true)
-    gmm = GMM(n, ncol(x))
+    nfea = size(x, 2)
+    gmm = GMM(n, nfea)
     km = kmeans(convert(Array{Float64},x'), n, max_iter=nInit, display = logll ? :iter : :none)
     gmm.μ = km.centers'
     ## helper that deals with centers with singleton datapoints. 
     function variance(i::Int)
         sel = km.assignments .== i
         if length(i)<2
-            return ones(1,ncol(x))
+            return ones(1,nfea)
         end
         return var(x[sel,:],1)
     end
@@ -216,7 +217,7 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
         normalization = log((2π)^(d/2) * sqrt(prod(gmm.Σ,2))) # row 1...ng
         for j=1:ng
             Δ = broadcast(-, x, gmm.μ[j,:]) # nx * d
-            ll[:,j] = -0.5sum(broadcast(/, Δ.^2, gmm.Σ[j,:]),2) - normalization[j]
+            ll[:,j] = -0.5sum(broadcast(/, Δ.^2, gmm.Σ[j,:]),2) .- normalization[j]
         end
     else
         error("Unimplemented kind")
