@@ -51,6 +51,31 @@ Base.start(x::Data) = 0
 Base.next(x::Data, state::Int) = x[state+1], state+1
 Base.done(x::Data, state::Int) = state == length(x)
 
+## This function is like pmap(), but executes each element of Data on a predestined
+## worker, so that file caching at the local machine is beneficial
+function dmap(f::Function, x::Data)
+    if kind(x) == :file
+        nx = length(x)
+        w = workers()
+        nw = length(w)
+        worker(i) = w[1 .+ ((i-1) % nw)]
+        results = cell(nx)
+        getnext(i) = x.list[i]
+        read = x.read
+        @sync begin
+            for i = 1:nx
+                @async begin
+                    next = getnext(i)
+                    results[i] = remotecall_fetch(worker(i), s->f(read(s)), next)
+                end
+            end
+        end
+        results
+    else
+        pmap(f, x)
+    end
+end
+
 ## stats: compute nth order stats for array
 function stats{T<:FloatingPoint}(x::Array{T,2}, order::Int=2)
     n, d = size(x)
@@ -71,7 +96,7 @@ end
 
 ## this function calls pmap as an option for parallelism
 function stats(d::Data, order::Int=2)
-    s = pmap(i->stats(d[i]), 1:length(d))
+    s = dmap(x->stats(x,order), d)
     reduce(+, s)     
 end
 
