@@ -278,15 +278,14 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
     ll = zeros(nx, ng)
     if (gmm.kind==:diag)
         normalization = 0.5 * (d * log(2π) + sum(log(gmm.Σ),2)) # row 1...ng
-        print(normalization)
         for j=1:ng
             Δ = broadcast(-, x, gmm.μ[j,:]) # nx * d
-            ll[:,j] = -0.5sum(broadcast(/, Δ.^2, gmm.Σ[j,:]),2) - normalization[j]
+            ΔsqrtΛ = broadcast(/, Δ, sqrt(gmm.Σ[j,:]))
+            ll[:,j] = -0.5sumsq(ΔsqrtΛ,2) .- normalization[j]
         end
     else
         C = [chol(inv(gmm.Σ[:,:,i]), :L) for i=1:ng] # should do this only once...
         normalization = 0.5 * [d*log(2π) + logdet(gmm.Σ[:,:,i]) for i=1:ng]
-        print(normalization)
         for j=1:ng
             Δ = broadcast(-, x, gmm.μ[j,:])
             CΔ = Δ*C[j]                 # nx * d
