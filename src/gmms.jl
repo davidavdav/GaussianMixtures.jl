@@ -6,14 +6,37 @@ ccall(:jl_zero_subnormals, Bool, (Bool,), true)
 
 #require("gmmtypes.jl")
 
+## uninitialized constructor
+function GMM(n::Int, d::Int, kind::Symbol) 
+    w = ones(n)/n
+    μ = zeros(n, d)
+    if kind == :diag
+        Σ = ones(n, d)
+    else
+        Σ = Array(Float64, d, d, n)
+        for i=1:n
+            Σ[:,:,i] = eye(d)
+        end
+    end
+    hist = {History(@sprintf "Initialization n=%d, d=%d, kind=%s" n d kind)}
+    GMM(kind, w, μ, Σ, hist)
+end
+GMM(n::Int,d::Int) = GMM(n, d, :diag)
+
+## initialized constructor
+function GMM(weights::Vector, means::Array, covars::Array)
+    n = length(weights)
+    d = size(means,2)
+    hist = {History(@sprintf "Initialized from weights, means, covars; n=%d, d=%d, kind=diag" n d)}
+    gmm(kind, weights, means, covars, hist)
+end
+
 nparams(gmm::GMM) = sum(map(length, (gmm.w, gmm.μ, gmm.Σ)))
 weights(gmm::GMM) = gmm.w
 means(gmm::GMM) = gmm.μ
 covars(gmm::GMM) = gmm.Σ
 
 using Clustering
-
-import Base.copy
 
 # call me old-fashioned
 #nrow(x) = size(x,1)
@@ -24,7 +47,7 @@ function addhist!(gmm::GMM, s::String)
 end
 
 ## copy a GMM, deep-copying all internal information. 
-function copy(gmm::GMM)
+function Base.copy(gmm::GMM)
     x = GMM(gmm.n, gmm.d, gmm.kind)
     x.w = copy(gmm.w)
     x.μ = copy(gmm.μ)
@@ -33,27 +56,48 @@ function copy(gmm::GMM)
     x
 end
 
+## This now is more efficiently done with the DataOrMatrix type. 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-function GMM{T<:FloatingPoint}(x::Array{T,2})
-    d=size(x, 2)
-    gmm = GMM(1,d)
-    gmm.μ = mean(x, 1)
-    gmm.Σ = var(x, 1)
-    addhist!(gmm, @sprintf("Initlialized single Gaussian with %d data points",size(x,1)))
-    gmm
-end
+#function GMM{T<:FloatingPoint}(x::Matrix{T}, kind=:diag)
+#    nx, d = size(x)
+#    μ = mean(x, 1)
+#    if kind == :diag
+#        Σ = var(x, 1)
+#    else
+#        Σ = reshape(cov(x),d,d,1)
+#    end
+#    hist = History(@sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points",
+#                            d, kind, nx))
+#    GMM(kind, [1.0], μ, Σ, [hist])
+#end
 
 ## Same, but initialize using type Data, possibly doing things in parallel in stats()
-function GMM(x::Data)
-    n, sx, sxx = stats(x)
-    μ = sx ./ n
-    Σ = (sxx - n*μ.^2) ./ (n-1)
+function GMM(x::DataOrMatrix, kind=:diag)
+    n, sx, sxx = stats(x, kind=kind)
+    μ = sx' ./ n                        # make this a row vector
     d = length(μ)
-    gmm = GMM(1,d)
-    gmm.μ = μ'
-    gmm.Σ = Σ'
-    addhist!(gmm, @sprintf("Initlialized single Gaussian with %d data points", n))
-    gmm
+    if kind == :diag
+        Σ = (sxx' - n*μ.*μ) ./ (n-1)
+    else
+        Σ = reshape((sxx - n*μ'*μ) ./ (n-1), d, d, 1)
+    end
+    hist = History(@sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points",
+                            d, kind, n))
+    GMM(kind, [1.0], μ, Σ, [hist])
+end
+
+## create a full cov GMM from a diag cov GMM (for testing full covariance routines)
+function Base.full(gmm::GMM)
+    if gmm.kind == :full
+        return gmm
+    end
+    Σ = Array(Float64, gmm.d, gmm.d, gmm.n)
+    for i=1:gmm.n
+          Σ[:,:,i] = diagm(vec(gmm.Σ[i,:]))
+    end
+    g = GMM(:full, gmm.w, gmm.μ, Σ, gmm.hist)
+    addhist!(g, "Converter to cull covariance")
+    g
 end
 
 function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
@@ -67,22 +111,42 @@ function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; nInit::Int=50, nIt
 end
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
-function GMMk(n::Int, x::DataOrMatrix; nInit::Int=50, nIter::Int=10, logll=true)
-    gmm = GMM(n, ncol(x))
+function GMMk(n::Int, x::DataOrMatrix, kind=:diag; nInit::Int=50, nIter::Int=10, logll=true)
+    nx, d = size(x)
     km = kmeans(convert(Array{Float64},x'), n, max_iter=nInit, display = logll ? :iter : :none)
-    gmm.μ = km.centers'
-    ## helper that deals with centers with singleton datapoints. 
-    function variance(i::Int)
-        sel = km.assignments .== i
-        if length(i)<2
-            return ones(1,ncol(x))
+    μ = km.centers'
+    if kind == :diag
+        ## helper that deals with centers with singleton datapoints.
+        function variance(i::Int)
+            sel = km.assignments .== i
+            if length(sel) < 2
+                return ones(1,d)
+            else 
+                return var(x[sel,:],1)                
+            end
         end
-        return var(x[sel,:],1)
+        Σ = convert(Array{Float64,2},vcat(map(variance, 1:n)...))
+    else
+        function covariance(i::Int)
+            sel = km.assignments .== i
+            if length(sel) < 2
+                return eye(d)
+            else
+                return cov(x[sel,:])
+            end
+        end
+        Σ = Array(Float64,d,d,n)
+        for i=1:n
+            Σ[:,:,i] = covariance(i)
+        end
     end
-    gmm.Σ = convert(Array{Float64,2},vcat(map(variance, 1:n)...))
-    gmm.w = km.counts ./ sum(km.counts)
-    addhist!(gmm, string("K-means with ", size(x,1), " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",size(x,1)/nparams(gmm))))
-    em!(gmm, x; nIter=nIter, logll=logll)
+    w = km.counts ./ sum(km.counts)
+    hist = History(string("K-means with ", size(x,1), " data points using ", km.iterations, " iterations\n"))
+    gmm = GMM(kind, w, μ, Σ, [hist])
+    addhist!(gmm, @sprintf("%3.1f data points per parameter",nx/nparams(gmm)))
+    if kind == :diag
+        em!(gmm, x; nIter=nIter, logll=logll)
+    end
     gmm
 end    
 
@@ -211,15 +275,23 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
     (nx, d) = size(x)
     ng = gmm.n
     @assert d==gmm.d    
+    ll = zeros(nx, ng)
     if (gmm.kind==:diag)
-        ll = zeros(nx, ng)
-        normalization = log((2π)^(d/2) * sqrt(prod(gmm.Σ,2))) # row 1...ng
+        normalization = 0.5 * (d * log(2π) + sum(log(gmm.Σ),2)) # row 1...ng
+        print(normalization)
         for j=1:ng
             Δ = broadcast(-, x, gmm.μ[j,:]) # nx * d
             ll[:,j] = -0.5sum(broadcast(/, Δ.^2, gmm.Σ[j,:]),2) - normalization[j]
         end
     else
-        error("Unimplemented kind")
+        C = [chol(inv(gmm.Σ[:,:,i]), :L) for i=1:ng] # should do this only once...
+        normalization = 0.5 * [d*log(2π) + logdet(gmm.Σ[:,:,i]) for i=1:ng]
+        print(normalization)
+        for j=1:ng
+            Δ = broadcast(-, x, gmm.μ[j,:])
+            CΔ = Δ*C[j]                 # nx * d
+            ll[:,j] = -0.5sumsq(CΔ,2) .- normalization[j]
+        end
     end
     ll
 end
@@ -257,7 +329,11 @@ function show(io::IO, gmm::GMM)
         print(io, @sprintf "Mix %d: weight %f, mean:\n" j gmm.w[j]);
         print(io, gmm.μ[j,:])
         print(io, "covariance:\n")
-        print(io, gmm.Σ[j,:])
+        if gmm.kind == :diag
+            print(io, gmm.Σ[j,:])
+        elseif gmm.kind == :full
+            print(io, gmm.Σ[:,:,j])
+        end
     end
 end
     
