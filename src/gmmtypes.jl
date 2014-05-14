@@ -13,6 +13,8 @@
 ## - The data index (i) always be a row-index
 ## - The feature dimenssion index (k) always to be a column index
 ## - The Gaussian index (j) to be mixed, depending on how it is used
+## For full covar Σ, we need 2 feature dims.  For individuals covars to be
+## consecutive in memory, the gaussian index should be _last_. 
 
 ## force Emacs utf-8: αβγδεζηθικλμνξοπρστυφχψω 
 
@@ -22,6 +24,9 @@ type History
 end
 History(s::String) = History(time(), s)
 
+## typealias MatrixOrArray{T} Union(Matrix{T}, Vector{Matrix{T}})
+
+## for now, GMM elements are of type Float64---we may want to make this :<FloatingPoint later.  
 type GMM
     n::Int                      # number of Gaussians
     d::Int                      # dimension of Gaussian
@@ -30,26 +35,23 @@ type GMM
     μ::Array{Float64}		# means: n x d
     Σ::Array{Float64}           # covars n x d
     hist::Array{History}        # history
-    function GMM(n::Int, d::Int, kind) 
-        w = ones(n)/n
-        μ = zeros(n, d)
-        Σ = ones(n, d)
-        hist = {History(@sprintf "Initialization n=%d, d=%d, kind=%s" n d kind)}
+    function GMM(kind::Symbol, w::Vector, μ::Array, Σ::Array, hist::Array)
+        n = length(w)
+        isapprox(1, sum(w)) || error("weights do not sum to one")
+        d = size(μ, 2)
+        n == size(μ, 1) || error("Inconsistent number of means")
+        if kind == :diag
+            (n,d) == size(Σ) || error("Inconsistent covar dimension")
+        elseif kind == :full
+            (d,d,n) == size(Σ) || error("Inconsistent covars (number or dimension)")
+            for i=1:n
+                issym(Σ[:,:,i]) || error("Covariance %d not symmetric", i)
+            end
+        else
+            error("Unknown kind")
+        end
         new(n, d, kind, w, μ, Σ, hist)
     end
-end
-GMM(n::Int,d::Int) = GMM(n,d, :diag)
-function GMM(weights::Vector, means::Array, covars::Array)
-    n = length(weights)
-    @assert n == size(means,1) == size(covars,1)
-    d = size(means,2)
-    @assert d == size(covars,2)
-    gmm = GMM(n, d)
-    gmm.w = weights
-    gmm.μ = means
-    gmm.Σ = covars
-    hist = {History(@sprintf "Initialized from weights, means, covars; n=%d, d=%d, kind=diag" n d)}
-    gmm
 end
 
 ## UBM-centered and scaled stats.
