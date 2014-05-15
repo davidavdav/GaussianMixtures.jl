@@ -48,7 +48,7 @@ function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     sm2p=pxx=mpx=0                   # save memory
     
     lpf=sum(L,2)                        # nx * 1, Likelihood per frame
-    γ = broadcast(/, L, lpf + (lpf==0))' # ng * nx, posterior per frame per gaussian
+    γ = broadcast(/, L, lpf .+ (lpf==0))' # ng * nx, posterior per frame per gaussian
     ## zeroth order
     N = reshape(sum(γ, 2), ng)          # ng * 1, vec()
     ## first order
@@ -104,7 +104,7 @@ end
 ## This function calls stats() for the elements in d::Data, irrespective of the size
 function stats(gmm::GMM, d::Data; order::Int=2, parallel=false)
     if parallel
-        r = pmap(i->stats(gmm, d[i], order=order, parallel=false), 1:length(d))
+        r = dmap(x->stats(gmm, x, order=order, parallel=false), d)
         return reduce(+, r)
     else
         r = stats(gmm, d[1], order=order, parallel=false)
