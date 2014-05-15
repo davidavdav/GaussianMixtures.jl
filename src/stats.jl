@@ -75,6 +75,7 @@ function accumulate(r::Vector{Tuple})
 end
 
 ## perhaps simpler, even, in combination with reduce()
+## This relies on sum(::Tuple), which sums over the elements of the tuple. 
 function +(a::Tuple, b::Tuple)
     @assert length(a) == length(b)
     tuple(map(sum, zip(a,b))...)

@@ -4,6 +4,8 @@
 ## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
 ccall(:jl_zero_subnormals, Bool, (Bool,), true)
 
+using NumericExtensions
+
 #require("gmmtypes.jl")
 
 ## uninitialized constructor

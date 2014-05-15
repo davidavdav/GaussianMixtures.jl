@@ -2,6 +2,8 @@
 
 # require("gmmtypes.jl")
 
+using NumericExtensions
+
 ## constructor for a plain matrix.  rowvectors: data points x represented as rowvectors
 function Data{T<:FloatingPoint}(x::Matrix{T}, rowvectors=true) 
     if rowvectors
@@ -52,26 +54,39 @@ Base.next(x::Data, state::Int) = x[state+1], state+1
 Base.done(x::Data, state::Int) = state == length(x)
 
 ## stats: compute nth order stats for array
-function stats{T<:FloatingPoint}(x::Array{T,2}, order::Int=2)
+function stats{T<:FloatingPoint}(x::Matrix{T}, order::Int=2; kind=:diag)
     n, d = size(x)
-    res = [n]
-    sx = zeros(order,d)
-    for j=1:d
-        for i=1:n
-            xi = xp = x[i,j]
-            sx[1,j] += xp
-            for o=2:order
-                xp *= xi
-                sx[o,j] += xp
+    if kind == :diag
+        if order == 2
+            n, vec(sum(x,1)), vec(sumsq(x, 1))   # NumericExtensions is fast
+        elseif order == 1
+            n, vec(sum(x,1))
+        else
+            sx = zeros(T, order,d)
+            for j=1:d
+                for i=1:n
+                    xi = xp = x[i,j]
+                    sx[1,j] += xp
+                    for o=2:order
+                        xp *= xi
+                        sx[o,j] += xp
+                    end
+                end
             end
+            {n, map(i->vec(sx[i,:]), 1:order)...}
         end
+    elseif kind == :full
+        order == 2 || error("Can only do covar starts for order=2")
+        ## lazy implementation
+        sx = vec(sum(x, 1))
+        sxx = x' * x
+        {n, sx, sxx}
     end
-    {n, map(i->vec(sx[i,:]), 1:order)...}
 end
 
 ## this function calls pmap as an option for parallelism
-function stats(d::Data, order::Int=2)
-    s = pmap(i->stats(d[i]), 1:length(d))
+function stats(d::Data, order::Int=2; kind=:diag)
+    s = pmap(i->stats(d[i], order, kind=kind), 1:length(d))
     reduce(+, s)     
 end
 
