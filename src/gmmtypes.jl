@@ -45,7 +45,7 @@ type GMM
         elseif kind == :full
             (d,d,n) == size(Σ) || error("Inconsistent covars (number or dimension)")
             for i=1:n
-                issym(Σ[:,:,i]) || error("Covariance %d not symmetric", i)
+                issym(Σ[:,:,i]) || error(@sprintf("Covariance %d not symmetric", i))
             end
         else
             error("Unknown kind")
