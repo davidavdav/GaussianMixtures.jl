@@ -33,7 +33,13 @@ function GMM(weights::Vector, means::Array, covars::Array)
     gmm(kind, weights, means, covars, hist)
 end
 
-nparams(gmm::GMM) = sum(map(length, (gmm.w, gmm.μ, gmm.Σ)))
+function nparams(gmm::GMM)
+    if gmm.kind==:diag
+        sum(map(length, (gmm.w, gmm.μ, gmm.Σ)))-1
+    else
+        sum(map(length, (gmm.w, gmm.μ))) - 1 + gmm.n * gmm.d * (gmm.d+1) / 2
+    end
+end
 weights(gmm::GMM) = gmm.w
 means(gmm::GMM) = gmm.μ
 covars(gmm::GMM) = gmm.Σ
@@ -81,7 +87,7 @@ function GMM(x::DataOrMatrix, kind=:diag)
     if kind == :diag
         Σ = (sxx' - n*μ.*μ) ./ (n-1)
     else
-        Σ = reshape((sxx - n*μ'*μ) ./ (n-1), d, d, 1)
+        Σ = reshape((sxx - n*(μ'*μ)) ./ (n-1), d, d, 1)
     end
     hist = History(@sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points",
                             d, kind, n))
@@ -97,23 +103,37 @@ function Base.full(gmm::GMM)
     for i=1:gmm.n
           Σ[:,:,i] = diagm(vec(gmm.Σ[i,:]))
     end
-    g = GMM(:full, gmm.w, gmm.μ, Σ, gmm.hist)
-    addhist!(g, "Converter to cull covariance")
+    g = GMM(:full, copy(gmm.w), copy(gmm.μ), Σ, copy(gmm.hist))
+    addhist!(g, "Converted to cull covariance")
     g
 end
 
-function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+function Base.diag(gmm::GMM)
+    if gmm.kind == :diag
+        return gmm
+    end
+    Σ = Array(Float64, gmm.n, gmm.d)
+    for i=1:gmm.n
+        Σ[i,:] = diag(gmm.Σ[:,:,i])
+    end
+    g = GMM(:diag, copy(gmm.w), copy(gmm.μ), Σ, copy(gmm.hist))
+    addhist!(g, "Converted to diag covariance")
+    g
+end
+
+## constructors based on data
+function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
     if method==:split
-        GMM2(n, x, nIter=nIter, nFinal=nFinal, fast=fast, logll=logll)
+        GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, fast=fast, logll=logll)
     elseif method==:kmeans
-        GMMk(n, x, nInit=nInit, nIter=nIter)
+        GMMk(n, x, kind=kind, nInit=nInit, nIter=nIter)
     else
         error("Unknown method ", method)
     end
 end
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
-function GMMk(n::Int, x::DataOrMatrix, kind=:diag; nInit::Int=50, nIter::Int=10, logll=true)
+function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10, logll=true)
     nx, d = size(x)
     km = kmeans(convert(Array{Float64},x'), n, max_iter=nInit, display = logll ? :iter : :none)
     μ = km.centers'
@@ -155,10 +175,10 @@ end
 ## Train a GMM by consecutively splitting all means.  n most be a power of 2
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.  
-function GMM2(n::Int, x::DataOrMatrix; nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
     log2n = int(log2(n))
     @assert 2^log2n == n
-    gmm=GMM(x)
+    gmm=GMM(x, kind)
     tll = avll(gmm,x)
     println("0: avll = ", tll)
     for i=1:log2n
@@ -187,6 +207,14 @@ function avll(gmm::GMM, d::Data)
 end
 
 import Base.split
+## split a mean according to the covariance matrix
+function split(μ::Vector, Σ::Matrix; sep=0.2)
+    d, v = eigs(Σ, nev=1)
+    p1 = sep * d[1] * v[:,1]                         # first principal component
+    μ - p1, μ + p1
+end
+
+    
 ## Split a gmm in order to to double the amount of gaussians
 function split(gmm::GMM; minweight::Real=1e-5, covfactor::Real=0.2)
     ## In this function i, j, and k all index Gaussians
@@ -201,12 +229,19 @@ function split(gmm::GMM; minweight::Real=1e-5, covfactor::Real=0.2)
         gmm.μ[maxi[i],:] = gmm.μ[maxi[i],:] - covfactor*sqrt((gmm.Σ[maxi[i],:]))
     end
     new = GMM(2gmm.n, gmm.d, gmm.kind)
-    for i=1:gmm.n
-        j = 2i-1 : 2i
-        new.w[j] = gmm.w[i]/2
-        for k=j 
-            new.μ[k,:] = gmm.μ[i,:] + sign(k-2i+0.5) * covfactor * sqrt(gmm.Σ[i,:])
-            new.Σ[k,:] = gmm.Σ[i,:]
+    for oi=1:gmm.n
+        ni = 2oi-1 : 2oi
+        new.w[ni] = gmm.w[oi]/2
+        if gmm.kind == :diag
+            for k=ni 
+                new.μ[k,:] = gmm.μ[oi,:] + sign(k-2oi+0.5) * covfactor * sqrt(gmm.Σ[oi,:])
+                new.Σ[k,:] = gmm.Σ[i,:]
+            end
+        else
+            new.μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), gmm.Σ[:,:,oi])...)'
+            for k=ni
+                new.Σ[:,:,k] = gmm.Σ[:,:,oi]
+            end
         end
     end
     new.hist = vcat(gmm.hist, History(@sprintf("split to %d Gaussians",new.n)))
@@ -239,7 +274,7 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Real=1e-3, lo
                 e=min(b+blocksize, nf)
                 xx = x[b+1:e,:]
                 nxx = e-b
-                (p,a) = post(gmm, xx) # nx * ng
+                p = post(gmm, xx) # nx * ng
                 N += sum(p,1)'
                 F += p' * xx
                 S += p' * xx.^2
@@ -251,13 +286,20 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Real=1e-3, lo
         ## M-step
         gmm.w = N / nx
         gmm.μ = broadcast(/, F, N)
-        gmm.Σ = broadcast(/, S, N) - gmm.μ.^2
-        ## var flooring
-        tooSmall = any(gmm.Σ .< varfloor, 2)
-        if (any(tooSmall))
-            ind = find(tooSmall)
-            println("Variances had to be floored ", join(ind, " "))
-            gmm.Σ[ind,:] = initc[ind,:]
+        if gmm.kind == :diag
+            gmm.Σ = broadcast(/, S, N) - gmm.μ.^2
+            ## var flooring
+            tooSmall = any(gmm.Σ .< varfloor, 2)
+            if (any(tooSmall))
+                ind = find(tooSmall)
+                println("Variances had to be floored ", join(ind, " "))
+                gmm.Σ[ind,:] = initc[ind,:]
+            end
+        elseif gmm.kind == :full
+            for i=1:ng
+                μi = gmm.μ[i,:]
+                gmm.Σ[:,:,i] = S[i] / N[i] - μi' * μi
+            end
         end
     end
     if nIter>0
@@ -298,16 +340,19 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
 end
 
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
-function post{T}(gmm, x::Array{T,2})      # nx * ng
+function post{T}(gmm, x::Array{T,2}, getll=false)      # nx * ng
     (nx, d) = size(x)
     ng = gmm.n
     @assert d==gmm.d
-    a = exp(llpg(gmm, x))
-    p = broadcast(*, a, gmm.w')
-    sp = sum(p, 2)
-    sp += sp==0       # prevent possible /0
-    p = broadcast(/, p, sp)
-    (p, a)
+    ll = llpg(gmm, x)
+    logp = broadcast(+, ll, log(gmm.w'))
+    logsump = logsumexp(logp, 2)
+    broadcast!(-, logp, logp, logsump)
+    if getll
+        exp(logp), ll
+    else
+        exp(logp)
+    end
 end
 
 function history(gmm::GMM) 
