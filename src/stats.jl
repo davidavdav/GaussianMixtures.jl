@@ -31,10 +31,18 @@ end
 ##
 ## you can dispatch this routine by specifying 3 parameters, 
 ## i.e., an unnamed explicit parameter order
-function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
+function stats{T<:Real}(gmm::GMM, x::Matrix{T}, order::Int=2)
+    gmm.d == size(x,2) || error("dimension mismatch for data")
+    if gmm.kind == :diag
+        diagstats(gmm, x, order)
+    elseif gmm.kind == :full
+        fullstats(gmm, x, order)
+    end
+end
+
+function diagstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     ng = gmm.n
     (nx, d) = size(x)
-    @assert d==gmm.d
     prec = 1./gmm.Σ             # ng * d
     mp = gmm.μ .* prec              # mean*precision, ng * d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
@@ -63,6 +71,32 @@ function stats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     end
 end
 
+## this is a `slow' implementation, based on post()
+function fullstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
+    (nx, d) = size(x)
+    ng = gmm.n
+    γ, ll = post(gmm, x, true)
+    llh = sum(logsumexp(broadcast(+, ll, log(gmm.w)'), 2))
+    ## zeroth order
+    N = vec(sum(γ, 1))
+    ## first order
+    F = γ' * x
+    if order == 1
+        return nx, llh, N, F
+    end
+    ## second order, this is harder now
+    S = [zeros(d,d) for i=1:ng]
+    for i=1:nx
+        xi = x[i,:]
+        sxx = xi' * xi
+        for j=1:ng
+            S[j] += γ[i,j]*sxx
+        end
+    end
+    return nx, llh, N, F, S
+end
+    
+                   
 ## reduction function for the plain results of stats(::GMM)
 function accumulate(r::Vector{Tuple})
     res = {r[1]...}           # first stats tuple, as array
