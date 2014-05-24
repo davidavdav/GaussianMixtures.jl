@@ -43,16 +43,18 @@ function binsearch{T}(x::T, a::Vector{T})
 end
 
 
-## This function samples n data points from a GMM.  This is pretty slow. 
+## This function samples n data points from a GMM.  This is pretty slow, probably due to the array assignments. 
 function Base.rand(gmm::GMM, n::Int)
     x = Array(Float64, n, gmm.d)
-    cw = cumsum(gmm.w)
-    for i=1:n
-        ind = binsearch(rand(), cw)+1
+    ## generate indices distriuted according to weights
+    index = mapslices(find, rand(Multinomial(1, gmm.w), n), 1)
+    for i=1:gmm.n
+        ind = find(index.==i)
+        nx = length(ind)
         if gmm.kind == :diag
-            x[i,:] = gmm.μ[ind,:] + sqrt(gmm.Σ[ind,:]) .* randn(gmm.d)'
+            x[ind,:] = broadcast(+, gmm.μ[i,:], broadcast(*, sqrt(gmm.Σ[i,:]), randn(nx,gmm.d)))
         else
-            x[i,:] = rand(MvNormal(vec(gmm.μ[ind,:]), gmm.Σ[:,:,ind]))
+            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), gmm.Σ[:,:,i]), nx)'
         end
     end
     x
