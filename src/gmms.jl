@@ -214,9 +214,15 @@ function split(μ::Vector, Σ::Matrix; sep=0.2)
     μ - p1, μ + p1
 end
 
+function split(μ::Vector, Σ::Vector, sep=0.2)
+    maxi = indmax(Σ)
+    p1 = zeros(length(μ))
+    p1[maxi] = sep * Σ[maxi]
+    μ - p1, μ + p1
+end
     
 ## Split a gmm in order to to double the amount of gaussians
-function split(gmm::GMM; minweight::Real=1e-5, covfactor::Real=0.2)
+function split(gmm::GMM; minweight::Real=1e-5, sep::Real=0.2)
     ## In this function i, j, and k all index Gaussians
     maxi = reverse(sortperm(gmm.w))
     offInd = find(gmm.w .< minweight)
@@ -225,20 +231,20 @@ function split(gmm::GMM; minweight::Real=1e-5, covfactor::Real=0.2)
     end
     for i=1:length(offInd) 
         gmm.w[maxi[i]] = gmm.w[offInd[i]] = gmm.w[maxi[i]]/2;
-        gmm.μ[offInd[i],:] = gmm.μ[maxi[i],:] + covfactor*sqrt((gmm.Σ[maxi[i],:]))
-        gmm.μ[maxi[i],:] = gmm.μ[maxi[i],:] - covfactor*sqrt((gmm.Σ[maxi[i],:]))
+        gmm.μ[offInd[i],:] = gmm.μ[maxi[i],:] + sep*sqrt((gmm.Σ[maxi[i],:]))
+        gmm.μ[maxi[i],:] = gmm.μ[maxi[i],:] - sep*sqrt((gmm.Σ[maxi[i],:]))
     end
     new = GMM(2gmm.n, gmm.d, gmm.kind)
     for oi=1:gmm.n
         ni = 2oi-1 : 2oi
         new.w[ni] = gmm.w[oi]/2
         if gmm.kind == :diag
-            for k=ni 
-                new.μ[k,:] = gmm.μ[oi,:] + sign(k-2oi+0.5) * covfactor * sqrt(gmm.Σ[oi,:])
-                new.Σ[k,:] = gmm.Σ[i,:]
+            new.μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), vec(gmm.Σ[oi,:]), sep)...)'
+            for k=ni
+                new.Σ[k,:] = gmm.Σ[oi,:]
             end
         else
-            new.μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), gmm.Σ[:,:,oi])...)'
+            new.μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), gmm.Σ[:,:,oi], sep)...)'
             for k=ni
                 new.Σ[:,:,k] = gmm.Σ[:,:,oi]
             end
@@ -313,21 +319,42 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Real=1e-3, lo
     ll
 end
 
+## This is a fast implementation of llpg for diagonal covariance GMMs
+## It relies on fast matrix multiplication
+function llpgdiag(gmm::GMM, x::Matrix)
+    ## ng = gmm.n
+    (nx, d) = size(x)
+    prec = 1./gmm.Σ             # ng * d
+    mp = gmm.μ .* prec              # mean*precision, ng * d
+    ## note that we add exp(-sm2p/2) later to pxx for numerical stability
+    normalization = 0.5 * (d * log(2π) .+ sum(log(gmm.Σ),2)) # ng * 1
+    sm2p = sum(mp .* gmm.μ, 2)      # sum over d mean^2*precision, ng * 1
+    xx = x.^2                           # nx * d
+    pxx = broadcast(+, sm2p', xx * prec') # nx * ng
+    mpx = x * mp'                       # nx * ng
+    # L = broadcast(*, a', exp(mpx-0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
+    broadcast(-, mpx-0.5pxx, normalization')
+end
+
 ## this function returns the contributions of the individual Gaussians to the LL
 ## ll_ij = log p(x_i | gauss_j)
 function llpg{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
     (nx, d) = size(x)
     ng = gmm.n
     @assert d==gmm.d    
-    ll = zeros(nx, ng)
     if (gmm.kind==:diag)
-        normalization = 0.5 * (d * log(2π) + sum(log(gmm.Σ),2)) # row 1...ng
+#        return llpgdiag(gmm, x)
+        ## old, slow code
+        ll = Array(Float64, nx, ng)
+        normalization = 0.5 * (d * log(2π) .+ sum(log(gmm.Σ),2)) # row 1...ng
         for j=1:ng
             Δ = broadcast(-, x, gmm.μ[j,:]) # nx * d
             ΔsqrtΛ = broadcast(/, Δ, sqrt(gmm.Σ[j,:]))
             ll[:,j] = -0.5sumsq(ΔsqrtΛ,2) .- normalization[j]
         end
-    else
+        return ll
+        else
+        ll = Array(Float64, nx, ng)
         C = [chol(inv(gmm.Σ[:,:,i]), :L) for i=1:ng] # should do this only once...
         normalization = 0.5 * [d*log(2π) + logdet(gmm.Σ[:,:,i]) for i=1:ng]
         for j=1:ng
@@ -335,10 +362,11 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
             CΔ = Δ*C[j]                 # nx * d
             ll[:,j] = -0.5sumsq(CΔ,2) .- normalization[j]
         end
+        return ll
     end
-    ll
 end
-
+        
+        
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
 function post{T}(gmm, x::Array{T,2}, getll=false)      # nx * ng
     (nx, d) = size(x)
