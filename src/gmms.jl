@@ -343,7 +343,7 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
     ng = gmm.n
     @assert d==gmm.d    
     if (gmm.kind==:diag)
-#        return llpgdiag(gmm, x)
+        return llpgdiag(gmm, x)
         ## old, slow code
         ll = Array(Float64, nx, ng)
         normalization = 0.5 * (d * log(2π) .+ sum(log(gmm.Σ),2)) # row 1...ng
@@ -353,13 +353,13 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
             ll[:,j] = -0.5sumsq(ΔsqrtΛ,2) .- normalization[j]
         end
         return ll
-        else
+    else
         ll = Array(Float64, nx, ng)
         C = [chol(inv(gmm.Σ[:,:,i]), :L) for i=1:ng] # should do this only once...
         normalization = 0.5 * [d*log(2π) + logdet(gmm.Σ[:,:,i]) for i=1:ng]
         for j=1:ng
-            Δ = broadcast(-, x, gmm.μ[j,:])
-            CΔ = Δ*C[j]                 # nx * d
+            Δ = broadcast(-, x, gmm.μ[j,:]) # nx * d
+            CΔ = Δ*C[j]                 # nx * d, nx*d^2 operations
             ll[:,j] = -0.5sumsq(CΔ,2) .- normalization[j]
         end
         return ll
