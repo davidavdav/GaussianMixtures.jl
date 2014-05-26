@@ -6,7 +6,13 @@
 
 module GMMs
 
-include("nomodule.jl")
+include("gmmtypes.jl")
+include("datatype.jl")
+
+include("gmms.jl")
+include("stats.jl")
+include("rand.jl")
+include("recognizer.jl")
 
 export GMM, CSstats, Stats, IExtractor, History, Data, DataOrMatrix, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams, means, covars, weights, setmem, vec, rand
 
