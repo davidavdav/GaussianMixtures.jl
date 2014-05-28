@@ -160,9 +160,7 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
     hist = History(string("K-means with ", size(x,1), " data points using ", km.iterations, " iterations\n"))
     gmm = GMM(kind, w, μ, Σ, [hist])
     addhist!(gmm, @sprintf("%3.1f data points per parameter",nx/nparams(gmm)))
-    if kind == :diag
-        em!(gmm, x; nIter=nIter, logll=logll)
-    end
+    em!(gmm, x; nIter=nIter, logll=logll)
     gmm
 end    
 
@@ -194,7 +192,7 @@ end
 ## Average log-likelihood per data point and per dimension for a given GMM 
 function avll{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
     @assert gmm.d == size(x,2)
-    mean(logsumexpw(llpg(g,x), g.w)) / gmm.d
+    mean(logsumexpw(llpg(gmm, x), gmm.w)) / gmm.d
 end
 
 ## Data version
@@ -255,7 +253,7 @@ end
 # the log-likelihood history, per data frame per dimension
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
 ## of the data and stores this in the history.  
-function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Real=1e-3, logll=true, fast=true)
+function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Real=1e-3, logll=true)
     @assert size(x,2)==gmm.d
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
@@ -263,29 +261,7 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Real=1e-3, lo
     ll = zeros(nIter)
     for i=1:nIter
         ## E-step
-        if fast
-            nx, ll[i], N, F, S = stats(gmm, x, parallel=true)
-        else
-            MEM = mem*(2<<30)           # now a parameter
-            blocksize = floor(MEM/((3+3ng)sizeof(Float64))) # 3 instances of nx*ng
-            nf = size(x, 1)             # n frames
-            b = 0                  # pointer to start
-            N = zeros(ng)
-            S = zeros(ng,d)
-            F = zeros(ng,d)
-            while (b < nf) 
-                e=min(b+blocksize, nf)
-                xx = x[b+1:e,:]
-                nxx = e-b
-                p = post(gmm, xx) # nx * ng
-                N += sum(p,1)'
-                F += p' * xx
-                S += p' * xx.^2
-                ll[i] += sum(log(a*gmm.w))
-                b += nxx             # b=e
-            end
-            nx = b
-        end
+        nx, ll[i], N, F, S = stats(gmm, x, parallel=true)
         ## M-step
         gmm.w = N / nx
         gmm.μ = broadcast(/, F, N)
