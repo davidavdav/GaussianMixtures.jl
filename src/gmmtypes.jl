@@ -33,9 +33,9 @@ type GMM
     kind::Symbol                # :diag or :full---we'll take 'diag' for now
     w::Vector{Float64}          # weights: n
     μ::Array{Float64}		# means: n x d
-    Σ::Array{Float64}           # covars n x d
+    Σ::Union(Matrix{Float64},Vector{Matrix{Float64}})           # covars n x d
     hist::Array{History}        # history
-    function GMM(kind::Symbol, w::Vector, μ::Array, Σ::Array, hist::Array)
+    function GMM(kind::Symbol, w::Vector, μ::Matrix, Σ::Array, hist::Array)
         n = length(w)
         isapprox(1, sum(w)) || error("weights do not sum to one")
         d = size(μ, 2)
@@ -43,9 +43,10 @@ type GMM
         if kind == :diag
             (n,d) == size(Σ) || error("Inconsistent covar dimension")
         elseif kind == :full
-            (d,d,n) == size(Σ) || error("Inconsistent covars (number or dimension)")
-            for i=1:n
-                issym(Σ[:,:,i]) || error(@sprintf("Covariance %d not symmetric", i))
+            n == length(Σ) || error("Inconsistent number of covars")
+            for (i,S) in enumerate(Σ) 
+                (d,d) == size(S) || error(@sprintf("Inconsistent dimension for %d", i))
+                isposdef(S) || error(@sprintf("Covariance %d not positive definite", i))
             end
         else
             error("Unknown kind")

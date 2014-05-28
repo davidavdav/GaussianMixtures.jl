@@ -9,10 +9,10 @@ function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
     if kind==:diag
         Σ = rand(Chisq(3), ng, d)
     else
-        Σ = Array(Float64, d, d, ng)
+        Σ = Array(Matrix{Float64}, ng)
         for i=1:ng
             T = randn(d,d)
-            Σ[:,:,i] = T' * T
+            Σ[i] = T' * T
         end
     end
     w = ones(ng)/ng
@@ -54,7 +54,7 @@ function Base.rand(gmm::GMM, n::Int)
         if gmm.kind == :diag
             x[ind,:] = broadcast(+, gmm.μ[i,:], broadcast(*, sqrt(gmm.Σ[i,:]), randn(nx,gmm.d)))
         else
-            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), gmm.Σ[:,:,i]), nx)'
+            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), gmm.Σ[i]), nx)'
         end
     end
     x

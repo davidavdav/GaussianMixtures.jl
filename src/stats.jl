@@ -22,13 +22,6 @@ end
 ## * d), as by the general rule for dimension order in types.jl.
 ## Note: these are _uncentered_ statistics.
 
-## For reasons of accumulation, this function returns a tuple
-## (nx, loglh, N, F [S]) which should be easy to accumulate
-
-## The memory footprint is sizeof(T) * ((4d +2) ng + (d + 4ng + 1) nx,
-## This is not very efficient, since this is designed for speed, and
-## wo don't want to do too much in-memory yet.  
-##
 ## you can dispatch this routine by specifying 3 parameters, 
 ## i.e., an unnamed explicit parameter order
 function stats{T<:Real}(gmm::GMM, x::Matrix{T}, order::Int=2)
@@ -39,6 +32,14 @@ function stats{T<:Real}(gmm::GMM, x::Matrix{T}, order::Int=2)
         fullstats(gmm, x, order)
     end
 end
+
+## For reasons of accumulation, this function returns a tuple
+## (nx, loglh, N, F [S]) which should be easy to accumulate
+
+## The memory footprint is sizeof(T) * ((4d +2) ng + (d + 4ng + 1) nx,
+## This is not very efficient, since this is designed for speed, and
+## wo don't want to do too much in-memory yet.  
+##
 
 function diagstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     ng = gmm.n
@@ -85,14 +86,17 @@ function fullstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
         return nx, llh, N, F
     end
     ## second order, this is harder now
-    S = [zeros(d,d) for i=1:ng]
-    for i=1:nx
-        xi = x[i,:]
-        sxx = xi' * xi
-        for j=1:ng
-            S[j] += γ[i,j]*sxx
-        end
-    end
+    ## broadcast: ng * nx * d multiplications, hcat: nx * (ng*d)
+    ## matmul: nx^2 * d^2 * ng multiplications...
+    Sm = x' * hcat([broadcast(*, γ[:,j], x) for j=1:ng]...) # big bad matmul, nx
+    S = [Sm[:,(j-1)*d+1:j*d] for j=1:ng]
+    ##S = [zeros(d,d) for i=1:ng]
+    ##for i=1:nx
+    ##    xi = x[i,:]
+    ##    sxx = xi' * xi
+    ##    for j=1:ng
+    ##        S[j] += γ[i,j]*sxx
+    ##    end
     return nx, llh, N, F, S
 end
     
