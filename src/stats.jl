@@ -255,7 +255,7 @@ function IExtractor{T}(S::Vector{Stats{T}}, ubm::GMM, nvoices::Int, nIter=7)
         v, Σnew = updatevΣ(S, ex, v)
         println("done")
     end
-    IExtractor{T}(v, Σ)
+    IExtractor(v, Σ)
 end
 
 function ivector(ie::IExtractor, s::Stats)
