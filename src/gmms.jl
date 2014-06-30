@@ -175,7 +175,7 @@ function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nI
     println("0: avll = ", tll)
     for i=1:log2n
         gmm=split(gmm)
-        avll = em!(gmm, x; logll=true, nIter=i==log2n ? nFinal : nIter, fast=fast, logll=logll)
+        avll = em!(gmm, x; logll=true, nIter=i==log2n ? nFinal : nIter, logll=logll)
         println(i, ": avll = ", avll)
         tll = vcat(tll, avll)
     end
