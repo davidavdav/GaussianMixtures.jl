@@ -253,7 +253,7 @@ end
 function IExtractor{T}(S::Vector{Stats{T}}, ubm::GMM, nvoices::Int, nIter=7)
     ng, nfea = size(first(S).F)
     v = randn(ng*nfea, nvoices) * sum(ubm.Σ) * 0.001
-    v = matread("test/vinit.mat")["vinit"]'
+##    v = matread("test/vinit.mat")["vinit"]'
     Σ = ubm.Σ
     for i=1:nIter
         print("Iteration ", i, "...")
