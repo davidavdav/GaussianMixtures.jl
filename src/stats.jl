@@ -184,7 +184,8 @@ function Stats{T}(gmm::GMM, x::Matrix{T})
     Stats{T}(N, F, S)
 end
 
-## Supervectors correspond to matrices by stacking row-wise, i.e., svec(X) = vec(X')
+## Kenny-order supervectors correspond to GMM-order matrices by stacking row-wise, i.e., svec(X) = vec(X')
+## for g in Gaussians for f in features X[g,f] end end
 svec(x::Matrix) = vec(x')
     
 ## compute variance and mean of the posterior distribution of the hidden variables
@@ -268,7 +269,7 @@ function ivector(ie::IExtractor, s::Stats)
     nv = size(ie.Tt,1)
     ng = length(s.N)
     nfea = div(length(ie.prec), ng)
-    TtΣF = ie.Tt * (vec(s.F') .* ie.prec)
+    TtΣF = ie.Tt * (svec(s.F) .* ie.prec)
     Nprec = vec(broadcast(*, s.N', reshape(ie.prec, nfea, ng))) # Kenny-order
     w = inv(eye(nv) + ie.Tt * broadcast(*, Nprec, ie.Tt')) * TtΣF
 end

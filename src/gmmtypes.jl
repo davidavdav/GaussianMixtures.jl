@@ -65,7 +65,7 @@ end
 type CSstats
     n::Vector{Float64}          # zero-order stats, ng
     f::Array{Float64,2}          # first-order stats, ng * d
-    function Cstats(n::Vector{Float64}, f::Array{Float64,2})
+    function CStats(n::Vector{Float64}, f::Array{Float64,2})
         @assert size(n,1)==size(f, 1)
         new(n,f)
     end
