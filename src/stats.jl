@@ -252,7 +252,7 @@ function updatevΣ{T}(S::Vector{Stats{T}}, ex::Vector, v::Matrix)
 end
 
 ## Train an ivector extractor matrix
-function IExtractor{T}(S::Vector{Stats{T}}, ubm::GMM, nvoices::Int, nIter=7)
+function IExtractor{T}(S::Vector{Stats{T}}, ubm::GMM, nvoices::Int; nIter=7, updateΣ=false)
     ng, nfea = size(first(S).F)
     v = randn(ng*nfea, nvoices) * sum(ubm.Σ) * 0.001
 ##    v = matread("test/vinit.mat")["vinit"]'
@@ -260,7 +260,11 @@ function IExtractor{T}(S::Vector{Stats{T}}, ubm::GMM, nvoices::Int, nIter=7)
     for i=1:nIter
         print("Iteration ", i, "...")
         ex = expectation(S, v, Σ)
-        v, Σnew = updatevΣ(S, ex, v)
+        if updateΣ
+            v, Σ = updatevΣ(S, ex, v)
+        else
+            v, = updatevΣ(S, ex, v)
+        end
         println("done")
     end
     IExtractor(v, Σ)
