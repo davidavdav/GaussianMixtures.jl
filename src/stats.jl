@@ -118,6 +118,7 @@ function +(a::Tuple, b::Tuple)
     @assert length(a) == length(b)
     tuple(map(sum, zip(a,b))...)
 end
+Base.zero(t::Tuple) = map(zero, t)
 
 ## split computation up in parts, either because of memory limitations
 ## or because of parallelization
