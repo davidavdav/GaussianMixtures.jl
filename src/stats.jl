@@ -220,7 +220,7 @@ end
 ## S: vector of Stats (0th, 1st, 2nd order stats)
 ## ex: vectopr of expectations, i.e., tuples E[y], E[y y']
 ## v: projection matrix
-function updatevΣ{T}(S::Vector{Stats{T}}, ex::Vector{Tuple}, v::Matrix)
+function updatevΣ{T}(S::Vector{Stats{T}}, ex::Vector, v::Matrix)
     @assert length(S) == length(ex)
     ng, nfea = size(first(S).F)     # number of components or Gaussians
     svl = ng*nfea                   # supervector lenght, CF
