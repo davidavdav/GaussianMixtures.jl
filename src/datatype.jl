@@ -52,6 +52,7 @@ Base.length(x::Data) = length(x.list)
 Base.start(x::Data) = 0
 Base.next(x::Data, state::Int) = x[state+1], state+1
 Base.done(x::Data, state::Int) = state == length(x)
+Base.eltype(x::Data) = x.datatype
 
 ## This function is like pmap(), but executes each element of Data on a predestined
 ## worker, so that file caching at the local machine is beneficial
