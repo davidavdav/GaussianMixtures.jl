@@ -110,24 +110,24 @@ stats(gmm::GMM, x::Array, order=2; parallel=true, llhpf=false)
 Computes the Baum-Welch statistics up to order `order` for the alignment of the data `x` to the Universal Background GMM `gmm`.  The 1st and 2nd order statistics are retuned as an `n` x `d` matrix, so for obtaining a supervector flattening needs to be carried out in the rigt direction.  Theses statistics are _uncentered_. 
 
 ```julia
-cstats(gmm::GMM, x::Array, order=2)
+csstats(gmm::GMM, x::Array, order=2)
 ```
-Computes _centered_ statistics.  These are similar as above, but centered w.r.t the UBM mean and normalized by the covariance.  
+Computes _centered_ and _scaled_ statistics.  These are similar as above, but centered w.r.t the UBM mean and scaled by the covariance.  
 
 ```julia
-Cstats(x::GMM, x::Array)
+CSstats(x::GMM, x::Array)
 ```
-This constructor return a `Cstats` object for centered stats of order 1.  The type is currently defined as:
+This constructor return a `CSstats` object for centered stats of order 1.  The type is currently defined as:
 ```julia
-type Cstats
+type CSstats
     n::Vector{Float64}           # zero-order stats, ng
     f::Array{Float64,2}          # first-order stats, ng * d
 end
 ```
-The Cstats type can be used for i-vector extraction (not implemented yet), MAP adaptation and a simple but elegant dotscoring speaker recognition system. 
+The CSstats type can be used for i-vector extraction (not implemented yet), MAP adaptation and a simple but elegant dotscoring speaker recognition system. 
 
 ```julia
-dotscore(x::Cstats, y::Cstats, r::Float64=1.) 
+dotscore(x::CSstats, y::CSstats, r::Float64=1.) 
 ```
 Computes the dot-scoring approximation to the GMM/UBM log likelihood ratio for a GMM MAP adapted from the UBM (means only) using the data from `x` and a relevance factor of `r`, and test data from `y`. 
 
