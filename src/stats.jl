@@ -177,8 +177,8 @@ end
 CSstats{T<:Real}(gmm::GMM, x::Array{T,2}) = CSstats(csstats(gmm, x, 1))
 
 ## centered stats, but not scaled by UBM covariance
-function Stats{T}(gmm::GMM, x::Matrix{T}) 
-    nx, llh, N, F, S = stats(gmm, x, 2)
+function Stats{T}(gmm::GMM, x::Matrix{T}, parallel=false) 
+    nx, llh, N, F, S = stats(gmm, x, 2, parallel)
     Nμ = broadcast(*, N, gmm.μ)
     S -= (2F+Nμ) .* gmm.μ
     F -= Nμ
