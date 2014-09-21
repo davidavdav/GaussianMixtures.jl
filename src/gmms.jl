@@ -8,7 +8,7 @@ using NumericExtensions
 
 #require("gmmtypes.jl")
 
-## uninitialized constructor
+## uninitialized constructor, defaults to Float64
 function GMM(n::Int, d::Int, kind::Symbol) 
     w = ones(n)/n
     μ = zeros(n, d)
@@ -79,17 +79,18 @@ end
 
 ## Same, but initialize using type Data, possibly doing things in parallel in stats()
 function GMM(x::DataOrMatrix, kind=:diag)
+    numtype = eltype(x)
     n, sx, sxx = stats(x, kind=kind)
     μ = sx' ./ n                        # make this a row vector
     d = length(μ)
     if kind == :diag
         Σ = (sxx' - n*μ.*μ) ./ (n-1)
     else
-        Σ =  Matrix{Float64}[(sxx - n*(μ'*μ)) ./ (n-1)]
+        Σ =  Matrix{numtype}[(sxx - n*(μ'*μ)) ./ (n-1)]
     end
     hist = History(@sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points",
                             d, kind, n))
-    GMM(kind, [1.0], μ, Σ, [hist])
+    GMM(kind, numtype[1.0], μ, Σ, [hist])
 end
 
 ## create a full cov GMM from a diag cov GMM (for testing full covariance routines)
@@ -107,7 +108,7 @@ function Base.diag(gmm::GMM)
     if gmm.kind == :diag
         return gmm
     end
-    Σ = Array(Float64, gmm.n, gmm.d)
+    Σ = Array(eltype(gmm.Σ), gmm.n, gmm.d)
     for i=1:gmm.n
         Σ[i,:] = diag(gmm.Σ[i])
     end
@@ -131,7 +132,19 @@ GMM{T<:FloatingPoint}(n::Int,x::Vector{T}, method::Symbol=:kmeans; kind=:diag, n
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
 function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10, logll=true)
     nx, d = size(x)
-    km = kmeans(convert(Array{Float64},x'), n, max_iter=nInit, display = logll ? :iter : :none)
+    ## subsample x to max 1000 points per mean
+    nneeded = 1000*n
+    if nx < nneeded
+        xx = x
+    else
+        if isa(x, Matrix)
+            xx = x[sample(1:nx, nneeded, replace=false),:]
+        else
+            nsample = iceil(nneeded / length(x))
+            xx = vcat([y[sample(1:size(y,1), nsample, replace=false),:] for y in x]...)
+        end
+    end
+    km = kmeans(convert(Array{Float64},xx'), n, maxiter=nInit, display = logll ? :iter : :none)
     μ = km.centers'
     if kind == :diag
         ## helper that deals with centers with singleton datapoints.
@@ -140,7 +153,7 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
             if length(sel) < 2
                 return ones(1,d)
             else 
-                return var(x[sel,:],1)                
+                return var(xx[sel,:],1)                
             end
         end
         Σ = convert(Matrix{Float64},vcat(map(variance, 1:n)...))
@@ -150,14 +163,14 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
             if length(sel) < 2
                 return eye(d)
             else
-                return cov(x[sel,:])
+                return cov(xx[sel,:])
             end
         end
         Σ = Matrix{Float64}[covariance(i) for i=1:n]
         println(Σ)
     end
     w = km.counts ./ sum(km.counts)
-    hist = History(string("K-means with ", size(x,1), " data points using ", km.iterations, " iterations\n"))
+    hist = History(string("K-means with ", size(xx,1), " data points using ", km.iterations, " iterations\n"))
     gmm = GMM(kind, w, μ, Σ, [hist])
     addhist!(gmm, @sprintf("%3.1f data points per parameter",nx/nparams(gmm)))
     em!(gmm, x; nIter=nIter, logll=logll)
@@ -190,7 +203,7 @@ function logsumexpw(x::Matrix, w::Vector)
 end
 
 ## Average log-likelihood per data point and per dimension for a given GMM 
-function avll{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
+function avll{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
     @assert gmm.d == size(x,2)
     mean(logsumexpw(llpg(gmm, x), gmm.w)) / gmm.d
 end
@@ -217,7 +230,7 @@ function split(μ::Vector, Σ::Vector, sep=0.2)
 end
     
 ## Split a gmm in order to to double the amount of gaussians
-function split(gmm::GMM; minweight::Real=1e-5, sep::Real=0.2)
+function split(gmm::GMM; minweight::Float64=1e-5, sep::Float64=0.2)
     ## In this function i, j, and k all index Gaussians
     maxi = reverse(sortperm(gmm.w))
     offInd = find(gmm.w .< minweight)
@@ -253,7 +266,7 @@ end
 # the log-likelihood history, per data frame per dimension
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
 ## of the data and stores this in the history.  
-function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Real=1e-3, logll=true)
+function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3, logll=true)
     @assert size(x,2)==gmm.d
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
@@ -311,7 +324,7 @@ end
 
 ## this function returns the contributions of the individual Gaussians to the LL
 ## ll_ij = log p(x_i | gauss_j)
-function llpg{T<:FloatingPoint}(gmm::GMM, x::Array{T,2})
+function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
     (nx, d) = size(x)
     ng = gmm.n
     @assert d==gmm.d    
@@ -342,7 +355,7 @@ end
         
         
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
-function post{T}(gmm, x::Array{T,2}, getll=false)      # nx * ng
+function post{T}(gmm, x::Matrix{T}, getll=false)      # nx * ng
     (nx, d) = size(x)
     ng = gmm.n
     @assert d==gmm.d
