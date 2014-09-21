@@ -27,15 +27,15 @@ History(s::String) = History(time(), s)
 ## typealias MatrixOrArray{T} Union(Matrix{T}, Vector{Matrix{T}})
 
 ## for now, GMM elements are of type Float64---we may want to make this :<FloatingPoint later.  
-type GMM
+type GMM{T}
     n::Int                      # number of Gaussians
     d::Int                      # dimension of Gaussian
     kind::Symbol                # :diag or :full---we'll take 'diag' for now
-    w::Vector{Float64}          # weights: n
-    μ::Array{Float64}		# means: n x d
-    Σ::Union(Matrix{Float64},Vector{Matrix{Float64}})           # covars n x d
-    hist::Array{History}        # history
-    function GMM(kind::Symbol, w::Vector, μ::Matrix, Σ::Array, hist::Array)
+    w::Vector{T}                # weights: n
+    μ::Array{T}                 # means: n x d
+    Σ::Union(Matrix{T},Vector{Matrix{T}}) # covars n x d
+    hist::Vector{History}        # history
+    function GMM(kind::Symbol, w::Vector, μ::Matrix, Σ::Array, hist::Vector)
         n = length(w)
         isapprox(1, sum(w)) || error("weights do not sum to one")
         d = size(μ, 2)
@@ -54,6 +54,7 @@ type GMM
         new(n, d, kind, w, μ, Σ, hist)
     end
 end
+GMM{T}(kind::Symbol, w::Vector{T}, μ::Matrix{T}, Σ::Union(Matrix{T},Vector{Matrix{T}}), hist::Vector) = GMM{T}(kind, w, μ, Σ, hist)
 
 ## UBM-centered and scaled stats.
 ## This structure currently is useful for dotscoring, so we've limited the
@@ -62,15 +63,16 @@ end
 
 ## We store the stats in a (ng * d) structure, i.e., not as a super vector yet.  
 ## Perhaps in ivector processing a supervector is easier. 
-type CSstats
-    n::Vector{Float64}          # zero-order stats, ng
-    f::Array{Float64,2}          # first-order stats, ng * d
-    function CSstats(n::Vector{Float64}, f::Array{Float64,2})
+type CSstats{T}
+    n::Vector{T}          # zero-order stats, ng
+    f::Matrix{T}          # first-order stats, ng * d
+    function CSstats(n::Vector, f::Matrix)
         @assert size(n,1)==size(f, 1)
         new(n,f)
     end
 end
-## CSstats(n::Array{Float64,2}, f::Array{Float64,2}) = Cstats(reshape(n, prod(size(n))), reshape(f, prod(size(f))))
+CSstats{T}(n::Vector{T}, f::Matrix{T}) = CSstats{T}(n, v)
+## special case for tuple (why would I need this?)
 CSstats(t::Tuple) = CSstats(t[1], t[2])
 
 ## Stats is a type of centered but un-scaled stats, necessary for i-vector extraction
@@ -78,12 +80,13 @@ type Stats{T}
     N::Vector{T}
     F::Matrix{T}
     S::Matrix{T}
-    function Stats{T}(n::Vector{T}, f::Matrix{T}, s::Matrix{T})
+    function Stats(n::Vector, f::Matrix, s::Matrix)
         @assert size(n,1) == size(f,1)
         @assert size(f) == size(s)
         new(n, f, s)
     end
 end
+Stats{T}(n::Vector{T}, f::Matrix{T}, s::Matrix{T}) = Stats{T}(n, f, s)
 
 ## Iextractor is a type that contains the information necessary for i-vector extraction:
 ## The T-matrix and an updated precision matrix prec
@@ -91,11 +94,12 @@ end
 type IExtractor{T}
     Tt::Matrix{T}
     prec::Vector{T}
-    function IExtractor{T}(Tee::Matrix{T}, prec::Vector{T})
+    function IExtractor(Tee::Matrix, prec::Vector)
         @assert size(Tee,1) == length(prec)
         new(Tee', prec)
     end
 end
+IExtractor{T}(Tee::Matrix{T}, prec::Vector{T}) = IExtractor{T}(Tee, prec)
 ## or initialize with a traditional covariance matrix
 IExtractor{T}(Tee::Matrix{T}, Σ::Matrix{T}) = IExtractor{T}(Tee, vec(1./Σ'))
 
