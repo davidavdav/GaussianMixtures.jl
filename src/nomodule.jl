@@ -1,5 +1,9 @@
+ccall(:jl_zero_subnormals, Bool, (Bool,), true)
+using NumericExtensions
+using BigData
+using Distributions
+
 require("gmmtypes.jl")
-include("datatype.jl")
 
 include("gmms.jl")
 include("io.jl")

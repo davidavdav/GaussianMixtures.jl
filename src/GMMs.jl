@@ -6,8 +6,13 @@
 
 module GMMs
 
+## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
+ccall(:jl_zero_subnormals, Bool, (Bool,), true)
+using NumericExtensions
+using BigData
+using Distributions
+
 include("gmmtypes.jl")
-include("datatype.jl")
 
 include("gmms.jl")
 include("io.jl")
@@ -15,6 +20,6 @@ include("stats.jl")
 include("rand.jl")
 include("recognizer.jl")
 
-export GMM, CSstats, Stats, IExtractor, History, Data, DataOrMatrix, split, em!, map, llpg, post, history, show, stats, cstats, dotscore, savemat, readmat, nparams, means, covars, weights, setmem, vec, rand, ivector
+export GMM, CSstats, Stats, IExtractor, History, Data, DataOrMatrix, split, em!, map, llpg, posterior, history, show, stats, cstats, dotscore, savemat, readmat, nparams, means, covars, weights, setmem, vec, rand, ivector
 
 end

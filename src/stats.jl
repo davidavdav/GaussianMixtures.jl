@@ -9,6 +9,8 @@ function setmem(m::Float64)
     global mem=m
 end
 
+import BigData.stats
+
 ## This function is admittedly hairy: in Octave this is much more
 ## efficient than a straightforward calculation.  I don't know if this
 ## holds for Julia.  We'd have to re-implement using loops and less
@@ -24,7 +26,8 @@ end
 
 ## you can dispatch this routine by specifying 3 parameters, 
 ## i.e., an unnamed explicit parameter order
-function stats{T<:Real}(gmm::GMM, x::Matrix{T}, order::Int=2)
+
+function stats{T<:Real}(gmm::GMM, x::Matrix{T}, order::Int)
     gmm.d == size(x,2) || error("dimension mismatch for data")
     if gmm.kind == :diag
         diagstats(gmm, x, order)
@@ -41,7 +44,7 @@ end
 ## wo don't want to do too much in-memory yet.  
 ##
 
-function diagstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
+function diagstats{T<:Real}(gmm::GMM, x::Matrix{T}, order::Int)
     ng = gmm.n
     (nx, d) = size(x)
     prec = 1./gmm.Σ             # ng * d
@@ -72,11 +75,11 @@ function diagstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
     end
 end
 
-## this is a `slow' implementation, based on post()
-function fullstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
+## this is a `slow' implementation, based on posterior()
+function fullstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int)
     (nx, d) = size(x)
     ng = gmm.n
-    γ, ll = post(gmm, x, true)
+    γ, ll = posterior(gmm, x, true)
     llh = sum(logsumexp(broadcast(+, ll, log(gmm.w)'), 2))
     ## zeroth order
     N = vec(sum(γ, 1))
@@ -101,19 +104,20 @@ function fullstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int=2)
 end
     
                    
-## reduction function for the plain results of stats(::GMM)
-function accumulate(r::Vector{Tuple})
-    res = {r[1]...}           # first stats tuple, as array
-    for i=2:length(r)
-        for j = 1:length(r[i])
-            res[j] += r[i][j]
-        end
-    end
-    tuple(res...)
-end
+## ## reduction function for the plain results of stats(::GMM)
+## function accumulate(r::Vector{Tuple})
+##     res = {r[1]...}           # first stats tuple, as array
+##     for i=2:length(r)
+##         for j = 1:length(r[i])
+##             res[j] += r[i][j]
+##         end
+##     end
+##     tuple(res...)
+## end
 
 ## split computation up in parts, either because of memory limitations
 ## or because of parallelization
+## You dispatch this by only using 2 parameters
 function stats{T}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
     ng = gmm.n
     (nx, d) = size(x)    
@@ -123,13 +127,13 @@ function stats{T}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
         blocks= min(nx, max(blocks, nworkers()))
     end
     l = nx / blocks     # chop array into smaller pieces xx
-    xx = Any[x[round(i*l+1):round((i+1)l),:] for i=0:(blocks-1)]
+    xx = Matrix{T}[x[round(i*l+1):round((i+1)l),:] for i=0:(blocks-1)]
     if parallel
         r = pmap(x->stats(gmm, x, order), xx)
     else
         r = map(x->stats(gmm, x, order), xx) # not very memory-efficient, but hey...
     end
-    reduce(+, r)                # from BigData.jl
+    reduce(+, r)                # get +() from BigData.jl
 end
     
 ## This function calls stats() for the elements in d::Data, irrespective of the size

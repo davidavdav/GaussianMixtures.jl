@@ -1,11 +1,6 @@
 ## gmms.jl  Some functions for a Gaussia Mixture Model
 ## (c) 2013--2014 David A. van Leeuwen
 
-## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
-ccall(:jl_zero_subnormals, Bool, (Bool,), true)
-
-using NumericExtensions
-
 #require("gmmtypes.jl")
 
 ## uninitialized constructor, defaults to Float64
@@ -62,22 +57,7 @@ function Base.copy(gmm::GMM)
     g
 end
 
-## This now is more efficiently done with the DataOrMatrix type. 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-#function GMM{T<:FloatingPoint}(x::Matrix{T}, kind=:diag)
-#    nx, d = size(x)
-#    μ = mean(x, 1)
-#    if kind == :diag
-#        Σ = var(x, 1)
-#    else
-#        Σ = reshape(cov(x),d,d,1)
-#    end
-#    hist = History(@sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points",
-#                            d, kind, nx))
-#    GMM(kind, [1.0], μ, Σ, [hist])
-#end
-
-## Same, but initialize using type Data, possibly doing things in parallel in stats()
 function GMM(x::DataOrMatrix, kind=:diag)
     numtype = eltype(x)
     n, sx, sxx = stats(x, kind=kind)
@@ -92,6 +72,8 @@ function GMM(x::DataOrMatrix, kind=:diag)
                             d, kind, n))
     GMM(kind, numtype[1.0], μ, Σ, [hist])
 end
+## Also allow a Vector
+GMM{T<:Real}(x::Vector{T}) = GMM(x'')
 
 ## create a full cov GMM from a diag cov GMM (for testing full covariance routines)
 function Base.full(gmm::GMM)
@@ -117,17 +99,18 @@ function Base.diag(gmm::GMM)
     new
 end
 
-## constructors based on data
-function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+## constructors based on data or matrix
+function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, logll=true)
     if method==:split
-        GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, fast=fast, logll=logll)
+        GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, logll=logll)
     elseif method==:kmeans
         GMMk(n, x, kind=kind, nInit=nInit, nIter=nIter)
     else
         error("Unknown method ", method)
     end
 end
-GMM{T<:FloatingPoint}(n::Int,x::Vector{T}, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true) = GMM(n, x'', method;  kind=kind, nInit=nInit, nIter=nIter, nFinal=nFinal, fast=fast, logll=logll)
+## a 1-dimensional Gaussian can bi initialized with a vector
+GMM{T<:FloatingPoint}(n::Int, x::Vector{T}, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, logll=true) = GMM(n, x'', method;  kind=kind, nInit=nInit, nIter=nIter, nFinal=nFinal, logll=logll)
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
 function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10, logll=true)
@@ -180,7 +163,7 @@ end
 ## Train a GMM by consecutively splitting all means.  n most be a power of 2
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.  
-function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, fast=true, logll=true)
+function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, logll=true)
     log2n = int(log2(n))
     @assert 2^log2n == n
     gmm=GMM(x, kind)
@@ -216,13 +199,13 @@ end
 
 import Base.split
 ## split a mean according to the covariance matrix
-function split(μ::Vector, Σ::Matrix, sep=0.2)
+function split(μ::Vector, Σ::Matrix, sep::Float64=0.2)
     d, v = eigs(Σ, nev=1)
     p1 = sep * d[1] * v[:,1]                         # first principal component
     μ - p1, μ + p1
 end
 
-function split(μ::Vector, Σ::Vector, sep=0.2)
+function split(μ::Vector, Σ::Vector, sep::Float64=0.2)
     maxi = indmax(Σ)
     p1 = zeros(length(μ))
     p1[maxi] = sep * Σ[maxi]
@@ -306,18 +289,18 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
 end
 
 ## This is a fast implementation of llpg for diagonal covariance GMMs
-## It relies on fast matrix multiplication
+## It relies on fast matrix multiplication, and takes up more memory
 function llpgdiag(gmm::GMM, x::Matrix)
     ## ng = gmm.n
     (nx, d) = size(x)
-    prec = 1./gmm.Σ             # ng * d
-    mp = gmm.μ .* prec              # mean*precision, ng * d
+    prec = 1./gmm.Σ                     # ng * d
+    mp = gmm.μ .* prec                  # mean*precision, ng * d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
     normalization = 0.5 * (d * log(2π) .+ sum(log(gmm.Σ),2)) # ng * 1
-    sm2p = sum(mp .* gmm.μ, 2)      # sum over d mean^2*precision, ng * 1
-    xx = x.^2                           # nx * d
+    sm2p = sum(mp .* gmm.μ, 2)   # sum over d mean^2*precision, ng * 1
+    xx = x.^2                    # nx * d
     pxx = broadcast(+, sm2p', xx * prec') # nx * ng
-    mpx = x * mp'                       # nx * ng
+    mpx = x * mp'                         # nx * ng
     # L = broadcast(*, a', exp(mpx-0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
     broadcast(-, mpx-0.5pxx, normalization')
 end
@@ -353,9 +336,9 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
     end
 end
         
-        
+import Distributions.posterior
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
-function post{T}(gmm, x::Matrix{T}, getll=false)      # nx * ng
+function posterior{T}(gmm, x::Matrix{T}, getll=false)      # nx * ng
     (nx, d) = size(x)
     ng = gmm.n
     @assert d==gmm.d
@@ -381,10 +364,8 @@ function history(gmm::GMM)
     end
 end
 
-import Base.show
-
 ## we could improve this a lot
-function show(io::IO, gmm::GMM) 
+function Base.show(io::IO, gmm::GMM) 
     println(io, @sprintf "GMM with %d components in %d dimensions and %s covariance" gmm.n gmm.d gmm.kind)
     for j=1:gmm.n
         println(io, @sprintf "Mix %d: weight %f, mean:" j gmm.w[j]);

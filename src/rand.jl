@@ -1,7 +1,5 @@
 ## can we generate random GMMs and sample from them?
 
-using Distributions
-
 ## This function initializes a random GMM, with random means and random covariances
 ## 
 function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
