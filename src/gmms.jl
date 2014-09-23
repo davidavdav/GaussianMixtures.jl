@@ -118,7 +118,11 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
     ## subsample x to max 1000 points per mean
     nneeded = 1000*n
     if nx < nneeded
-        xx = x
+        if isa(x, Matrix)
+            xx = x
+        else
+            xx = collect(x)             # convert to an array
+        end
     else
         if isa(x, Matrix)
             xx = x[sample(1:nx, nneeded, replace=false),:]
@@ -127,7 +131,7 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
             xx = vcat([y[sample(1:size(y,1), nsample, replace=false),:] for y in x]...)
         end
     end
-    km = kmeans(convert(Array{Float64},xx'), n, maxiter=nInit, display = logll ? :iter : :none)
+    km = kmeans(float64(xx'), n, maxiter=nInit, display = logll ? :iter : :none)
     μ = km.centers'
     if kind == :diag
         ## helper that deals with centers with singleton datapoints.
