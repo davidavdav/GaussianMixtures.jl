@@ -112,14 +112,6 @@ function accumulate(r::Vector{Tuple})
     tuple(res...)
 end
 
-## perhaps simpler, even, in combination with reduce()
-## This relies on sum(::Tuple), which sums over the elements of the tuple. 
-function +(a::Tuple, b::Tuple)
-    @assert length(a) == length(b)
-    tuple(map(sum, zip(a,b))...)
-end
-Base.zero(t::Tuple) = map(zero, t)
-
 ## split computation up in parts, either because of memory limitations
 ## or because of parallelization
 function stats{T}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
@@ -137,7 +129,7 @@ function stats{T}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
     else
         r = map(x->stats(gmm, x, order), xx) # not very memory-efficient, but hey...
     end
-    reduce(+, r)
+    reduce(+, r)                # from BigData.jl
 end
     
 ## This function calls stats() for the elements in d::Data, irrespective of the size
