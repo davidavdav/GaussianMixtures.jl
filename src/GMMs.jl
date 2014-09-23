@@ -11,6 +11,8 @@ ccall(:jl_zero_subnormals, Bool, (Bool,), true)
 using NumericExtensions
 using BigData
 using Distributions
+using HDF5, JLD
+using MAT
 
 include("gmmtypes.jl")
 

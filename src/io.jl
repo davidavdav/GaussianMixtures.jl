@@ -1,7 +1,21 @@
 ## io.jl  Some functions for reading/writing GMMs. 
 ## This code is for exchange with our octave / matlab based system
 
-using MAT
+## save a single GMM
+function JLD.save(filename::String, name::String, gmm::GMM)
+    jldopen(filename, "w") do file
+        addrequire(file, "GMMs")
+        write(file, name, gmm)
+    end
+end
+## save multiple GMMs
+function JLD.save(filename::String, name::String, gmms::Array{GMM})
+    jldopen(filename, "w") do file
+        addrequire(file, "GMMs")
+        write(file, name, gmms)
+    end
+end
+
 
 ## for compatibility with good-old Netlab's GMM
 function savemat(file::String, gmm::GMM) 
