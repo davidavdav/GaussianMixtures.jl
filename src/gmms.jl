@@ -4,7 +4,7 @@
 #require("gmmtypes.jl")
 
 ## uninitialized constructor, defaults to Float64
-function GMM(n::Int, d::Int, kind::Symbol) 
+function GMM(n::Int, d::Int; kind::Symbol=:diag) 
     w = ones(n)/n
     μ = zeros(n, d)
     if kind == :diag
@@ -15,7 +15,6 @@ function GMM(n::Int, d::Int, kind::Symbol)
     hist = {History(@sprintf "Initialization n=%d, d=%d, kind=%s" n d kind)}
     GMM(kind, w, μ, Σ, hist)
 end
-GMM(n::Int,d::Int) = GMM(n, d, :diag)
 
 ## initialized constructor, outdated?
 function GMM(weights::Vector, means::Array, covars::Array, kind::Symbol)
@@ -58,7 +57,7 @@ function Base.copy(gmm::GMM)
 end
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-function GMM(x::DataOrMatrix, kind=:diag)
+function GMM(x::DataOrMatrix; kind=:diag)
     numtype = eltype(x)
     n, sx, sxx = stats(x, kind=kind)
     μ = sx' ./ n                        # make this a row vector
@@ -101,7 +100,9 @@ end
 
 ## constructors based on data or matrix
 function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, logll=true)
-    if method==:split
+    if n<2
+        GMM(x, kind=kind)
+    elseif method==:split
         GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, logll=logll)
     elseif method==:kmeans
         GMMk(n, x, kind=kind, nInit=nInit, nIter=nIter)
