@@ -92,7 +92,7 @@ function fullstats{T<:Real}(gmm::GMM, x::Array{T,2}, order::Int)
     ## broadcast: ng * nx * d multiplications, hcat: nx * (ng*d)
     ## matmul: nx^2 * d^2 * ng multiplications...
     Sm = x' * hcat([broadcast(*, γ[:,j], x) for j=1:ng]...) # big bad matmul, nx
-    S = [Sm[:,(j-1)*d+1:j*d] for j=1:ng]
+    S = Matrix{T}[Sm[:,(j-1)*d+1:j*d] for j=1:ng]
     ##S = [zeros(d,d) for i=1:ng]
     ##for i=1:nx
     ##    xi = x[i,:]
@@ -135,6 +135,8 @@ function stats{T}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
     end
     reduce(+, r)                # get +() from BigData.jl
 end
+## the reduce above needs the following
+Base.zero{T}(x::Array{Matrix{T}}) = [zero(z) for z in x]
     
 ## This function calls stats() for the elements in d::Data, irrespective of the size
 function stats(gmm::GMM, d::Data; order::Int=2, parallel=false)
