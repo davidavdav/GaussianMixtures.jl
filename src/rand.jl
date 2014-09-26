@@ -1,11 +1,12 @@
-## can we generate random GMMs and sample from them?
+## rand.jl.  Can we generate random GMMs and sample from them?
+## (c) 2013--2014 David A. van Leeuwen
 
 ## This function initializes a random GMM, with random means and random covariances
-## 
+## The variances are somewhat arbitrarily chosen.  This can certainly be improved. 
 function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
     μ = sep * randn(ng, d)
     if kind==:diag
-        Σ = rand(Chisq(3), ng, d)
+        Σ = hcat([rand(Chisq(1.0), ng) for i=1:d]...)
     else
         Σ = Array(Matrix{Float64}, ng)
         for i=1:ng

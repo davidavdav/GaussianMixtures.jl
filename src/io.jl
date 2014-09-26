@@ -1,4 +1,6 @@
 ## io.jl  Some functions for reading/writing GMMs. 
+## (c) 2013--2014 David A. van Leeuwen
+
 ## This code is for exchange with our octave / matlab based system
 
 ## save a single GMM
@@ -18,6 +20,7 @@ end
 
 
 ## for compatibility with good-old Netlab's GMM
+## we may get rid of this soon
 function savemat(file::String, gmm::GMM) 
     addhist!(gmm,string("GMM written to file ", file))
     matwrite(file, 

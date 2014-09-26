@@ -1,4 +1,6 @@
 ## train.jl  Likelihood calculation and em training for GMMs. 
+## (c) 2013--2014 David A. van Leeuwen
+
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
 function GMM(x::DataOrMatrix; kind=:diag)
