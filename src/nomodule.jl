@@ -8,6 +8,7 @@ using MAT
 require("gmmtypes.jl")
 
 include("gmms.jl")
+include("train.jl")
 include("io.jl")
 include("stats.jl")
 include("rand.jl")
