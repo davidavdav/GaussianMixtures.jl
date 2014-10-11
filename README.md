@@ -1,11 +1,13 @@
 Gaussian Mixture Models (GMMs)
 =======================
 
+This package contains support for Gaussian Mixture Models.  Basic training, likelihood calculation, model adaptation, and i/o are implemented.
+
 This Julia type is more specific than Dahua Lin's [MixtureModels](https://github.com/lindahua/MixtureModels.jl), in that it deals only with normal (multivariate) distributions (a.k.a Gaussians), but it does hopefully more efficiently. 
 
-At this moment, we have implemented only diagonal covariance GMMs. 
+At this moment, we have implemented both diagonal covariance and full covariance GMMs. 
 
-In training the parameters of a GMM using the Expectation Maximization (EM) algorithms the inner loop (computing the Baum-Welch statistics) can be carried out efficiently using Julia's standard parallelization infrastructure, e.g., using SGE. 
+In training the parameters of a GMM using the Expectation Maximization (EM) algorithms the inner loop (computing the Baum-Welch statistics) can be carried out efficiently using Julia's standard parallelization infrastructure, e.g., using SGE.  We further support very large data (larger than will fil in clustrer memory) though [BigData](https://github.com/davidavdav/BigData.jl). 
 
 Vector dimensions
 ------------------
@@ -29,13 +31,13 @@ Type
 
 ```julia
 type GMM
-    n::Int                      # number of Gaussians
-    d::Int                      # dimension of Gaussian
-    kind::Symbol                # :diag or :full---we'll take 'diag' for now
-    w::Vector{Float64}          # weights: n
-    μ::Array{Float64}           # means: n x d
-    Σ::Array{Float64}           # covariances n x d
-    hist::Array{History}        # history
+    n::Int                         # number of Gaussians
+    d::Int                         # dimension of Gaussian
+    kind::Symbol                   # :diag or :full---we'll take 'diag' for now
+    w::Vector                      # weights: n
+    μ::Array                       # means: n x d
+    Σ::Union(Array, Vector{Array}) # diagonal covariances n x d, or Vector n of d x d full covariances
+    hist::Array{History}           # history
 end
 ```
 
@@ -44,11 +46,12 @@ Constructors
 
 ```julia
 GMM(n::Int, d::Int)
+GMM(n::Int, d::Int; kind=:diag)
 ```
-Initialize a diagonal covariance GMM with `n` multivariate Gaussians of dimension `d`.  The means are all set to **0** (the origin) and the variances to **I**. 
+Initialize a GMM with `n` multivariate Gaussians of dimension `d`.  The means are all set to **0** (the origin) and the variances to **I**.  If `diag=:full` is specified, the covariances are full rather than diagonal. 
 
 ```julia
-GMM(x::Array)
+GMM(x::Matrix; kind=:diag)
 ```
 Create a GMM with 1 mixture, i.e., a multivariate Gaussian, and initialize with mean an variance of the data in `x`.  The data in `x` must be a `nx` x `d` data array, where `nx` is the number of data points. 
 
