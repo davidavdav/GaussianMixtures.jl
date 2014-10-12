@@ -15,7 +15,7 @@ Vector dimensions
 Some remarks on the dimension.  There are three main indexing variables:
  - The Gaussian index 
  - The data point
- - The feature dimension (for diagonal covariance this adds to two dimensions)
+ - The feature dimension (for full covariance this adds to two dimensions)
 
 Often data is stored in 2D slices, and computations can be done efficiently as 
 matrix multiplications.  For this it is nice to have the data in standard row,column order. 
@@ -35,11 +35,11 @@ Type
 type GMM
     n::Int                         # number of Gaussians
     d::Int                         # dimension of Gaussian
-    kind::Symbol                   # :diag or :full---we'll take 'diag' for now
+    kind::Symbol                   # :diag or :full
     w::Vector                      # weights: n
     μ::Array                       # means: n x d
     Σ::Union(Array, Vector{Array}) # diagonal covariances n x d, or Vector n of d x d full covariances
-    hist::Array{History}           # history
+    hist::Array{History}           # history of this GMM
 end
 ```
 
@@ -69,16 +69,17 @@ split(gmm::GMM; minweight=1e-5, covfactor=0.2)
 Double the number of Gaussians by splitting each Gaussian into two Gaussians.  `minweight` is used for pruning Gaussians with too little weight, these are replaced by an extra split of the Gaussian with the highest weight.  `covfactor` controls how far apart the means of the split Gaussian are positioned. 
 
 ```julia
-em!(gmm::GMM, x::Matrix; nIter::Int = 10, varfloor=1e-3, logll=true)
+em!(gmm::GMM, x::Matrix; nIter::Int = 10, varfloor=1e-3)
 ```
-Update the parameters of the GMM using the Expectation Maximization (EM) algorithm `nIter` times, optimizing the log-likelihood given the data `x`.  If `logll==true`, the average log likelihood is collected after every iteration.  
+Update the parameters of the GMM using the Expectation Maximization (EM) algorithm `nIter` times, optimizing the log-likelihood given the data `x`.   The function `em!()` returns a vector of average log likelihoods for each of the intermediate iterations of the GMM given the training data.  
+
 ```julia
 llpg(gmm::GMM, x::Matrix)
 ```
 Returns `ll_ij = log p(x_i | gauss_j)`, the Log Likelihood Per Gaussian `j` given data point `i`.
 
 ```julia
-avll(gmm::GMM, x)
+avll(gmm::GMM, x::Matrix)
 ```
 Computes the average log likelihood of the GMM given all data points, further normalized by the feature dimension `d = size(x,2)`. A 1-mixture GMM has an `avll` of `-σ` if the data `x` is distributed as a multivariate diagonal covariance Gaussian with `Σ = σI`.  
 
@@ -110,9 +111,9 @@ Speaker recognition methods
 The following methods are used in speaker- and language recognition, they may eventually move to another module. 
 
 ```julia
-stats(gmm::GMM, x::Array, order=2; parallel=true, llhpf=false)
+stats(gmm::GMM, x::Matrix, order=2; parallel=true, llhpf=false)
 ```
-Computes the Baum-Welch statistics up to order `order` for the alignment of the data `x` to the Universal Background GMM `gmm`.  The 1st and 2nd order statistics are retuned as an `n` x `d` matrix, so for obtaining a supervector flattening needs to be carried out in the rigt direction.  Theses statistics are _uncentered_. 
+Computes the Baum-Welch statistics up to order `order` for the alignment of the data `x` to the Universal Background GMM `gmm`.  The 1st and 2nd order statistics are retuned as an `n` x `d` matrix, so for obtaining a supervector flattening needs to be carried out in the right direction.  Theses statistics are _uncentered_. 
 
 ```julia
 csstats(gmm::GMM, x::Array, order=2)
@@ -129,7 +130,7 @@ type CSstats
     f::Array{Float64,2}          # first-order stats, ng * d
 end
 ```
-The CSstats type can be used for i-vector extraction (not implemented yet), MAP adaptation and a simple but elegant dotscoring speaker recognition system. 
+The CSstats type can be used for MAP adaptation and a simple but elegant dotscoring speaker recognition system. 
 
 ```julia
 dotscore(x::CSstats, y::CSstats, r::Float64=1.) 
@@ -137,23 +138,22 @@ dotscore(x::CSstats, y::CSstats, r::Float64=1.)
 Computes the dot-scoring approximation to the GMM/UBM log likelihood ratio for a GMM MAP adapted from the UBM (means only) using the data from `x` and a relevance factor of `r`, and test data from `y`. 
 
 ```julia
-map(gmm::GMM, x::Array, r::Float64=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
+map(gmm::GMM, x::Matrix, r=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
 ```
 Perform Maximum A Posterior (MAP) adaptation of the UBM `gmm` to the data from `x` using relevance `r`.  `means`, `weights` and `covars` indicate which parts of the UBM need to be updated. 
 
 Saving / loading a GMM
 ----------------------
 
-We have some temporary methods to save/retrieve a GMM in Octave (and also Matlab, which is a trademark and not very much liked by us) compatible format, with names resembling those in the good-old `netlib' implementation from Nabney and Bishop. 
-
-At some point we might move towards a more general HDF5 format, perhaps JLD. 
+Using package JLD, two methods allow saving a GMM or an array of GMMs to disk:
 
 ```julia
-savemat(file::String, gmm::GMM) 
+save(filename::String, name::String, gmm::GMM)
+save(filename::String, name::String, gmms::Array{GMM})
 ```
-Saves the GMM in file `file`. 
+This saves a GMM of an array of GMMs under the name `name`  in a file `filename`. The data can be loaded back into a julia session using plain JLD's 
 
 ```julia
-readmat{T}(file, ::Type{T})
+gmm = load(filename)[name]
 ```
-When called as `readmat(file, GMM)`, opens the file `file` and reads the gmm. 
+
