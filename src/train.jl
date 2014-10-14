@@ -164,7 +164,7 @@ end
 # the log-likelihood history, per data frame per dimension
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
 ## of the data and stores this in the history.  
-function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3, logll=true)
+function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3)
     @assert size(x,2)==gmm.d
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
