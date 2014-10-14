@@ -3,6 +3,8 @@
 
 ## This code is for exchange with our octave / matlab based system
 
+using Compat
+
 ## save a single GMM
 function JLD.save(filename::String, name::String, gmm::GMM)
     jldopen(filename, "w") do file
@@ -24,8 +26,8 @@ end
 function savemat(file::String, gmm::GMM) 
     addhist!(gmm,string("GMM written to file ", file))
     matwrite(file, 
-             { "gmm" =>         # the default name
-              { "ncentres" => gmm.n,
+             @Compat.Dict( "gmm" =>         # the default name
+              @Compat.Dict("ncentres" => gmm.n,
                "nin" => gmm.d,
                "covar_type" => string(gmm.kind),
                "priors" => gmm.w,
@@ -33,7 +35,7 @@ function savemat(file::String, gmm::GMM)
                "covars" => gmm.Σ,
                "history_s" => string([h.s for h=gmm.hist]),
                "history_t" => [h.t for h=gmm.hist]
-               }})
+               )))
 end
                                                                                     
 function readmat(file, ::Type{GMM})
