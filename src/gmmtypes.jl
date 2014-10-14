@@ -26,8 +26,8 @@ History(s::String) = History(time(), s)
 
 ## typealias MatrixOrArray{T} Union(Matrix{T}, Vector{Matrix{T}})
 
-## for now, GMM elements are of type Float64---we may want to make this :<FloatingPoint later.  
-type GMM{T}
+## GMMs can be of type FLoat32 or Float64
+type GMM{T<:FloatingPoint}
     n::Int                      # number of Gaussians
     d::Int                      # dimension of Gaussian
     kind::Symbol                # :diag or :full---we'll take 'diag' for now
@@ -54,7 +54,7 @@ type GMM{T}
         new(n, d, kind, w, μ, Σ, hist)
     end
 end
-GMM{T}(kind::Symbol, w::Vector{T}, μ::Matrix{T}, Σ::Union(Matrix{T},Vector{Matrix{T}}), hist::Vector) = GMM{T}(kind, w, μ, Σ, hist)
+GMM{T<:FloatingPoint}(kind::Symbol, w::Vector{T}, μ::Matrix{T}, Σ::Union(Matrix{T},Vector{Matrix{T}}), hist::Vector) = GMM{T}(kind, w, μ, Σ, hist)
 
 ## UBM-centered and scaled stats.
 ## This structure currently is useful for dotscoring, so we've limited the
@@ -63,7 +63,7 @@ GMM{T}(kind::Symbol, w::Vector{T}, μ::Matrix{T}, Σ::Union(Matrix{T},Vector{Mat
 
 ## We store the stats in a (ng * d) structure, i.e., not as a super vector yet.  
 ## Perhaps in ivector processing a supervector is easier. 
-type CSstats{T}
+type CSstats{T<:FloatingPoint}
     n::Vector{T}          # zero-order stats, ng
     f::Matrix{T}          # first-order stats, ng * d
     function CSstats(n::Vector, f::Matrix)
@@ -71,12 +71,12 @@ type CSstats{T}
         new(n,f)
     end
 end
-CSstats{T}(n::Vector{T}, f::Matrix{T}) = CSstats{T}(n, v)
+CSstats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}) = CSstats{T}(n, f)
 ## special case for tuple (why would I need this?)
 CSstats(t::Tuple) = CSstats(t[1], t[2])
 
 ## Stats is a type of centered but un-scaled stats, necessary for i-vector extraction
-type Stats{T}
+type Stats{T<:FloatingPoint}
     N::Vector{T}
     F::Matrix{T}
     S::Matrix{T}
@@ -86,12 +86,12 @@ type Stats{T}
         new(n, f, s)
     end
 end
-Stats{T}(n::Vector{T}, f::Matrix{T}, s::Matrix{T}) = Stats{T}(n, f, s)
+Stats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}, s::Matrix{T}) = Stats{T}(n, f, s)
 
 ## Iextractor is a type that contains the information necessary for i-vector extraction:
 ## The T-matrix and an updated precision matrix prec
 ## It is difficult to decide how to store T and Σ, as T' and vec(prec)?
-type IExtractor{T}
+type IExtractor{T<:FloatingPoint}
     Tt::Matrix{T}
     prec::Vector{T}
     function IExtractor(Tee::Matrix, prec::Vector)
@@ -99,7 +99,7 @@ type IExtractor{T}
         new(Tee', prec)
     end
 end
-IExtractor{T}(Tee::Matrix{T}, prec::Vector{T}) = IExtractor{T}(Tee, prec)
+IExtractor{T<:FloatingPoint}(Tee::Matrix{T}, prec::Vector{T}) = IExtractor{T}(Tee, prec)
 ## or initialize with a traditional covariance matrix
-IExtractor{T}(Tee::Matrix{T}, Σ::Matrix{T}) = IExtractor{T}(Tee, vec(1./Σ'))
+IExtractor{T<:FloatingPoint}(Tee::Matrix{T}, Σ::Matrix{T}) = IExtractor{T}(Tee, vec(1./Σ'))
 
