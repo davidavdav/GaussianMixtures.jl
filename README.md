@@ -96,13 +96,22 @@ Shows the history of the GMM, i.e., how it was initialized, split, how the param
 Paralellization
 ---------------
 
-The method `stats`, which is at the heart of EM, can detect multiple processors available (through `nprocs()`).  If there is more than 1 processor available, the data is split into chunks, each chunk is mapped to a separate processor, and afterwards an aggregating operation collects all the statistics from the sub-processes.  In an SGE environment you can obtain more cores (in the example below 20) by issuing
+The method `stats()`, which is at the heart of EM, can detect multiple processors available (through `nprocs()`).  If there is more than 1 processor available, the data is split into chunks, each chunk is mapped to a separate processor, and afterwards an aggregating operation collects all the statistics from the sub-processes.  In an SGE environment you can obtain more cores (in the example below 20) by issuing
 
 ```julia
 using ClusterManagers
 ClusterManagers.addprocs_sge(20)                                        
 @everywhere using GMMs                                                  
 ```
+
+Memory
+------
+The `stats()` method (see below) needs to be very efficient because for many algorithms it is at the inner loop of the calculation.  We have a highly optimized BLAS friendly and parallizable implementation, but this requires a fair bit of memory.  Therefore the input data is processed in blocks in sushc a way that only a limited amount of memory is used.  By default this is set at 2GB, but it can be specified though a gobal setting:
+
+```julia
+setmem(gig) 
+```
+Set the memory approximately used in `stats()`, in Gigabytes. 
 
 
 Speaker recognition methods
