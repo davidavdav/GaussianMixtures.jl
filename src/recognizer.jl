@@ -14,28 +14,27 @@ dotscore{T<:Real}(gmm::GMM, x::Array{T,2}, y::Array{T,2}, r::Real=1.) =
 import Base.map
 
 ## Maximum A Posteriori adapt a gmm
-function map{T<:Real}(gmm::GMM, x::Array{T,2}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
+function map{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
     nx, ll, N, F, S = stats(gmm, x)
     α = N ./ (N+r)
-    g = GMM(gmm.n, gmm.d, gmm.kind)
     if weights
-        g.w = α .* N / sum(N) + (1-α) .* gmm.w
-        g.w ./= sum(g.w)
+        w = α .* N / sum(N) + (1-α) .* gmm.w
+        w ./= sum(g.w)
     else
-        g.w = gmm.w
+        w = gmm.w
     end
     if means
-        g.μ = broadcast(*, α./N, F) + broadcast(*, 1-α, gmm.μ)
+        μ = broadcast(*, α./N, F) + broadcast(*, 1-α, gmm.μ)
     else
-        g.μ = gmm.μ
+        μ = gmm.μ
     end
     if covars
-        g.Σ = broadcast(*, α./N, S) + broadcast(*, 1-α, gmm.Σ .^2 + gmm.μ .^2) - g.μ .^2
+        Σ = broadcast(*, α./N, S) + broadcast(*, 1-α, gmm.Σ .^2 + gmm.μ .^2) - g.μ .^2
     else
-        g.Σ = gmm.Σ
+        Σ = gmm.Σ
     end
-    addhist!(g,@sprintf "MAP adapted with %d data points relevance %3.1f %s %s %s" size(x,1) r means ? "means" : ""  weights ? "weights" : "" covars ? "covars" : "")
-    return(g)
+    hist = vcat(gmm.hist, History(@sprintf "MAP adapted with %d data points relevance %3.1f %s %s %s" size(x,1) r means ? "means" : ""  weights ? "weights" : "" covars ? "covars" : ""))
+    return GMM(gmm.kind, w, μ, Σ, hist) 
 end
 
 ## compute a supervector from a MAP adapted utterance. 
