@@ -12,7 +12,7 @@ function GMM(n::Int, d::Int; kind::Symbol=:diag)
     else
         Σ = Matrix{Float64}[eye(d) for i=1:n]
     end
-    hist = {History(@sprintf "Initialization n=%d, d=%d, kind=%s" n d kind)}
+    hist = [History(@sprintf "Initialization n=%d, d=%d, kind=%s" n d kind)]
     GMM(kind, w, μ, Σ, hist)
 end
 
@@ -20,7 +20,7 @@ end
 function GMM(weights::Vector, means::Array, covars::Array, kind::Symbol)
     n = length(weights)
     d = size(means,2)
-    hist = {History(@sprintf "Initialized from weights, means, covars; n=%d, d=%d, kind=%s" n d kind)}
+    hist = [History(@sprintf "Initialized from weights, means, covars; n=%d, d=%d, kind=%s" n d kind)]
     GMM(kind, weights, means, covars, hist)
 end
 
