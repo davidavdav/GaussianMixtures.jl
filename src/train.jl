@@ -21,11 +21,11 @@ end
 GMM{T<:Real}(x::Vector{T}) = GMM(x'')
 
 ## constructors based on data or matrix
-function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, logll=true)
+function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter)
     if n<2
         GMM(x, kind=kind)
     elseif method==:split
-        GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, logll=logll)
+        GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal)
     elseif method==:kmeans
         GMMk(n, x, kind=kind, nInit=nInit, nIter=nIter)
     else
@@ -33,10 +33,10 @@ function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; kind=:diag, nInit:
     end
 end
 ## a 1-dimensional Gaussian can bi initialized with a vector
-GMM{T<:FloatingPoint}(n::Int, x::Vector{T}, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, logll=true) = GMM(n, x'', method;  kind=kind, nInit=nInit, nIter=nIter, nFinal=nFinal, logll=logll)
+GMM{T<:FloatingPoint}(n::Int, x::Vector{T}, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter) = GMM(n, x'', method;  kind=kind, nInit=nInit, nIter=nIter, nFinal=nFinal)
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
-function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10, logll=true)
+function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10)
     nx, d = size(x)
     ## subsample x to max 1000 points per mean
     nneeded = 1000*n
@@ -54,7 +54,7 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
             xx = vcat([y[sample(1:size(y,1), nsample, replace=false),:] for y in x]...)
         end
     end
-    km = kmeans(float64(xx'), n, maxiter=nInit, display = logll ? :iter : :none)
+    km = kmeans(float64(xx'), n, maxiter=nInit, display = :iter)
     μ = km.centers'
     if kind == :diag
         ## helper that deals with centers with singleton datapoints.
@@ -83,14 +83,14 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
     hist = History(string("K-means with ", size(xx,1), " data points using ", km.iterations, " iterations\n"))
     gmm = GMM(kind, w, μ, Σ, [hist])
     addhist!(gmm, @sprintf("%3.1f data points per parameter",nx/nparams(gmm)))
-    em!(gmm, x; nIter=nIter, logll=logll)
+    em!(gmm, x; nIter=nIter)
     gmm
 end    
 
 ## Train a GMM by consecutively splitting all means.  n most be a power of 2
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.  
-function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, logll=true)
+function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter)
     log2n = int(log2(n))
     @assert 2^log2n == n
     gmm=GMM(x, kind)
@@ -98,7 +98,7 @@ function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nI
     println("0: avll = ", tll)
     for i=1:log2n
         gmm=split(gmm)
-        avll = em!(gmm, x; logll=true, nIter=i==log2n ? nFinal : nIter, logll=logll)
+        avll = em!(gmm, x; nIter=i==log2n ? nFinal : nIter)
         println(i, ": avll = ", avll)
         tll = vcat(tll, avll)
     end
