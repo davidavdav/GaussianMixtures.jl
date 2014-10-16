@@ -11,7 +11,7 @@ function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
         Σ = Array(Matrix{Float64}, ng)
         for i=1:ng
             T = randn(d,d)
-            Σ[i] = cov(T)
+            Σ[i] = T' * T / d
         end
     end
     w = ones(ng)/ng

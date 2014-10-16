@@ -93,7 +93,7 @@ end
 function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter)
     log2n = int(log2(n))
     @assert 2^log2n == n
-    gmm=GMM(x, kind)
+    gmm=GMM(x, kind=kind)
     tll = avll(gmm,x)
     println("0: avll = ", tll)
     for i=1:log2n
@@ -140,7 +140,7 @@ function split(gmm::GMM; minweight::Float64=1e-5, sep::Float64=0.2)
         gmm.μ[offInd[i],:] = gmm.μ[maxi[i],:] + sep*sqrt((gmm.Σ[maxi[i],:]))
         gmm.μ[maxi[i],:] = gmm.μ[maxi[i],:] - sep*sqrt((gmm.Σ[maxi[i],:]))
     end
-    new = GMM(2gmm.n, gmm.d, gmm.kind)
+    new = GMM(2gmm.n, gmm.d, kind=gmm.kind)
     for oi=1:gmm.n
         ni = 2oi-1 : 2oi
         new.w[ni] = gmm.w[oi]/2
