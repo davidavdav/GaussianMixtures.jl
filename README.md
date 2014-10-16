@@ -113,6 +113,18 @@ setmem(gig)
 ```
 Set the memory approximately used in `stats()`, in Gigabytes. 
 
+Random GMMs
+-----------
+Sometimes is it insteresting to generate random GMMs, and use these to genrate random points. 
+```julia
+g = rand(GMM, n, d; kind=:full, sep=2.0)
+```
+This generates a GMM with normally distributed means according to N(x|μ=sep,Σ=I).  The covariance matrices are also chosen random. 
+
+```julia
+rand(g::GMM, n)
+```
+Generate `n` datapoints sampled from the GMM, resulting in a `n` times `g.d` array. 
 
 Speaker recognition methods
 ----------------------------
