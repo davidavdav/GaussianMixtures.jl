@@ -75,31 +75,20 @@ CSstats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}) = CSstats{T}(n, f)
 ## special case for tuple (why would I need this?)
 CSstats(t::Tuple) = CSstats(t[1], t[2])
 
-## Stats is a type of centered but un-scaled stats, necessary for i-vector extraction
-type Stats{T<:FloatingPoint}
+## Cstats is a type of centered but un-scaled stats, necessary for i-vector extraction
+type Cstats{T<:FloatingPoint}
     N::Vector{T}
     F::Matrix{T}
-    S::Matrix{T}
-    function Stats(n::Vector, f::Matrix, s::Matrix)
+    S::Union(Matrix{T}, Vector{Matrix{T}})
+    function Cstats(n::Vector, f::Matrix, s::Array)
         @assert size(n,1) == size(f,1)
-        @assert size(f) == size(s)
+        if size(n) == size(s)   # full covariance stats
+            @assert all([size(f,2) == size(ss,1) == size(ss,2) for ss in s])
+       else 
+            @assert size(f) == size(s)
+        end
         new(n, f, s)
     end
 end
-Stats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}, s::Matrix{T}) = Stats{T}(n, f, s)
-
-## Iextractor is a type that contains the information necessary for i-vector extraction:
-## The T-matrix and an updated precision matrix prec
-## It is difficult to decide how to store T and Σ, as T' and vec(prec)?
-type IExtractor{T<:FloatingPoint}
-    Tt::Matrix{T}
-    prec::Vector{T}
-    function IExtractor(Tee::Matrix, prec::Vector)
-        @assert size(Tee,1) == length(prec)
-        new(Tee', prec)
-    end
-end
-IExtractor{T<:FloatingPoint}(Tee::Matrix{T}, prec::Vector{T}) = IExtractor{T}(Tee, prec)
-## or initialize with a traditional covariance matrix
-IExtractor{T<:FloatingPoint}(Tee::Matrix{T}, Σ::Matrix{T}) = IExtractor{T}(Tee, vec(1./Σ'))
-
+Cstats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}, s::Union(Matrix{T}, Vector{Matrix{T}})) = Cstats{T}(n, f, s)
+Cstats(t::Tuple) = Cstats(t...)
