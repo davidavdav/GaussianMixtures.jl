@@ -153,6 +153,7 @@ end
 ## Same, but UBM centered+scaled stats
 ## f and s are ng * d
 function csstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int=2)
+    gmm.kind == :diag || error("Can only do centered and scaled stats for diag covariance")
     if order==1
         nx, llh, N, F = stats(gmm, x, order)
     else
@@ -163,7 +164,7 @@ function csstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int=2)
     if order==1
         return(N, f)
     else
-        s = (S - (2F+Nμ).*gmm.μ) ./ gmm.Σ 
+        s = (S + (Nμ-2F).*gmm.μ) ./ gmm.Σ
         return(N, f, s)
     end
 end
@@ -174,11 +175,22 @@ CSstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}) = CSstats(csstats(gmm, x, 1))
 
 ## centered stats, but not scaled by UBM covariance
 ## check full covariance...
-function Stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, parallel=false) 
+function cstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, parallel=false)
     nx, llh, N, F, S = stats(gmm, x, order=2, parallel=parallel)
     Nμ = broadcast(*, N, gmm.μ)
-    S -= (2F+Nμ) .* gmm.μ
+    ## center the statistics
+    if gmm.kind == :diag
+        S += (Nμ-2F) .* gmm.μ
+    else
+        for i in 1:length(S)
+            μi = gmm.μ[i,:]
+            Fμi = F[i,:]' * μi
+            S[i] += N[i] * μi' * μi - Fμi' - Fμi
+        end
+    end
     F -= Nμ
-    Stats{T}(N, F, S)
+    return N, F, S
 end
 
+Cstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, parallel=false) = Cstats(cstats(gmm, x, parallel))
+    
