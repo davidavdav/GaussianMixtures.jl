@@ -22,6 +22,6 @@ include("stats.jl")
 include("rand.jl")
 include("recognizer.jl")
 
-export GMM, CSstats, Stats, History, split, em!, map, llpg, avll, posterior, history, show, stats, readmat, nparams, means, covars, weights, setmem, vec, rand
+export GMM, CSstats, Cstats, History, split, em!, map, llpg, avll, posterior, history, show, stats, readmat, nparams, means, covars, weights, setmem, vec, rand
 
 end
