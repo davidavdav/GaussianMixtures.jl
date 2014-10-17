@@ -8,7 +8,7 @@ function dotscore(x::CSstats, y::CSstats, r::Real=1.)
     sum(broadcast(/, x.f, x.n + r) .* y.f)
 end
 ## or directly from the UBM and the data x and y
-dotscore{T<:Real}(gmm::GMM, x::Array{T,2}, y::Array{T,2}, r::Real=1.) =
+dotscore{T<:Real}(gmm::GMM, x::Matrix{T}, y::Matrix{T}, r::Real=1.) =
     dotscore(CSstats(gmm, x), CSstats(gmm, y), r)
 
 import Base.map
@@ -29,6 +29,7 @@ function map{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, r::Real=16.; means::Bool=
         μ = gmm.μ
     end
     if covars
+        gmm.kind == :diag || error("Sorry, can't MAP adapt full covariance matrix GMM yet")
         Σ = broadcast(*, α./N, S) + broadcast(*, 1-α, gmm.Σ .^2 + gmm.μ .^2) - g.μ .^2
     else
         Σ = gmm.Σ
@@ -39,6 +40,7 @@ end
 
 ## compute a supervector from a MAP adapted utterance. 
 function Base.vec(gmm::GMM, x::Matrix, r=16.)
+    gmm.kind == :diag || error("Sorry, can't compute MAP adapted supervector for full covariance matrix GMM yet")
     nx, ll, N, F, S = stats(gmm, x)
     α = N ./ (N+r)
     Δμ = broadcast(*, α./N, F) - broadcast(*, α, gmm.μ)
