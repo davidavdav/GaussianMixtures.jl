@@ -39,36 +39,41 @@ end
 
 ## The memory footprint is sizeof(T) * ((4d +2) ng + (d + 4ng + 1) nx,
 ## This is not very efficient, since this is designed for speed, and
-## wo don't want to do too much in-memory yet.  
-##
+## we don't want to do too much in-memory yet.  
 
 function diagstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
     ng = gmm.n
     (nx, d) = size(x)
-    prec = 1./gmm.Σ             # ng * d
-    mp = gmm.μ .* prec              # mean*precision, ng * d
+    prec::Matrix{T} = 1./gmm.Σ             # ng * d
+    mp::Matrix{T} = gmm.μ .* prec              # mean*precision, ng * d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    a = gmm.w ./ (((2π)^(d/2)) * sqrt(prod(gmm.Σ,2))) # ng * 1
+    a::Matrix{T} = gmm.w ./ (((2π)^(d/2)) * sqrt(prod(gmm.Σ,2))) # ng * 1
     
-    sm2p = sum(mp .* gmm.μ, 2)      # sum over d mean^2*precision, ng * 1
-    xx = x.^2                           # nx * d
-    pxx = broadcast(+, sm2p', xx * prec') # nx * ng
-    mpx = x * mp'                       # nx * ng
-    L = broadcast(*, a', exp(mpx-0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
-    sm2p=pxx=mpx=0                   # save memory
+    sm2p::Matrix{T} = dot(mp, gmm.μ, 2)      # sum over d mean^2*precision, ng * 1
+    xx::Matrix{T} = x .* x                     # nx * d
+    pxx::Matrix{T} = broadcast(+, sm2p', xx * prec') # nx * ng
+    mpx::Matrix{T} = x * mp'                         # nx * ng
+##  γ = broadcast(*, a', exp(mpx .- 0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
+    γ::Matrix{T} = repmat(a', nx)
+    for j = 1:ng
+        for i = 1:nx
+            @inbounds γ[i,j] *= exp(mpx[i,j] - 0.5pxx[i,j])
+        end
+    end
+#    sm2p=pxx=mpx=0                   # save memory
     
-    lpf=sum(L,2)                        # nx * 1, Likelihood per frame
-    γ = broadcast(/, L, lpf .+ (lpf==0))' # ng * nx, posterior per frame per gaussian
+    lpf=sum(γ,2)                # nx * 1, Likelihood per frame
+    broadcast!(/, γ, γ, lpf .+ (lpf==0))' # nx * ng, posterior per frame per gaussian
     ## zeroth order
-    N = reshape(sum(γ, 2), ng)          # ng * 1, vec()
+    N = vec(sum(γ, 1))          # ng * 1, vec()
     ## first order
-    F =  γ * x                          # ng * d
+    F =  γ' * x                          # ng * d, Julia has efficient a' * b
     llh = sum(log(lpf))                 # total log likeliood
     if order==1
         return (nx, llh, N, F)
     else
         ## second order
-        S = γ * xx                      # ng * d
+        S = γ' * xx                      # ng * d
         return (nx, llh, N, F, S)
     end
 end
@@ -117,6 +122,7 @@ end
 ## or because of parallelization
 ## You dispatch this by only using 2 parameters
 function stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
+    parallel &= nworkers() > 1
     ng = gmm.n
     (nx, d) = size(x)    
     bytes = sizeof(T) * ((4d +2)ng + (d + 4ng + 1)nx)
@@ -128,10 +134,14 @@ function stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=
     xx = Matrix{T}[x[round(i*l+1):round((i+1)l),:] for i=0:(blocks-1)]
     if parallel
         r = pmap(x->stats(gmm, x, order), xx)
+        reduce(+, r)                # get +() from BigData.jl
     else
-        r = map(x->stats(gmm, x, order), xx) # not very memory-efficient, but hey...
+        r = stats(gmm, shift!(xx), order)
+        for x in xx
+            r += stats(gmm, x, order)
+        end
+        r
     end
-    reduce(+, r)                # get +() from BigData.jl
 end
 ## the reduce above needs the following
 Base.zero{T}(x::Array{Matrix{T}}) = [zero(z) for z in x]
@@ -152,7 +162,7 @@ end
     
 ## Same, but UBM centered+scaled stats
 ## f and s are ng * d
-function csstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int=2)
+function csstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, order::Int=2)
     gmm.kind == :diag || error("Can only do centered and scaled stats for diag covariance")
     if order==1
         nx, llh, N, F = stats(gmm, x, order)
@@ -171,11 +181,11 @@ end
 
 ## You can also get centered+scaled stats in a Cstats structure directly by 
 ## using the constructor with a GMM argument
-CSstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}) = CSstats(csstats(gmm, x, 1))
+CSstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}) = CSstats(csstats(gmm, x, 1))
 
 ## centered stats, but not scaled by UBM covariance
 ## check full covariance...
-function cstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, parallel=false)
+function cstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, parallel=false)
     nx, llh, N, F, S = stats(gmm, x, order=2, parallel=parallel)
     Nμ = broadcast(*, N, gmm.μ)
     ## center the statistics
@@ -192,5 +202,5 @@ function cstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, parallel=false)
     return N, F, S
 end
 
-Cstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, parallel=false) = Cstats(cstats(gmm, x, parallel))
+Cstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, parallel=false) = Cstats(cstats(gmm, x, parallel))
     
