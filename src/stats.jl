@@ -37,9 +37,12 @@ end
 ## For reasons of accumulation, this function returns a tuple
 ## (nx, loglh, N, F [S]) which should be easy to accumulate
 
-## The memory footprint is sizeof(T) * ((4d +2) ng + (d + 4ng + 1) nx,
+## The memory footprint is sizeof(T) * ((2d + 2) ng + (d + 2ng + 1) nx, and
+## results take an additional (2d +1) ng
 ## This is not very efficient, since this is designed for speed, and
 ## we don't want to do too much in-memory yet.  
+## Currently, I don't use a logsumexp implementation because of speed considerations, 
+## this might turn out numerically less stable for Float32
 
 function diagstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
     ng = gmm.n
@@ -50,17 +53,17 @@ function diagstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
     a::Matrix{T} = gmm.w ./ (((2π)^(d/2)) * sqrt(prod(gmm.Σ,2))) # ng * 1
     sm2p::Matrix{T} = dot(mp, gmm.μ, 2)      # sum over d mean^2*precision, ng * 1
     xx = x .* x                     # nx * d
-    pxx = broadcast(+, sm2p', xx * prec') # nx * ng
-    mpx = x * mp'                         # nx * ng
-##  γ = broadcast(*, a', exp(mpx .- 0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
-    γ = repmat(a', nx)
+    pxx = xx * prec'                # nx * ng
+##  γ = broadcast(*, a', exp(x * mp' .- 0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
+    γ = x * mp'                         # nx * ng
     for j = 1:ng
+        la = log(a[j]) - 0.5sm2p[j]
         for i = 1:nx
-            @inbounds γ[i,j] *= exp(mpx[i,j] - 0.5pxx[i,j])
+            @inbounds γ[i,j] += la - 0.5pxx[i,j]
         end
     end
 #    sm2p=pxx=mpx=0                   # save memory
-    
+    for i = 1:length(γ) @inbounds γ[i] = exp(γ[i]) end
     lpf=sum(γ,2)                # nx * 1, Likelihood per frame
     broadcast!(/, γ, γ, lpf .+ (lpf .== 0)) # nx * ng, posterior per frame per gaussian
     ## zeroth order
