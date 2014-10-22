@@ -62,7 +62,7 @@ function diagstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
 #    sm2p=pxx=mpx=0                   # save memory
     
     lpf=sum(γ,2)                # nx * 1, Likelihood per frame
-    broadcast!(/, γ, γ, lpf .+ (lpf .< eps(T)))' # nx * ng, posterior per frame per gaussian
+    broadcast!(/, γ, γ, lpf .+ (lpf .== 0)) # nx * ng, posterior per frame per gaussian
     ## zeroth order
     N = vec(sum(γ, 1))          # ng * 1, vec()
     ## first order
