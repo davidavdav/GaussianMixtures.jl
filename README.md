@@ -50,7 +50,25 @@ Constructors
 GMM(n::Int, d::Int)
 GMM(n::Int, d::Int; kind=:diag)
 ```
-Initialize a GMM with `n` multivariate Gaussians of dimension `d`.  The means are all set to **0** (the origin) and the variances to **I**.  If `diag=:full` is specified, the covariances are full rather than diagonal. 
+Initialize a GMM with `n` multivariate Gaussians of dimension `d`.
+The means are all set to **0** (the origin) and the variances to
+**I**, which is silly by itself.  If `diag=:full` is specified, the
+covariances are full rather than diagonal.  One should replace the
+values of the weights, measn and covariances afterwards. 
+
+```julia
+GMM(kind::Symbol, weights::Vector, μ::Array,  Σ::Array, hist::Vector)
+```
+This is the basic outer constructor for GMM.  Here we have
+ - `kind` either `:diag` or `full`
+ - `weights` a Vector of length `n` with the weights of the mixtures
+ - `μ` a matrix of `n` by `d` means of the Gaussians
+ - `Σ` either a matrix of `n` by `d` variances of diagonal Gaussians,
+   or a vector of `n` matrices of `d` by `d` covariances of full
+   covariance Gaussians
+ - `hist` a vector of `History` objects describing how the GMM was
+   obtained. (The type `History` simply contains a time `t` and a comment
+   string `s`)
 
 ```julia
 GMM(x::Matrix; kind=:diag)
@@ -81,7 +99,11 @@ Returns `ll_ij = log p(x_i | gauss_j)`, the Log Likelihood Per Gaussian `j` give
 ```julia
 avll(gmm::GMM, x::Matrix)
 ```
-Computes the average log likelihood of the GMM given all data points, further normalized by the feature dimension `d = size(x,2)`. A 1-mixture GMM has an `avll` of `-σ` if the data `x` is distributed as a multivariate diagonal covariance Gaussian with `Σ = σI`.  
+Computes the average log likelihood of the GMM given all data points,
+further normalized by the feature dimension `d = size(x,2)`. A
+1-mixture GMM then has an `avll` of `-(log(2π) +0.5 +log(σ))` if the
+data `x` is distributed as a multivariate diagonal covariance Gaussian
+with `Σ = σI`.  With `σ=1` we then have `avll≈-1.42`. 
 
 ```julia 
 posterior(gmm::GMM, x::Array)
