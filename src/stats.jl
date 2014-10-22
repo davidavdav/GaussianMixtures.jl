@@ -48,13 +48,12 @@ function diagstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
     mp::Matrix{T} = gmm.μ .* prec              # mean*precision, ng * d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
     a::Matrix{T} = gmm.w ./ (((2π)^(d/2)) * sqrt(prod(gmm.Σ,2))) # ng * 1
-    
     sm2p::Matrix{T} = dot(mp, gmm.μ, 2)      # sum over d mean^2*precision, ng * 1
-    xx::Matrix{T} = x .* x                     # nx * d
-    pxx::Matrix{T} = broadcast(+, sm2p', xx * prec') # nx * ng
-    mpx::Matrix{T} = x * mp'                         # nx * ng
+    xx = x .* x                     # nx * d
+    pxx = broadcast(+, sm2p', xx * prec') # nx * ng
+    mpx = x * mp'                         # nx * ng
 ##  γ = broadcast(*, a', exp(mpx .- 0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
-    γ::Matrix{T} = repmat(a', nx)
+    γ = repmat(a', nx)
     for j = 1:ng
         for i = 1:nx
             @inbounds γ[i,j] *= exp(mpx[i,j] - 0.5pxx[i,j])
@@ -63,7 +62,7 @@ function diagstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
 #    sm2p=pxx=mpx=0                   # save memory
     
     lpf=sum(γ,2)                # nx * 1, Likelihood per frame
-    broadcast!(/, γ, γ, lpf .+ (lpf==0))' # nx * ng, posterior per frame per gaussian
+    broadcast!(/, γ, γ, lpf .+ (lpf .< eps(T)))' # nx * ng, posterior per frame per gaussian
     ## zeroth order
     N = vec(sum(γ, 1))          # ng * 1, vec()
     ## first order
