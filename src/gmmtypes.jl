@@ -32,7 +32,7 @@ type GMM{T<:FloatingPoint}
     d::Int                      # dimension of Gaussian
     kind::Symbol                # :diag or :full---we'll take 'diag' for now
     w::Vector{T}                # weights: n
-    μ::Array{T}                 # means: n x d
+    μ::Matrix{T}                 # means: n x d
     Σ::Union(Matrix{T},Vector{Matrix{T}}) # covars n x d
     hist::Vector{History}        # history
     function GMM(kind::Symbol, w::Vector, μ::Matrix, Σ::Array, hist::Vector)
