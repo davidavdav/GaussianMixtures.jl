@@ -37,7 +37,7 @@ end
 ## For reasons of accumulation, this function returns a tuple
 ## (nx, loglh, N, F [S]) which should be easy to accumulate
 
-## The memory footprint is sizeof(T) * ((2d + 2) ng + (d + 2ng + 1) nx, and
+## The memory footprint is sizeof(T) * ((2d + 2) ng + (d + ng + 1) nx, and
 ## results take an additional (2d +1) ng
 ## This is not very efficient, since this is designed for speed, and
 ## we don't want to do too much in-memory yet.  
@@ -48,34 +48,33 @@ function diagstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
     ng = gmm.n
     (nx, d) = size(x)
     prec::Matrix{T} = 1./gmm.Σ             # ng * d
-    mp::Matrix{T} = gmm.μ .* prec              # mean*precision, ng * d
+    mp::Matrix{T} = gmm.μ .* prec          # mean*precision, ng * d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
     a::Matrix{T} = gmm.w ./ (((2π)^(d/2)) * sqrt(prod(gmm.Σ,2))) # ng * 1
-    sm2p::Matrix{T} = dot(mp, gmm.μ, 2)      # sum over d mean^2*precision, ng * 1
-    xx = x .* x                     # nx * d
-    pxx = xx * prec'                # nx * ng
-##  γ = broadcast(*, a', exp(x * mp' .- 0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
-    γ = x * mp'                         # nx * ng
+    sm2p::Matrix{T} = dot(mp, gmm.μ, 2)    # sum over d mean^2*precision, ng * 1
+    xx = x .* x                            # nx * d
+##  γ = broadcast(*, a', exp(x * mp' .- 0.5xx * prec')) # nx * ng, Likelihood per frame per Gaussian
+    γ = x * mp'                            # nx * ng
+    Base.BLAS.gemm!('N', 'T', -one(T)/2, xx, prec, one(T), γ)
     for j = 1:ng
         la = log(a[j]) - 0.5sm2p[j]
         for i = 1:nx
-            @inbounds γ[i,j] += la - 0.5pxx[i,j]
+            @inbounds γ[i,j] += la
         end
     end
-#    sm2p=pxx=mpx=0                   # save memory
     for i = 1:length(γ) @inbounds γ[i] = exp(γ[i]) end
-    lpf=sum(γ,2)                # nx * 1, Likelihood per frame
+    lpf=sum(γ,2)                           # nx * 1, Likelihood per frame
     broadcast!(/, γ, γ, lpf .+ (lpf .== 0)) # nx * ng, posterior per frame per gaussian
     ## zeroth order
     N = vec(sum(γ, 1))          # ng * 1, vec()
     ## first order
-    F =  γ' * x                          # ng * d, Julia has efficient a' * b
-    llh = sum(log(lpf))                 # total log likeliood
+    F =  γ' * x                           # ng * d, Julia has efficient a' * b
+    llh = sum(log(lpf))                   # total log likeliood
     if order==1
         return (nx, llh, N, F)
     else
         ## second order
-        S = γ' * xx                      # ng * d
+        S = γ' * xx                       # ng * d
         return (nx, llh, N, F, S)
     end
 end
