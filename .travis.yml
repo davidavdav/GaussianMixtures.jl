@@ -9,6 +9,6 @@ before_install:
   - sudo apt-get update -qq -y
   - sudo apt-get install libpcre3-dev julia -y
 script:
-  - julia -e 'Pkg.init(); Pkg.clone("https://github.com/davidavdav/GMMs.git")'
+  - julia -e 'Pkg.init(); Pkg.clone("https://github.com/davidavdav/BigData.jl.git"); Pkg.clone("https://github.com/davidavdav/GMMs.git")'
   - julia ./test/runtests.jl
 
