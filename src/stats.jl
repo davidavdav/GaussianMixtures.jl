@@ -7,8 +7,6 @@ function setmem(m::Float64)
     global mem=m
 end
 
-import BigData.stats
-
 ## This function is admittedly hairy: in Octave this is much more
 ## efficient than a straightforward calculation.  I don't know if this
 ## holds for Julia.  We'd have to re-implement using loops and less

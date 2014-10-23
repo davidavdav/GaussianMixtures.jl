@@ -1,10 +1,10 @@
 ## test most routines with randomly generated data
 using NumericExtensions
 
-for (kind, Ng) in zip((:diag, :full), (256, 16))
-    println("Kind: ", kind)
+for (gmmkind, Ng) in zip((:diag, :full), (256, 16))
+    println("Kind: ", gmmkind, ", size", Ng)
     ## generate a random GMM
-    gmm = rand(GMM, Ng, 26, sep=0.1, kind=kind)
+    gmm = rand(GMM, Ng, 26, sep=0.1, kind=gmmkind)
     ## and generate data from the GMM
     x = rand(gmm, 100000)
 
@@ -20,7 +20,9 @@ for (kind, Ng) in zip((:diag, :full), (256, 16))
 end
     
 ## and finally train a second GMM using the data
-#g2 = GMM(32, x, nIter=50)
-#display(means(gmm))
-#display(means(g2))
+gmm = rand(GMM, 32, 26, sep=0.1, kind=:diag)
+x = rand(gmm, 100000)
+g2 = GMM(32, x, nIter=50)
+display(means(gmm))
+display(means(g2))
 
