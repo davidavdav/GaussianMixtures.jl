@@ -1,3 +1,3 @@
 using GMMs
 
-include("test/test.jl")
+include("test.jl")
