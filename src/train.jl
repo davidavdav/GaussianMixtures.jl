@@ -21,7 +21,7 @@ end
 GMM{T<:Real}(x::Vector{T}) = GMM(x'')
 
 ## constructors based on data or matrix
-function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0)
+function GMM(n::Int, x::DataOrMatrix; method::Symbol=:kmeans, kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0)
     if n<2
         GMM(x, kind=kind)
     elseif method==:split
@@ -33,7 +33,7 @@ function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; kind=:diag, nInit:
     end
 end
 ## a 1-dimensional Gaussian can bi initialized with a vector
-GMM{T<:FloatingPoint}(n::Int, x::Vector{T}, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sprarse=0) = GMM(n, x'', method;  kind=kind, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
+GMM{T<:FloatingPoint}(n::Int, x::Vector{T}; method::Symbol=:kmeans, kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sprarse=0) = GMM(n, x'', method;  kind=kind, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
 function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0)
@@ -50,8 +50,15 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
         if isa(x, Matrix)
             xx = x[sample(1:nx, nneeded, replace=false),:]
         else
-            nsample = iceil(nneeded / length(x))
-            xx = vcat([y[sample(1:size(y,1), nsample, replace=false),:] for y in x]...)
+            ## Data.  Sample an equal amount from every entry in the list x. This reads in 
+            ## all data, and may require a lot of memory for very long lists. 
+            yy = Matrix[]
+            for y in x
+                ny = size(y,1)
+                nsample = min(ny, iceil(nneeded / length(x)))
+                push!(yy, y[sample(1:ny, nsample, replace=false),:])
+            end
+            xx = vcat(yy...)
         end
     end
     km = kmeans(float64(xx'), n, maxiter=nInit, display = :iter)
