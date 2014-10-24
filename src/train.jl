@@ -21,22 +21,22 @@ end
 GMM{T<:Real}(x::Vector{T}) = GMM(x'')
 
 ## constructors based on data or matrix
-function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter)
+function GMM(n::Int, x::DataOrMatrix, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0)
     if n<2
         GMM(x, kind=kind)
     elseif method==:split
-        GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal)
+        GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, sparse=sparse)
     elseif method==:kmeans
-        GMMk(n, x, kind=kind, nInit=nInit, nIter=nIter)
+        GMMk(n, x, kind=kind, nInit=nInit, nIter=nIter, sparse=sparse)
     else
         error("Unknown method ", method)
     end
 end
 ## a 1-dimensional Gaussian can bi initialized with a vector
-GMM{T<:FloatingPoint}(n::Int, x::Vector{T}, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter) = GMM(n, x'', method;  kind=kind, nInit=nInit, nIter=nIter, nFinal=nFinal)
+GMM{T<:FloatingPoint}(n::Int, x::Vector{T}, method::Symbol=:kmeans; kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sprarse=0) = GMM(n, x'', method;  kind=kind, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
-function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10)
+function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0)
     nx, d = size(x)
     ## subsample x to max 1000 points per mean
     nneeded = 1000*n
@@ -83,14 +83,14 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10)
     hist = History(string("K-means with ", size(xx,1), " data points using ", km.iterations, " iterations\n"))
     gmm = GMM(kind, w, μ, Σ, [hist])
     addhist!(gmm, @sprintf("%3.1f data points per parameter",nx/nparams(gmm)))
-    em!(gmm, x; nIter=nIter)
+    em!(gmm, x; nIter=nIter, sparse=sparse)
     gmm
 end    
 
 ## Train a GMM by consecutively splitting all means.  n most be a power of 2
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.  
-function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter)
+function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, sparse=0)
     log2n = int(log2(n))
     @assert 2^log2n == n
     gmm=GMM(x, kind=kind)
@@ -98,7 +98,7 @@ function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nI
     println("0: avll = ", tll)
     for i=1:log2n
         gmm=split(gmm)
-        avll = em!(gmm, x; nIter=i==log2n ? nFinal : nIter)
+        avll = em!(gmm, x; nIter=i==log2n ? nFinal : nIter, sparse=sparse)
         println(i, ": avll = ", avll)
         tll = vcat(tll, avll)
     end
@@ -164,7 +164,7 @@ end
 # the log-likelihood history, per data frame per dimension
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
 ## of the data and stores this in the history.  
-function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3)
+function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3, sparse=sparse)
     @assert size(x,2)==gmm.d
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
@@ -205,6 +205,7 @@ end
 
 ## This is a fast implementation of llpg for diagonal covariance GMMs
 ## It relies on fast matrix multiplication, and takes up more memory
+## TODO: do this the way we do in stats(), which is currently more memory-efficient
 function llpgdiag(gmm::GMM, x::Matrix)
     ## ng = gmm.n
     (nx, d) = size(x)
@@ -265,6 +266,8 @@ end
 
 import Distributions.posterior
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
+## TODO: This is a slow and memory-intensive implementation.  It is better to 
+## use the approaches used in stats()
 function posterior{T}(gmm, x::Matrix{T}, getll=false)      # nx * ng
     (nx, d) = size(x)
     ng = gmm.n
