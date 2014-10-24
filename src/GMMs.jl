@@ -7,7 +7,6 @@ module GMMs
 ccall(:jl_zero_subnormals, Bool, (Bool,), true)
 
 using NumericExtensions
-using StatsBase
 using Distributions
 using Clustering
 using HDF5, JLD
