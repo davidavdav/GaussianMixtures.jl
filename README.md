@@ -1,6 +1,6 @@
 Gaussian Mixture Models (GMMs)
 =======================
-[![Build Status](https://travis-ci.org/davidavdav/GMMs.png)](https://travis-ci.org/davidavdav/GMMs)
+[![Build Status](https://travis-ci.org/davidavdav/GMMs.jl.png)](https://travis-ci.org/davidavdav/GMMs.jl)
 
 This package contains support for Gaussian Mixture Models.  Basic training, likelihood calculation, model adaptation, and i/o are implemented.
 
