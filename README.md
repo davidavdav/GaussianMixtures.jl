@@ -8,7 +8,7 @@ This Julia type is more specific than Dahua Lin's [MixtureModels](https://github
 
 At this moment, we have implemented both diagonal covariance and full covariance GMMs. 
 
-In training the parameters of a GMM using the Expectation Maximization (EM) algorithm, the inner loop (computing the Baum-Welch statistics) can be executed efficiently using Julia's standard parallelization infrastructure, e.g., by using SGE.  We further support very large data (larger than will fit in the combined memory of the computing cluster) though [BigData](https://github.com/davidavdav/BigData.jl). 
+In training the parameters of a GMM using the Expectation Maximization (EM) algorithm, the inner loop (computing the Baum-Welch statistics) can be executed efficiently using Julia's standard parallelization infrastructure, e.g., by using SGE.  We further support very large data (larger than will fit in the combined memory of the computing cluster) though [BigData](https://github.com/davidavdav/BigData.jl), which has now been incorporated in this package. 
 
 Vector dimensions
 ------------------
@@ -142,7 +142,7 @@ Sometimes is it insteresting to generate random GMMs, and use these to genrate r
 ```julia
 g = rand(GMM, n, d; kind=:full, sep=2.0)
 ```
-This generates a GMM with normally distributed means according to N(x|μ=sep,Σ=I).  The covariance matrices are also chosen random. 
+This generates a GMM with normally distributed means according to N(x|μ=0,Σ=sep*I).  The covariance matrices are also chosen random. 
 
 ```julia
 rand(g::GMM, n)
@@ -155,7 +155,7 @@ Speaker recognition methods
 The following methods are used in speaker- and language recognition, they may eventually move to another module. 
 
 ```julia
-stats(gmm::GMM, x::Matrix, order=2; parallel=true, llhpf=false)
+stats(gmm::GMM, x::Matrix; order=2, parallel=true)
 ```
 Computes the Baum-Welch statistics up to order `order` for the alignment of the data `x` to the Universal Background GMM `gmm`.  The 1st and 2nd order statistics are retuned as an `n` x `d` matrix, so for obtaining a supervector flattening needs to be carried out in the right direction.  Theses statistics are _uncentered_. 
 
@@ -198,6 +198,6 @@ save(filename::String, name::String, gmms::Array{GMM})
 This saves a GMM of an array of GMMs under the name `name`  in a file `filename`. The data can be loaded back into a julia session using plain JLD's 
 
 ```julia
-gmm = load(filename)[name]
+gmm = load(filename, name)
 ```
 
