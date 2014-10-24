@@ -31,7 +31,7 @@ function nparams(gmm::GMM)
         sum(map(length, (gmm.w, gmm.μ))) - 1 + gmm.n * gmm.d * (gmm.d+1) / 2
     end
 end
-weights(gmm::GMM) = gmm.w
+StatsBase.weights(gmm::GMM) = gmm.w
 means(gmm::GMM) = gmm.μ
 covars(gmm::GMM) = gmm.Σ
 

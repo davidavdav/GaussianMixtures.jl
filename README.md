@@ -78,7 +78,7 @@ GMM(x::Vector)
 Create a GMM with 1 mixture, i.e., a multivariate Gaussian, and initialize with mean an variance of the data in `x`.  The data in `x` must be a `nx` x `d` Matrix, where `nx` is the number of data points, or a Vector of length `nx`. 
 
 ```julia
-GMM(x::Matrix, n::Int, method=:kmeans; kind=:diag, nInit=50, nIter=10, nFinal=nIter)
+GMM(x::Matrix, n::Int; method=:kmeans, kind=:diag, nInit=50, nIter=10, nFinal=nIter)
 ```
 Create a GMM with `n` mixtures, given the training data `x` and using the Expectation Maximization algorithm.  There are two ways of arriving at `n` Gaussians: `method=:kmeans` uses K-means clustering from the Clustering package to initialize with `n` centers.  `nInit` is the number of iterations for the K-means algorithm, `nIter` the number of iterations in EM.  The method `:split` works by initializing a single Gaussian with the data `x` and subsequently splitting the Gaussians followed by retraining using the EM algorithm until `n` Gaussians are obtained.  `n` must be a power of 2 for `method=:split`.  `nIter` is the number of iterations in the EM algorithm, and `nFinal` the number of iterations in the final step. 
 
