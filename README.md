@@ -57,7 +57,7 @@ Initialize a GMM with `n` multivariate Gaussians of dimension `d`.
 The means are all set to **0** (the origin) and the variances to
 **I**, which is silly by itself.  If `diag=:full` is specified, the
 covariances are full rather than diagonal.  One should replace the
-values of the weights, measn and covariances afterwards. 
+values of the weights, means and covariances afterwards.
 
 ```julia
 GMM(kind::Symbol, weights::Vector, μ::Array,  Σ::Array, hist::Vector)
@@ -109,7 +109,7 @@ data `x` is distributed as a multivariate diagonal covariance Gaussian
 with `Σ = σI`.  With `σ=1` we then have `avll≈-1.42`. 
 
 ```julia 
-posterior(gmm::GMM, x::Array)
+posterior(gmm::GMM, x::Matrix)
 ```
 Returns `p_ij = p(j | gmm, x_i)`, the posterior probability that data point `x_i` 'belongs' to Gaussian `j`.  
 
@@ -131,7 +131,7 @@ ClusterManagers.addprocs_sge(20)
 
 Memory
 ------
-The `stats()` method (see below) needs to be very efficient because for many algorithms it is at the inner loop of the calculation.  We have a highly optimized BLAS friendly and parallizable implementation, but this requires a fair bit of memory.  Therefore the input data is processed in blocks in sushc a way that only a limited amount of memory is used.  By default this is set at 2GB, but it can be specified though a gobal setting:
+The `stats()` method (see below) needs to be very efficient because for many algorithms it is at the inner loop of the calculation.  We have a highly optimized BLAS friendly and parallizable implementation, but this requires a fair bit of memory.  Therefore the input data is processed in blocks in such a way that only a limited amount of memory is used.  By default this is set at 2GB, but it can be specified though a gobal setting:
 
 ```julia
 setmem(gig) 
@@ -162,18 +162,18 @@ stats(gmm::GMM, x::Matrix; order=2, parallel=true)
 Computes the Baum-Welch statistics up to order `order` for the alignment of the data `x` to the Universal Background GMM `gmm`.  The 1st and 2nd order statistics are retuned as an `n` x `d` matrix, so for obtaining a supervector flattening needs to be carried out in the right direction.  Theses statistics are _uncentered_. 
 
 ```julia
-csstats(gmm::GMM, x::Array, order=2)
+csstats(gmm::GMM, x::Matrix, order=2)
 ```
 Computes _centered_ and _scaled_ statistics.  These are similar as above, but centered w.r.t the UBM mean and scaled by the covariance.  
 
 ```julia
-CSstats(x::GMM, x::Array)
+CSstats(x::GMM, x::Matrix)
 ```
 This constructor return a `CSstats` object for centered stats of order 1.  The type is currently defined as:
 ```julia
 type CSstats
-    n::Vector{Float64}           # zero-order stats, ng
-    f::Array{Float64,2}          # first-order stats, ng * d
+    n::Vector           # zero-order stats, ng
+    f::Matrix          # first-order stats, ng * d
 end
 ```
 The CSstats type can be used for MAP adaptation and a simple but elegant dotscoring speaker recognition system. 
@@ -203,7 +203,7 @@ This saves a GMM of an array of GMMs under the name `name`  in a file `filename`
 gmm = load(filename, name)
 ```
 
-support for large amounts of training data
+Support for large amounts of training data
 ------
 In many of the functions defined above, a `Data` type is accepted in the place where the data matrix `x` is indicated.  An object of type `Data` is basically a list of either matrices of filenames, see  [BigData](https://github.com/davidavdav/BigData.jl).
 
