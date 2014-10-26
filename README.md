@@ -1,6 +1,8 @@
-Gaussian Mixture Models (GMMs)
-=======================
-[![Build Status](https://travis-ci.org/davidavdav/GMMs.jl.png)](https://travis-ci.org/davidavdav/GMMs.jl)
+GaussianMixtures
+========================
+A Julia package for Gaussian Mixture Models (GMMs).
+----------
+[![Build Status](https://travis-ci.org/davidavdav/GaussianMixtures.jl.png)](https://travis-ci.org/davidavdav/GaussianMixtures.jl)
 
 This package contains support for Gaussian Mixture Models.  Basic training, likelihood calculation, model adaptation, and i/o are implemented.
 
@@ -124,7 +126,7 @@ The method `stats()`, which is at the heart of EM, can detect multiple processor
 ```julia
 using ClusterManagers
 ClusterManagers.addprocs_sge(20)                                        
-@everywhere using GMMs                                                  
+@everywhere using GaussianMixtures
 ```
 
 Memory
@@ -201,3 +203,8 @@ This saves a GMM of an array of GMMs under the name `name`  in a file `filename`
 gmm = load(filename, name)
 ```
 
+support for large amounts of training data
+------
+In many of the functions defined above, a `Data` type is accepted in the place where the data matrix `x` is indicated.  An object of type `Data` is basically a list of either matrices of filenames, see  [BigData](https://github.com/davidavdav/BigData.jl).
+
+If `kind(x::Data)==:file`, then the matrix `x` is represented by vertically stacking the matrices that can be obtained by loading the files listed in `d` from disc.  The functions in GaussianMixtures try to run computations in parallel by processing the files in `d` simultaneously on multiple cores/machines, and they further try to limit the number of times the data needs to be loaded form disc.  In parallel execution on a computer cluster, an attempt is made to ensure the same data is always processed by the same worker, so that local file caching could work to your advantage. 

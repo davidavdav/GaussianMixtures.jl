@@ -1,7 +1,7 @@
-## GMMs.jl  Some functions for potentially large Gaussian Mixture Models
-## (c) 2013 David A. van Leeuwen
+## GaussianMixtures.jl  Some functions for potentially large Gaussian Mixture Models
+## (c) 2013--2014 David A. van Leeuwen
 
-module GMMs
+module GaussianMixtures
 
 ## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
 ccall(:jl_zero_subnormals, Bool, (Bool,), true)

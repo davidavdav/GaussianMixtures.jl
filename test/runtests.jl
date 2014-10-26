@@ -1,3 +1,3 @@
-using GMMs
+using GaussianMixtures
 
 include("test.jl")

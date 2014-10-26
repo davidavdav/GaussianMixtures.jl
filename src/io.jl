@@ -8,14 +8,14 @@ using Compat
 ## save a single GMM
 function JLD.save(filename::String, name::String, gmm::GMM)
     jldopen(filename, "w") do file
-        addrequire(file, "GMMs")
+        addrequire(file, "GaussianMixtures")
         write(file, name, gmm)
     end
 end
 ## save multiple GMMs
 function JLD.save(filename::String, name::String, gmms::Array{GMM})
     jldopen(filename, "w") do file
-        addrequire(file, "GMMs")
+        addrequire(file, "GaussianMixtures")
         write(file, name, gmms)
     end
 end
