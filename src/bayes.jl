@@ -6,6 +6,113 @@
 
 ## This is only for practicing
 
+## initialize a prior with minimal knowledge
+function GMMprior{T<:FloatingPoint}(d::Int, alpha::T, beta::T)
+    m0 = zeros(T, d)
+    W0 = eye(T, d)
+    nu0 = convert(T,d)
+    GMMprior(alpha, beta, m0, W0, nu0)
+end
+
+function VGMM(ng::Int, prior::GMMprior)
+    d = length(prior.m0)
+    alpha = prior.α0 * ones(ng)
+    beta = prior.β0 * ones(ng)
+    m = repmat(prior.m0', ng)
+    W = [prior.W0 for k=1:ng]
+    nu = prior.ν0 * ones(ng)
+    hist = History(@sprintf("VGMM with %d Gaussians in %d dimensions initialized from prior", ng, d))
+    VGMM(ng, d, :full, alpha, beta, m, nu, W, [hist])
+end
+
+## initialize from a GMM and data
+function VGMM(g::GMM, x::Matrix, prior::GMMprior)
+    (nx, d) = size(x)
+    N = g.w * nx
+    mx = g.μ
+    if g.kind == :diag
+        S = full(g).Σ
+    else
+        S = g.Σ
+    end
+    α, β, m, nu, W = mstep(prior, N, mx, S)
+    hist = copy(g.hist)
+    push!(hist, History("Initialized a Varitional GMM"))
+    VGMM(g.n, d, :full, α, β, m, nu, W, hist)
+end
+
+
+## log(ρ_nk) from 10.46, start with a very slow implementation
+## 10.46
+function logρ(g::VGMM, x::Matrix) 
+    (nx, d) = size(x)
+    d == g.d || error("dimension mismatch")
+    ng = g.n
+    Elogπ = digamma(g.α) .- digamma(sum(g.α)) # 10.66, size ng 
+    ElogdetΛ = similar(Elogπ) # size ng
+    for k=1:ng
+        ElogdetΛ[k] = sum(digamma(0.5(g.nu[k] .+ 1 .- [1:d]))) .+ d*log(2) .+ logdet(g.W[k]) # 10.65
+    end
+    EμkΛk = similar(x, nx, ng)
+    for i=1:nx
+        for k=1:ng
+            xx = x[i,:] - g.m[k,:]
+            EμkΛk[i,k] = d/g.β[k] + g.nu[k]* dot(xx*g.W[k], xx)
+        end
+    end
+    broadcast(+, (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))', -0.5EμkΛk)
+end
+
+## 10.49
+function rnk(g::VGMM, x::Matrix) 
+    ρ = exp(logρ(g, x))
+    broadcast(/, ρ, sum(ρ, 2))
+end
+
+## We'd like to do this though stats(), but don't for now. 
+## 10.51--10.53
+function threestats(g::VGMM, x::Matrix)
+    ng = g.n
+    (nx, d) = size(x)
+    r = rnk(g, x)'              # ng * nx
+    N = vec(sum(r, 2))          # ng
+    mx = broadcast(/, r * x, N) # ng * d
+    S = similar(g.W)           # ng * d*d
+    for k = 1:ng
+        S[k] = zeros(d,d)
+        for i=1:nx
+            xx = x[i,:] - mx[k,:]
+            S[k] += r[k,i]* xx' * xx
+        end
+        S[k] /= N[k]
+    end
+    return N, mx, S
+end
+
+## m-step given prior and stats
+function mstep(prior::GMMprior, N, mx, S)
+    α = prior.α0 + N           # ng, 10.58
+    nu = prior.ν0 + N + 1      # ng, 10.63
+    β = prior.β0 + N           # ng, 10.60
+    m = similar(mx)            # ng * d
+    W = similar(S)             # ng * (d*d)
+    for k=1:g.n
+        m[k,:] = (prior.β0*prior.m0' + N[k]*mx[k,:]) ./ β[k] # 10.61
+        xx = mx[k,:] - prior.m0'
+        third = prior.β0 * N[k] / (prior.β0 + N[k]) * xx' * xx
+        W[k] = inv(inv(prior.W0) + N[k]*S[k] + third) # 10.62
+    end
+    return α, β, m, nu, W
+end
+
+## do exactly one update step for the VGMM
+function emstep!(g::VGMM, x::Matrix, prior::GMMprior)
+    N, mx, S = threestats(g, x)
+    g.α, g.β, g.m, g.nu, g.W = mstep(prior, N, mx, S)
+end
+
+## Not used
+
 ## Wishart distribution {\cal W}(Λ, W, ν), but we write nu for ν. 
 function Wishart(Λ::Matrix, W::Matrix, nu::Float64)
     ## check
@@ -17,9 +124,9 @@ function Wishart(Λ::Matrix, W::Matrix, nu::Float64)
     for i=1:d
         B /= gamma(0.5(nu+1-i))
     end
-    invΛ = inv(Λ)
+#    invΛ = inv(Λ)
     ex = -0.5dot(inv(W),Λ)
-    B * det(Λ)^(0.5(nu-d-1)) + exp(ex)
+    B * det(Λ)^(0.5(nu-d-1)) * exp(ex)
 end
 
 function Gaussian(x::Vector, μ::Vector, Σ::Matrix)
@@ -35,11 +142,3 @@ function GaussianWishart(μ::Vector, Λ::Matrix, μ0::Vector, β::Float64, W::Ma
     Gaussian(μ, μ0, inv(βΛ)) * Wishart(Λ, W, nu)
 end 
 
-## log(ρ_nk) from 10.46
-function logρ(x::Matrix, n::Int, k::Int, g::GMM, α::Vector, β::Float64, nu::Float64, W::Matrix)
-    d = g.d
-    Elogπ = digamma(α[k]) - digamma(mean(α)) # 10.66
-    ElogdetΛ = sum(digamma(0.5(nu[k]+i-[1:d]))) + d*log(2) + logdet(W) # 10.65
-    xx = x[n,:] - 
-    EμkΛk = d/β + nu[k]*x[n,:]*
-                                        
