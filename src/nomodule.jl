@@ -14,3 +14,5 @@ include("stats.jl")
 include("rand.jl")
 include("data.jl")
 include("recognizer.jl")
+
+include("bayes.jl") ## experimental, not in main module

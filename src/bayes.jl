@@ -6,6 +6,8 @@
 
 ## This is only for practicing
 
+require("bayestypes.jl")
+
 ## initialize a prior with minimal knowledge
 function GMMprior{T<:FloatingPoint}(d::Int, alpha::T, beta::T)
     m0 = zeros(T, d)
@@ -14,6 +16,7 @@ function GMMprior{T<:FloatingPoint}(d::Int, alpha::T, beta::T)
     GMMprior(alpha, beta, m0, W0, nu0)
 end
 
+## not sure this constructor is at all useful.
 function VGMM(ng::Int, prior::GMMprior)
     d = length(prior.m0)
     alpha = prior.α0 * ones(ng)
@@ -25,7 +28,7 @@ function VGMM(ng::Int, prior::GMMprior)
     VGMM(ng, d, :full, alpha, beta, m, nu, W, [hist])
 end
 
-## initialize from a GMM and data
+## initialize from a GMM and data, seems we only need nx, perhaps store that in GMM?
 function VGMM(g::GMM, x::Matrix, prior::GMMprior)
     (nx, d) = size(x)
     N = g.w * nx
@@ -39,6 +42,19 @@ function VGMM(g::GMM, x::Matrix, prior::GMMprior)
     hist = copy(g.hist)
     push!(hist, History("Initialized a Varitional GMM"))
     VGMM(g.n, d, :full, α, β, m, nu, W, hist)
+end
+
+## sharpen VGMM to a GMM
+function GMM(v::VGMM)
+    w = v.α / sum(v.α)
+    μ = v.m
+    Σ = similar(v.W)
+    for k=1:length(v.W)
+        Σ[k] = inv(v.nu[k] * v.W[k])
+    end
+    hist = copy(v.hist)
+    push!(hist, History("Variational GMM converted to GMM"))
+    GMM(:full, w, μ, Σ, hist)
 end
 
 
@@ -65,8 +81,11 @@ end
 
 ## 10.49
 function rnk(g::VGMM, x::Matrix) 
-    ρ = exp(logρ(g, x))
-    broadcast(/, ρ, sum(ρ, 2))
+#    ρ = exp(logρ(g, x))
+#    broadcast(/, ρ, sum(ρ, 2))
+    lρ = logρ(g, x)
+    broadcast!(-, lρ, lρ, logsumexp(lρ, 2))
+    exp(lρ)
 end
 
 ## We'd like to do this though stats(), but don't for now. 
@@ -109,6 +128,13 @@ end
 function emstep!(g::VGMM, x::Matrix, prior::GMMprior)
     N, mx, S = threestats(g, x)
     g.α, g.β, g.m, g.nu, g.W = mstep(prior, N, mx, S)
+    g
+end
+
+function em!(g::VGMM, x::Matrix, prior::GMMprior; nIter=50)
+    for i=1:nIter
+        emstep!(g, x, prior)
+    end
 end
 
 ## Not used
