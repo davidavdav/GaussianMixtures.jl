@@ -12,6 +12,12 @@ At this moment, we have implemented both diagonal covariance and full covariance
 
 In training the parameters of a GMM using the Expectation Maximization (EM) algorithm, the inner loop (computing the Baum-Welch statistics) can be executed efficiently using Julia's standard parallelization infrastructure, e.g., by using SGE.  We further support very large data (larger than will fit in the combined memory of the computing cluster) though [BigData](https://github.com/davidavdav/BigData.jl), which has now been incorporated in this package. 
 
+Install
+----
+```julia
+Pkg.add("GaussianMixtures")
+```
+
 Vector dimensions
 ------------------
 
