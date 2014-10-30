@@ -25,10 +25,13 @@ end
 
 function stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
     gmm.d == size(x,2) || error("dimension mismatch for data")
-    if gmm.kind == :diag
+    gmmkind = kind(gmm)
+    if gmmkind == :diag
         diagstats(gmm, x, order)
-    elseif gmm.kind == :full
+    elseif gmmkind == :full
         fullstats(gmm, x, order)
+    else
+        error("Unknown kind")
     end
 end
 
@@ -162,7 +165,7 @@ end
 ## Same, but UBM centered+scaled stats
 ## f and s are ng * d
 function csstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, order::Int=2)
-    gmm.kind == :diag || error("Can only do centered and scaled stats for diag covariance")
+    kind(gmm) == :diag || error("Can only do centered and scaled stats for diag covariance")
     if order==1
         nx, llh, N, F = stats(gmm, x, order)
     else
@@ -188,14 +191,17 @@ function cstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, parallel=false)
     nx, llh, N, F, S = stats(gmm, x, order=2, parallel=parallel)
     Nμ = broadcast(*, N, gmm.μ)
     ## center the statistics
-    if gmm.kind == :diag
+    gmmkind = kind(gmm)
+    if gmmkind == :diag
         S += (Nμ-2F) .* gmm.μ
-    else
+    elseif gmmkind == :full
         for i in 1:length(S)
             μi = gmm.μ[i,:]
             Fμi = F[i,:]' * μi
             S[i] += N[i] * μi' * μi - Fμi' - Fμi
         end
+    else
+        error("Unknown kind")
     end
     F -= Nμ
     return N, F, S

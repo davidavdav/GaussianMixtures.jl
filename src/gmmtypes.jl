@@ -24,37 +24,39 @@ type History
 end
 History(s::String) = History(time(), s)
 
-## typealias MatrixOrArray{T} Union(Matrix{T}, Vector{Matrix{T}})
+## support for two kinds of covariance matrix
+typealias DiagCov{T} Matrix{T}
+typealias FullCov{T} Vector{Matrix{T}}
 
-## GMMs can be of type FLoat32 or Float64
-type GMM{T<:FloatingPoint}
+## GMMs can be of type FLoat32 or Float64, and diagonal or full
+type GMM{T<:FloatingPoint, CT<:Union(Matrix,Vector)}
     n::Int                      # number of Gaussians
     d::Int                      # dimension of Gaussian
-    kind::Symbol                # :diag or :full---we'll take 'diag' for now
     w::Vector{T}                # weights: n
-    μ::Matrix{T}                 # means: n x d
-    Σ::Union(Matrix{T},Vector{Matrix{T}}) # covars n x d
-    hist::Vector{History}        # history
-    function GMM(kind::Symbol, w::Vector, μ::Matrix, Σ::Array, hist::Vector)
+    μ::Matrix{T}                # means: n x d
+    Σ::CT                       # covars n x d
+    hist::Vector{History}       # history
+    nx::Int                     # number of points used to train the GMM
+    function GMM(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{T}), 
+                 hist::Vector, nx::Int)
         n = length(w)
         isapprox(1, sum(w)) || error("weights do not sum to one")
         d = size(μ, 2)
         n == size(μ, 1) || error("Inconsistent number of means")
-        if kind == :diag
+        if isa(Σ, Matrix)
             (n,d) == size(Σ) || error("Inconsistent covar dimension")
-        elseif kind == :full
+        else
             n == length(Σ) || error("Inconsistent number of covars")
             for (i,S) in enumerate(Σ) 
                 (d,d) == size(S) || error(@sprintf("Inconsistent dimension for %d", i))
                 isposdef(S) || error(@sprintf("Covariance %d not positive definite", i))
             end
-        else
-            error("Unknown kind")
         end
-        new(n, d, kind, w, μ, Σ, hist)
+        new(n, d, w, μ, Σ, hist, nx)
     end
 end
-GMM{T<:FloatingPoint}(kind::Symbol, w::Vector{T}, μ::Matrix{T}, Σ::Union(Matrix{T},Vector{Matrix{T}}), hist::Vector) = GMM{T}(kind, w, μ, Σ, hist)
+GMM{T<:FloatingPoint}(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{T}), 
+                      hist::Vector, nx::Int) = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
 
 ## UBM-centered and scaled stats.
 ## This structure currently is useful for dotscoring, so we've limited the
@@ -76,21 +78,21 @@ CSstats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}) = CSstats{T}(n, f)
 CSstats(t::Tuple) = CSstats(t[1], t[2])
 
 ## Cstats is a type of centered but un-scaled stats, necessary for i-vector extraction
-type Cstats{T<:FloatingPoint}
+type Cstats{T<:FloatingPoint, CT<:Union(Matrix,Vector)}
     N::Vector{T}
     F::Matrix{T}
-    S::Union(Matrix{T}, Vector{Matrix{T}})
-    function Cstats(n::Vector, f::Matrix, s::Array)
-        @assert size(n,1) == size(f,1)
+    S::CT
+    function Cstats(n::Vector{T}, f::Matrix{T}, s::Union(DiagCov{T},FullCov{T}))
+        size(n,1) == size(f,1) || error("Inconsistent size 0th and 1st order stats")
         if size(n) == size(s)   # full covariance stats
-            @assert all([size(f,2) == size(ss,1) == size(ss,2) for ss in s])
+            all([size(f,2) == size(ss,1) == size(ss,2) for ss in s]) || error("inconsistent size 2st and 2nd order stats")           
        else 
-            @assert size(f) == size(s)
+            size(f) == size(s) || error("inconsistent size 1st and 2nd order stats")
         end
         new(n, f, s)
     end
 end
-Cstats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}, s::Union(Matrix{T}, Vector{Matrix{T}})) = Cstats{T}(n, f, s)
+Cstats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}, s::Union(DiagCov{T}, FullCov{T})) = Cstats{T,typeof(s)}(n, f, s)
 Cstats(t::Tuple) = Cstats(t...)
 
 ## A data handle, either in memory or on disk, perhaps even mmapped but I haven't seen any 

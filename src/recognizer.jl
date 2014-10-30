@@ -29,18 +29,18 @@ function map{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, r::Real=16.; means::Bool=
         μ = gmm.μ
     end
     if covars
-        gmm.kind == :diag || error("Sorry, can't MAP adapt full covariance matrix GMM yet")
+        kind(gmm) == :diag || error("Sorry, can't MAP adapt full covariance matrix GMM yet")
         Σ = broadcast(*, α./N, S) + broadcast(*, 1-α, gmm.Σ .^2 + gmm.μ .^2) - g.μ .^2
     else
         Σ = gmm.Σ
     end
     hist = vcat(gmm.hist, History(@sprintf "MAP adapted with %d data points relevance %3.1f %s %s %s" size(x,1) r means ? "means" : ""  weights ? "weights" : "" covars ? "covars" : ""))
-    return GMM(gmm.kind, w, μ, Σ, hist) 
+    return GMM(w, μ, Σ, hist, nx) 
 end
 
 ## compute a supervector from a MAP adapted utterance. 
 function Base.vec(gmm::GMM, x::Matrix, r=16.)
-    gmm.kind == :diag || error("Sorry, can't compute MAP adapted supervector for full covariance matrix GMM yet")
+    kind(gmm) == :diag || error("Sorry, can't compute MAP adapted supervector for full covariance matrix GMM yet")
     nx, ll, N, F, S = stats(gmm, x)
     α = N ./ (N+r)
     Δμ = broadcast(*, α./N, F) - broadcast(*, α, gmm.μ)

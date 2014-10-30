@@ -10,18 +10,21 @@ function GMM(x::DataOrMatrix; kind=:diag)
     d = length(μ)
     if kind == :diag
         Σ = (sxx' - n*μ.*μ) ./ (n-1)
-    else
+    elseif kind == :full
         Σ =  Matrix{numtype}[(sxx - n*(μ'*μ)) ./ (n-1)]
+    else
+        error("Unknown kind")
     end
     hist = History(@sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points",
                             d, kind, n))
-    GMM(kind, numtype[1.0], μ, Σ, [hist])
+    GMM(ones(numtype,1), μ, Σ, [hist], n)
 end
-## Also allow a Vector
+## Also allow a Vector, :full makes no sense
 GMM{T<:Real}(x::Vector{T}) = GMM(x'')
 
 ## constructors based on data or matrix
-function GMM(n::Int, x::DataOrMatrix; method::Symbol=:kmeans, kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0)
+function GMM(n::Int, x::DataOrMatrix; method::Symbol=:kmeans, kind=:diag, 
+             nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0)
     if n<2
         GMM(x, kind=kind)
     elseif method==:split
@@ -32,8 +35,8 @@ function GMM(n::Int, x::DataOrMatrix; method::Symbol=:kmeans, kind=:diag, nInit:
         error("Unknown method ", method)
     end
 end
-## a 1-dimensional Gaussian can bi initialized with a vector
-GMM{T<:FloatingPoint}(n::Int, x::Vector{T}; method::Symbol=:kmeans, kind=:diag, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sprarse=0) = GMM(n, x'', method;  kind=kind, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
+## a 1-dimensional Gaussian can be initialized with a vector, skip kind=
+GMM{T<:FloatingPoint}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sprarse=0) = GMM(n, x'', method;  kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
 function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0)
@@ -74,7 +77,7 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
             end
         end
         Σ = convert(Matrix{Float64},vcat(map(variance, 1:n)...))
-    else
+    elseif kind == :full
         function covariance(i::Int)
             sel = km.assignments .== i
             if length(sel) < 2
@@ -85,11 +88,14 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
         end
         Σ = Matrix{Float64}[covariance(i) for i=1:n]
         println(Σ)
+    else
+        error("Unknown kind")
     end
     w = km.counts ./ sum(km.counts)
-    hist = History(string("K-means with ", size(xx,1), " data points using ", km.iterations, " iterations\n"))
-    gmm = GMM(kind, w, μ, Σ, [hist])
-    addhist!(gmm, @sprintf("%3.1f data points per parameter",nx/nparams(gmm)))
+    nxx = size(xx,1)
+    ng = length(w)
+    hist = History(string("K-means with ", nxx, " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",nxx/((d+1)ng))))
+    gmm = GMM(w, μ, Σ, [hist], nxx)
     em!(gmm, x; nIter=nIter, sparse=sparse)
     gmm
 end    
@@ -99,15 +105,15 @@ end
 ## We start with one Gaussian, and consecutively split.  
 function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, sparse=0)
     log2n = int(log2(n))
-    @assert 2^log2n == n
+    2^log2n == n || error("n must be power of 2")
     gmm=GMM(x, kind=kind)
-    tll = avll(gmm,x)
-    println("0: avll = ", tll)
+    tll = [avll(gmm,x)]
+    println("0: avll = ", tll[1])
     for i=1:log2n
         gmm=split(gmm)
         avll = em!(gmm, x; nIter=i==log2n ? nFinal : nIter, sparse=sparse)
         println(i, ": avll = ", avll)
-        tll = vcat(tll, avll)
+        append!(tll, avll)
     end
     println(tll)
     gmm
@@ -147,20 +153,23 @@ function split(gmm::GMM; minweight::Float64=1e-5, sep::Float64=0.2)
         gmm.μ[offInd[i],:] = gmm.μ[maxi[i],:] + sep*sqrt((gmm.Σ[maxi[i],:]))
         gmm.μ[maxi[i],:] = gmm.μ[maxi[i],:] - sep*sqrt((gmm.Σ[maxi[i],:]))
     end
-    new = GMM(2gmm.n, gmm.d, kind=gmm.kind)
+    gmmkind = kind(gmm)
+    new = GMM(2gmm.n, gmm.d, kind=gmmkind)
     for oi=1:gmm.n
         ni = 2oi-1 : 2oi
         new.w[ni] = gmm.w[oi]/2
-        if gmm.kind == :diag
+        if gmmkind == :diag
             new.μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), vec(gmm.Σ[oi,:]), sep)...)'
             for k=ni
                 new.Σ[k,:] = gmm.Σ[oi,:]
             end
-        else
+        elseif gmmkind == :full
             new.μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), gmm.Σ[oi], sep)...)'
             for k=ni
                 new.Σ[k] = gmm.Σ[oi]
             end
+        else
+            error("Unknown kind")
         end
     end
     new.hist = vcat(gmm.hist, History(@sprintf("split to %d Gaussians",new.n)))
@@ -172,18 +181,19 @@ end
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
 ## of the data and stores this in the history.  
 function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3, sparse=sparse)
-    @assert size(x,2)==gmm.d
+    size(x,2)==gmm.d || error("Inconsistent size gmm and x")
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
     initc = gmm.Σ
     ll = zeros(nIter)
+    gmmkind = kind(gmm)
     for i=1:nIter
         ## E-step
         nx, ll[i], N, F, S = stats(gmm, x, parallel=true)
         ## M-step
         gmm.w = N / nx
         gmm.μ = broadcast(/, F, N)
-        if gmm.kind == :diag
+        if gmmkind == :diag
             gmm.Σ = broadcast(/, S, N) - gmm.μ.^2
             ## var flooring
             tooSmall = any(gmm.Σ .< varfloor, 2)
@@ -192,11 +202,13 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
                 println("Variances had to be floored ", join(ind, " "))
                 gmm.Σ[ind,:] = initc[ind,:]
             end
-        elseif gmm.kind == :full
+        elseif gmmkind == :full
             for i=1:ng
                 μi = gmm.μ[i,:]
                 gmm.Σ[i][:] = S[i] / N[i] - μi' * μi
             end
+        else
+            error("Unknown kind")
         end
     end
     if nIter>0
@@ -206,7 +218,8 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
         finalll = avll(gmm, x)
         nx = size(x,1)
     end
-    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,finalll,size(x,1)/nparams(gmm)))
+    gmm.nx = nx
+    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,finalll,nx/nparams(gmm)))
     ll
 end
 
@@ -233,8 +246,9 @@ end
 function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
     (nx, d) = size(x)
     ng = gmm.n
-    @assert d==gmm.d    
-    if (gmm.kind==:diag)
+    d==gmm.d || error ("Inconsistent size gmm and x")
+    gmmkind = kind(gmm)
+    if gmmkind == :diag
         return llpgdiag(gmm, x)
         ## old, slow code
         ll = Array(Float64, nx, ng)
@@ -245,7 +259,7 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
             ll[:,j] = -0.5sumsq(ΔsqrtΛ,2) .- normalization[j]
         end
         return ll
-    else
+    elseif gmmkind == :full
         ll = Array(Float64, nx, ng)
         # C = [chol(inv(gmm.Σ[i]), :L) for i=1:ng] # should do this only once...
         normalization = 0.5 * [d*log(2π) + logdet(gmm.Σ[i]) for i=1:ng]
@@ -256,18 +270,20 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
             ll[:,j] = -0.5sumsq(CΔ,2) .- normalization[j]
         end
         return ll
+    else
+        error("Unknown kind")
     end
 end
         
 ## Average log-likelihood per data point and per dimension for a given GMM 
 function avll{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
-    @assert gmm.d == size(x,2)
+    gmm.d == size(x,2) || error("Inconsistent size gmm and x")
     mean(logsumexpw(llpg(gmm, x), gmm.w)) / gmm.d
 end
 
 ## Data version
 function avll(gmm::GMM, d::Data)
-    llpf = map(x->logsumexpw(llpg(gmm,x), gmm.w), d)
+    llpf = dmap(x->logsumexpw(llpg(gmm,x), gmm.w), d)
     sum(map(sum, llpf)) / sum(map(length, llpf)) / gmm.d
 end
 
@@ -278,7 +294,7 @@ import Distributions.posterior
 function posterior{T}(gmm, x::Matrix{T}, getll=false)      # nx * ng
     (nx, d) = size(x)
     ng = gmm.n
-    @assert d==gmm.d
+    d==gmm.d || error("Inconsistent size gmm and x")
     ll = llpg(gmm, x)
     logp = broadcast(+, ll, log(gmm.w'))
     logsump = logsumexp(logp, 2)

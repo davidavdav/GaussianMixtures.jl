@@ -66,8 +66,10 @@ API(d::Data, f::Symbol) = d.API[f]
 function getindex(x::Data, i::Int) 
     if kind(x) == :matrix
         x.list[i]
-    else
+    elseif kind(x) == :file
         x.API[:load](x.list[i])
+    else
+        error("Unknown kind")
     end
 end
 
@@ -102,8 +104,10 @@ function dmap(f::Function, x::Data)
             end
         end
         results
-    else
+    elseif kind(x) == :matrix
         pmap(f, x)
+    else
+        error("Unknown kind")
     end
 end
 
@@ -139,6 +143,8 @@ function stats{T<:FloatingPoint}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
         sx = vec(sum(x, dim))
         sxx = x' * x
         return n, sx, sxx
+    else
+        error("Unknown kind")
     end
 end
 
@@ -248,8 +254,10 @@ for (f,t) in ((:float32, Float32), (:float64, Float64))
         function ($f)(d::Data) 
             if kind(d) == :files
                 Data($t, d.list, d.API[:load])
-            else
+            elseif kind(d) == :matrix
                 Data($t, [($f)(x) for x in d.list], nothing)
+            else
+                error("Unknown kind")
             end
         end
     end

@@ -29,7 +29,7 @@ function savemat(file::String, gmm::GMM)
              @Compat.Dict( "gmm" =>         # the default name
               @Compat.Dict("ncentres" => gmm.n,
                "nin" => gmm.d,
-               "covar_type" => string(gmm.kind),
+               "covar_type" => string(kind(gmm)),
                "priors" => gmm.w,
                "centres" => gmm.μ,
                "covars" => gmm.Σ,
@@ -44,7 +44,7 @@ function readmat(file, ::Type{GMM})
     n = int(g["ncentres"])
     d = int(g["nin"])
     kind = g["covar_type"]
-    gmm = GMM(n, d, :diag)  # I should parse this
+    gmm = GMM(n, d, kind)  # I should parse this
     gmm.w = reshape(g["priors"], n)
     gmm.μ = g["centres"]
     gmm.Σ = g["covars"]

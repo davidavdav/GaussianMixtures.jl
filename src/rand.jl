@@ -7,17 +7,19 @@ function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
     μ = sep * randn(ng, d)
     if kind==:diag
         Σ = hcat([rand(Chisq(1.0), ng) for i=1:d]...)
-    else
+    elseif kind == :full
         Σ = Array(Matrix{Float64}, ng)
         for i=1:ng
             T = randn(d,d)
             Σ[i] = T' * T / d
         end
+    else
+        error("Unknown kind")
     end
     w = ones(ng)/ng
     hist = History(@sprintf("Generated random %s covariance GMM with %d Gaussians of dimension %d",
                             kind, ng, d))
-    GMM(kind, w, μ, Σ, [hist])
+    GMM(w, μ, Σ, [hist], 0)
 end
 
 ## local helper
@@ -47,13 +49,16 @@ function Base.rand(gmm::GMM, n::Int)
     x = Array(Float64, n, gmm.d)
     ## generate indices distriuted according to weights
     index = mapslices(find, rand(Multinomial(1, gmm.w), n), 1)
+    gmmkind = kind(gmm)
     for i=1:gmm.n
         ind = find(index.==i)
         nx = length(ind)
-        if gmm.kind == :diag
+        if gmmkind == :diag
             x[ind,:] = broadcast(+, gmm.μ[i,:], broadcast(*, sqrt(gmm.Σ[i,:]), randn(nx,gmm.d)))
-        else
+        elseif gmmkind == :full
             x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), gmm.Σ[i]), nx)'
+        else
+            error("Unknown kind")
         end
     end
     x
