@@ -102,10 +102,12 @@ Cstats(t::Tuple) = Cstats(t...)
 
 ## The API is a dictionary of functions that help loading the data into memory
 ## Compulsory is: :load, useful is: :size
-type Data
-    datatype::Type
-    list::Vector
-    API::Dict
+type Data{T,VT<:Union(Matrix,String)}
+    list::Vector{VT}
+    API::Dict{Symbol,Function}
+    Data(list::Union(Vector{VT},Vector{Matrix{T}}), API::Dict{Symbol,Function})=new(list,API)
 end
+Data{T}(list::Vector{Matrix{T}}) = Data{T, eltype(list)}(list, Dict{Symbol,Function}())
+Data{S<:String}(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) = Data{t, S}(list, API)
 
-typealias DataOrMatrix{T} Union(Data, Matrix{T})
+typealias DataOrMatrix{T} Union(Data{T}, Matrix{T})

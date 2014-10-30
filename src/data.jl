@@ -1,29 +1,17 @@
 ## data.jl Julia code to handle matrix-type data on disc
 
-## constructor for a vector of plain matrices
-## x = Matrix{Float64}[rand(1000,10), rand(1000,10)]
-function Data{T}(x::Vector{Matrix{T}}; rowvectors=true)
-    if rowvectors
-        Data(T, x, Dict{Symbol,Function}())
-    else
-        Data(T, map(transpose, x), Dict{Symbol,Function})
-    end
-end
+## report the kind of Data structure from the type instance
+kind{T,S<:String}(d::Data{T,S}) = :file
+kind{T}(d::Data{T,Matrix{T}}) = :matrix
+Base.eltype{T}(d::Data{T}) = T
 
 ## constructor for a plain matrix.  rowvectors: data points x represented as rowvectors
-function Data(x::Matrix; rowvectors=true) 
-    T = eltype(x)
-    if rowvectors
-        Data(Matrix{T}[x])
-    else
-        Data(Matrix{T}[x']) 
-    end
-end
+Data{T}(x::Matrix{T}) = Data(Matrix{T}[x])
 
 ## constructor for a vector of files
 ## Data([strings], type, loadfunction)
 function Data{S<:String}(files::Vector{S}, datatype::DataType, load::Function)
-    Data(datatype, files, Dict(:load => load))
+    Data(files, datatype, Dict(:load => load))
 end
 
 ## default load function
@@ -51,14 +39,12 @@ function Data{S<:String}(files::Vector{S}, datatype::DataType; kwargs...)
         d[:load] = _load
         d[:size] = _size
     end
-    Data(datatype, files, d)
+    Data(files, datatype, d)
 end
 
 ## constructor for a plain file.
 Data(file::String, datatype::DataType, load::Function) = Data([file], datatype, load)
 Data(file::String, datatype::DataType; kwargs...) = Data([file], datatype; kwargs...)
-
-kind(x::Data) = eltype(x.list) <: String ? :file : :matrix
 
 ## is this really a shortcut?
 API(d::Data, f::Symbol) = d.API[f]
@@ -73,8 +59,8 @@ function getindex(x::Data, i::Int)
     end
 end
 
-function getindex(x::Data, r::Range)
-    Data(x.datatype, x.list[r], x.API)
+function getindex{T,VT}(x::Data{T,VT}, r::Range)
+    Data{T, VT}(x.list[r], x.API)
 end
 
 ## define an iterator for Data
@@ -82,7 +68,6 @@ Base.length(x::Data) = length(x.list)
 Base.start(x::Data) = 0
 Base.next(x::Data, state::Int) = x[state+1], state+1
 Base.done(x::Data, state::Int) = state == length(x)
-Base.eltype(x::Data) = x.datatype
 
 ## This function is like pmap(), but executes each element of Data on a predestined
 ## worker, so that file caching at the local machine is beneficial
@@ -111,7 +96,7 @@ function dmap(f::Function, x::Data)
     end
 end
 
-## stats: compute nth order stats for array
+## stats: compute nth order stats for array (this belongs in stats.jl)
 function stats{T<:FloatingPoint}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
     n, d = nthperm([size(x)...], dim) ## swap or not trick
     if kind == :diag
@@ -156,7 +141,7 @@ function +(a::Tuple, b::Tuple)
 end
 Base.zero(t::Tuple) = map(zero, t)
 
-## this function calls pmap as an option for parallelism
+## this function calls dmap as an option for parallelism
 function stats(d::Data, order::Int=2; kind=:diag, dim=1)
     s = dmap(x->stats(x, order, kind=kind, dim=dim), d)
     if dim==1
@@ -180,7 +165,7 @@ end
 
 ## sum, mean, var
 function Base.sum(d::Data)
-    s = zero(d.datatype)
+    s = zero(eltype(d))
     for x in d
         s += sum(x)
     end
@@ -252,10 +237,13 @@ for (f,t) in ((:float32, Float32), (:float64, Float64))
     eval(Expr(:import, :Base, f))
     @eval begin
         function ($f)(d::Data) 
-            if kind(d) == :files
-                Data($t, d.list, d.API[:load])
+            if kind(d) == :file
+                api = copy(d.API)
+                _load = api[:load] # local copy
+                api[:load] = x -> ($f)(_load(x))
+                Data(d.list, $t, api)
             elseif kind(d) == :matrix
-                Data($t, [($f)(x) for x in d.list], nothing)
+                Data(Matrix{$t}[($f)(x) for x in d.list])
             else
                 error("Unknown kind")
             end
