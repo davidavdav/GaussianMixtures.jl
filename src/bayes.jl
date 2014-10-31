@@ -29,22 +29,23 @@ function VGMM(ng::Int, prior::GMMprior)
 end
 
 ## initialize from a GMM and data, seems we only need nx, perhaps store that in GMM?
-function VGMM(g::GMM, x::Matrix, prior::GMMprior)
-    (nx, d) = size(x)
+function VGMM(g::GMM, prior::GMMprior)
+    nx = g.nx
     N = g.w * nx
     mx = g.μ
-    if g.kind == :diag
+    if kind(g) == :diag
         S = full(g).Σ
     else
         S = g.Σ
     end
     α, β, m, nu, W = mstep(prior, N, mx, S)
     hist = copy(g.hist)
-    push!(hist, History("Initialized a Varitional GMM"))
-    VGMM(g.n, d, :full, α, β, m, nu, W, hist)
+    push!(hist, History("GMM converted to Varitional GMM"))
+    VGMM(g.n, g.d, :full, α, β, m, nu, W, hist)
 end
 
 ## sharpen VGMM to a GMM
+## This currently breaks because my expected Λ are not positive definite
 function GMM(v::VGMM)
     w = v.α / sum(v.α)
     μ = v.m
@@ -54,9 +55,31 @@ function GMM(v::VGMM)
     end
     hist = copy(v.hist)
     push!(hist, History("Variational GMM converted to GMM"))
-    GMM(:full, w, μ, Σ, hist)
+    GMM(w, μ, Σ, hist, iround(sum(v.α)))
 end
 
+## m-step given prior and stats
+function mstep(prior::GMMprior, N, mx, S)
+    α = prior.α0 + N           # ng, 10.58
+    nu = prior.ν0 + N + 1      # ng, 10.63
+    β = prior.β0 + N           # ng, 10.60
+    m = similar(mx)            # ng * d
+    W = similar(S)             # ng * (d*d)
+    d = size(mx,2)
+    limit = sqrt(eps(eltype(N)))
+    for k=1:g.n
+        if N[k] > limit
+            m[k,:] = (prior.β0*prior.m0' + N[k]*mx[k,:]) ./ β[k] # 10.61
+            Δ = mx[k,:] - prior.m0'
+            third = prior.β0 * N[k] / (prior.β0 + N[k]) * Δ' * Δ
+            W[k] = inv(inv(prior.W0) + N[k]*S[k] + third) # 10.62
+        else
+            m[k,:] = zeros(d)
+            W[k] = eye(d)
+        end
+    end
+    return α, β, m, nu, W
+end
 
 ## log(ρ_nk) from 10.46, start with a very slow implementation
 ## 10.46
@@ -93,40 +116,24 @@ end
 function threestats(g::VGMM, x::Matrix)
     ng = g.n
     (nx, d) = size(x)
-    r = rnk(g, x)'              # ng * nx
+    r = rnk(g, x)'              # ng * nx, `wrong direction'
     N = vec(sum(r, 2))          # ng
     mx = broadcast(/, r * x, N) # ng * d
-    S = similar(g.W)           # ng * d*d
+    S = similar(g.W)            # ng * d*d
     for k = 1:ng
         S[k] = zeros(d,d)
         for i=1:nx
             xx = x[i,:] - mx[k,:]
             S[k] += r[k,i]* xx' * xx
         end
-        S[k] /= N[k]
+        S[k] ./= N[k]
     end
     return N, mx, S
 end
 
-## m-step given prior and stats
-function mstep(prior::GMMprior, N, mx, S)
-    α = prior.α0 + N           # ng, 10.58
-    nu = prior.ν0 + N + 1      # ng, 10.63
-    β = prior.β0 + N           # ng, 10.60
-    m = similar(mx)            # ng * d
-    W = similar(S)             # ng * (d*d)
-    for k=1:g.n
-        m[k,:] = (prior.β0*prior.m0' + N[k]*mx[k,:]) ./ β[k] # 10.61
-        xx = mx[k,:] - prior.m0'
-        third = prior.β0 * N[k] / (prior.β0 + N[k]) * xx' * xx
-        W[k] = inv(inv(prior.W0) + N[k]*S[k] + third) # 10.62
-    end
-    return α, β, m, nu, W
-end
-
 ## do exactly one update step for the VGMM
 function emstep!(g::VGMM, x::Matrix, prior::GMMprior)
-    N, mx, S = threestats(g, x)
+    N, mx, S = threestats(g, x, prior)
     g.α, g.β, g.m, g.nu, g.W = mstep(prior, N, mx, S)
     g
 end
