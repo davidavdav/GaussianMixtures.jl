@@ -6,8 +6,6 @@
 
 ## This is only for practicing
 
-require("bayestypes.jl")
-
 ## initialize a prior with minimal knowledge
 function GMMprior{T<:FloatingPoint}(d::Int, alpha::T, beta::T)
     m0 = zeros(T, d)
