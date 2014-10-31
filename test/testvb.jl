@@ -1,5 +1,5 @@
 ## test VB GMM for the standard example data
-x = readdlm("test/faithful.txt")
+x = readdlm("faithful.txt")
 ## only do k-means
 g = GMM(8, x, kind=:full, nIter=0)
 p = GMMprior(g.d, 1.0, 1.0)
