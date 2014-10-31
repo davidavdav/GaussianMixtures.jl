@@ -7,6 +7,7 @@ using HDF5, JLD
 using MAT
 
 require("gmmtypes.jl")
+require("bayestypes.jl")
 
 include("gmms.jl")
 include("train.jl")
@@ -17,3 +18,4 @@ include("data.jl")
 include("recognizer.jl")
 
 include("bayes.jl") ## experimental, not in main module
+

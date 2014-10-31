@@ -36,7 +36,7 @@ function nparams(gmm::GMM)
     end
 end
 
-function addhist!(gmm::GMM, s::String) 
+function addhist!(gmm::GaussianMixture, s::String) 
     push!(gmm.hist, History(s))
     gmm
 end
@@ -73,7 +73,7 @@ function Base.diag{T}(gmm::GMM{T})
     addhist!(new, "Converted to diag covariance")
 end
 
-function history(gmm::GMM) 
+function history(gmm::GaussianMixture) 
     t0 = gmm.hist[1].t
     for h=gmm.hist
         s = split(h.s, "\n")

@@ -13,9 +13,11 @@ using HDF5, JLD
 using MAT
 
 include("gmmtypes.jl")
+include("bayestypes.jl")
 
 include("gmms.jl")
 include("train.jl")
+include("bayes.jl")
 include("io.jl")
 include("stats.jl")
 include("rand.jl")

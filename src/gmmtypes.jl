@@ -24,12 +24,14 @@ type History
 end
 History(s::String) = History(time(), s)
 
+abstract GaussianMixture{T,CT}
+
 ## support for two kinds of covariance matrix
 typealias DiagCov{T} Matrix{T}
 typealias FullCov{T} Vector{Matrix{T}}
 
 ## GMMs can be of type FLoat32 or Float64, and diagonal or full
-type GMM{T<:FloatingPoint, CT<:Union(Matrix,Vector)}
+type GMM{T<:FloatingPoint, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}
     n::Int                      # number of Gaussians
     d::Int                      # dimension of Gaussian
     w::Vector{T}                # weights: n
