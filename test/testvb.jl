@@ -11,4 +11,3 @@ println(history(v))
 for f in [:α, :β, :m, :ν, :W] 
     println(f, " = ", getfield(v, f))
 end
-    
