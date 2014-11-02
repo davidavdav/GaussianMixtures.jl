@@ -44,7 +44,6 @@ Type
 type GMM
     n::Int                         # number of Gaussians
     d::Int                         # dimension of Gaussian
-    kind::Symbol                   # :diag or :full
     w::Vector                      # weights: n
     μ::Array                       # means: n x d
     Σ::Union(Array, Vector{Array}) # diagonal covariances n x d, or Vector n of d x d full covariances
@@ -214,3 +213,48 @@ Support for large amounts of training data
 In many of the functions defined above, a `Data` type is accepted in the place where the data matrix `x` is indicated.  An object of type `Data` is basically a list of either matrices of filenames, see  [BigData](https://github.com/davidavdav/BigData.jl).
 
 If `kind(x::Data)==:file`, then the matrix `x` is represented by vertically stacking the matrices that can be obtained by loading the files listed in `d` from disc.  The functions in GaussianMixtures try to run computations in parallel by processing the files in `d` simultaneously on multiple cores/machines, and they further try to limit the number of times the data needs to be loaded form disc.  In parallel execution on a computer cluster, an attempt is made to ensure the same data is always processed by the same worker, so that local file caching could work to your advantage. 
+
+Variational Bayes training
+-------------------
+We have started support for Variational Bayes GMMs.  Here, the parameters of the GMM are not point estimates but are rather represented by a distribution.  Training of the parameters that govens these distributions can be carried out by an EM-like algorithm.
+
+In out implementation, we follow the approach from section 10.2 of [Christopher Bishop's book](http://research.microsoft.com/en-us/um/people/cmbishop/PRML/).  In this version of GaussianMixtures we have not attempted to optimize the code for efficiency.
+
+The variational Bayes training uses two new types, a prior and a variational GMM:
+
+```julia
+type GMMprior{T<:FloatingPoint}
+    α0::T                       # effective prior number of observations
+    β0::T
+    m0::Vector{T}               # prior on μ
+    W0::Matrix{T}               # prior precision
+    ν0::T                       # scale precision
+end
+
+type VGMM{T<:FloatingPoint} <: GaussianMixture{T}
+    n::Int                      # number of Gaussians
+    d::Int                      # dimension of Gaussian
+    π::GMMprior                 # The prior used in this VGMM
+    α::Vector{T}                # Dirichlet, n
+    β::Vector{T}                # scale of precision, n
+    m::Matrix{T}                # means of means, n * d
+    ν::Vector{T}                # no. degrees of freedom, n
+    W::Vector{Matrix{T}}        # scale matrix for precision? n * d * d
+    hist::Vector{History}       # history
+end
+```
+Note that we currently only have full covariance VGMMs.  
+Training using observed data `x` needs some initial GMM and a prior.
+
+```julia
+g = GMM(8, x, kind=:full, nIter=0) ## only do k-means initialization of GMM g
+p = GMMprior(g.d, 1.0, 1.0)  ## set α0 and β0 to 1, and other values to a default
+v = VGMM(g, p) ## initialize variational GMM v with g
+```
+
+Training can then proceed with
+```julia
+em!(v, x)
+```
+
+This EM training checks if the occupancy of the Gaussians is still nonzero after each M-step.  In case it isn't, the Gaussians is removed.  The effect is that the total number of Gaussians can redice in this procedure.
