@@ -82,14 +82,14 @@ function logρ(g::VGMM, x::Matrix)
     for k=1:ng
         ElogdetΛ[k] = sum(digamma(0.5(g.ν[k] .+ 1 .- [1:d]))) .+ d*log(2) .+ logdet(g.W[k]) # 10.65
     end
-    EμkΛk = similar(x, nx, ng)
+    EμΛ = similar(x, nx, ng)
     for i=1:nx
         for k=1:ng
             xx = x[i,:] - g.m[k,:]
-            EμkΛk[i,k] = d/g.β[k] + g.ν[k]* dot(xx*g.W[k], xx)
+            EμΛ[i,k] = d/g.β[k] + g.ν[k]* dot(xx*g.W[k], xx)
         end
     end
-    broadcast(+, (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))', -0.5EμkΛk)
+    broadcast(+, (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))', -0.5EμΛ)
 end
 
 ## 10.49
