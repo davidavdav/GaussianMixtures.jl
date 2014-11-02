@@ -216,9 +216,9 @@ If `kind(x::Data)==:file`, then the matrix `x` is represented by vertically stac
 
 Variational Bayes training
 -------------------
-We have started support for Variational Bayes GMMs.  Here, the parameters of the GMM are not point estimates but are rather represented by a distribution.  Training of the parameters that govens these distributions can be carried out by an EM-like algorithm.
+We have started support for Variational Bayes GMMs.  Here, the parameters of the GMM are not point estimates but are rather represented by a distribution.  Training of the parameters that govern these distributions can be carried out by an EM-like algorithm.
 
-In out implementation, we follow the approach from section 10.2 of [Christopher Bishop's book](http://research.microsoft.com/en-us/um/people/cmbishop/PRML/).  In this version of GaussianMixtures we have not attempted to optimize the code for efficiency.
+In our implementation, we follow the approach from section 10.2 of [Christopher Bishop's book](http://research.microsoft.com/en-us/um/people/cmbishop/PRML/).  In the current version of GaussianMixtures we have not attempted to optimize the code for efficiency.
 
 The variational Bayes training uses two new types, a prior and a variational GMM:
 
@@ -257,4 +257,4 @@ Training can then proceed with
 em!(v, x)
 ```
 
-This EM training checks if the occupancy of the Gaussians is still nonzero after each M-step.  In case it isn't, the Gaussians is removed.  The effect is that the total number of Gaussians can redice in this procedure.
+This EM training checks if the occupancy of the Gaussians still is nonzero after each M-step.  In case it isn't, the Gaussian is removed.  The effect is that the total number of Gaussians can reduce in this procedure.
