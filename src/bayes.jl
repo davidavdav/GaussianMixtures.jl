@@ -82,7 +82,7 @@ function logρ(vg::VGMM, x::Matrix)
     for k=1:ng
         ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 .- [1:d]))) .+ d*log(2) .+ logdet(vg.W[k]) # 10.65
     end
-    EμΛ = similar(x, nx, ng)
+    EμΛ = similar(x, nx, ng)    # nx * ng
     for i=1:nx
         for k=1:ng
             Δ = x[i,:] - vg.m[k,:]
@@ -122,40 +122,49 @@ function threestats(vg::VGMM, x::Matrix)
     return N, mx, S, tuple(r, rest...)
 end
 
+## trace(A*B) = sum(A' .* B)
+function trAB{T}(A::Matrix{T}, B::Matrix{T})
+    nr, nc = size(A)
+    size(B) == (nc, nr) || error("Inconsistent matrix size")
+    s=zero(T)
+    for i=1:nr for j=1:nc
+        @inbounds s += A[i,j] * B[j,i]
+    end end
+    return s
+end
+
 ## lower bound to the likelihood, using lots of intermediate results
 ## ``We can straightforwardly evaluate the lower bound...''
 function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
                     r::Matrix, Elogπ::Vector, ElogdetΛ::Vector)
     ## shorthands that make the formulas easier to read...
-    ng = vg.n
-    d = vg.d
+    ng, d = vg.n, vg.d
     α0, β0, ν0, m0, W0  = vg.π.α0, vg.π.β0, vg.π.ν0, vg.π.m0, vg.π.W0 # prior vars
     W0inv = inv(W0)
-    α, β, ν, m, W = vg.α, vg.β, vg.ν, vg.m, vg.W # VGMM vars
+    α, β, m, ν, W = vg.α, vg.β, vg.m, vg.ν, vg.W # VGMM vars
     ## B.79
-    logB(W,ν) = -0.5ν*(logdet(W)+d*log(2)) - d*(d-1)/4*log(π) - sum(lgamma(0.5(ν+1-[1:d])))
-    ## 10.71
-    Elogll = 0.
+    logB(W,ν) = -0.5ν*(logdet(W) + d*log(2)) - d*(d-1)/4*log(π) - sum(lgamma(0.5(ν+1-[1:d])))
+    ## E[log p(x|Ζ,μ,Λ)] 10.71
+    Elogll = 0. 
     for k = 1:ng               # we might gain from more logρ stats...
-        Δ = mx[k,:] - m[k,:]
+        Δ = mx[k,:] - m[k,:]   # 1 * d
         Elogll += 0.5N[k] * (ElogdetΛ[k] - d/β[k] - d*log(2π)
-                             - ν[k] * (dot(vec(S[k]), vec(W[k])) + dot(Δ * W[k], Δ)))
-    end                         # 10.71
-    ElogpZπ = sum(broadcast(*, r, Elogπ)) # 10.72
-    Elogpπ = lgamma(ng*α0) - ng*lgamma(α0) - (α0-1)sum(Elogπ) # 10.73
-    ElogpμΛ = ng*logB(vg.π.W0,ν0) # B.79
+                             - ν[k] * (trAB(S[k], W[k]) + dot(Δ * W[k], Δ)))
+    end                        # 10.71
+    ElogpZπ = sum(broadcast(*, r, Elogπ)) # E[log p(Z|π)] 10.72
+    Elogpπ = lgamma(ng*α0) - ng*lgamma(α0) - (α0-1)sum(Elogπ) # E[log p(π)] 10.73
+    ElogpμΛ = ng*logB(W0,ν0)   # E[log p(μ, Λ)] B.79
     for k = 1:ng
         Δ = m[k,:] - m0'
-        ElogpμΛ += 0.5(d*log(β0/(2π)) + ElogdetΛ[k] - d*β[k]/β0
-                       -β0*ν[k] * dot(Δ*W[k], Δ)
-                       + (ν0-d-1)sum(ElogdetΛ) - ν[k]*dot(W0inv, W[k]))
+        ElogpμΛ += 0.5(d*log(β0/(2π)) + (ν0-d)ElogdetΛ[k] - d*β0/β[k]
+                       -β0*ν[k] * dot(Δ*W[k], Δ) - ν[k]*trAB(W0inv, W[k]))
     end                         # 10.74
-    ElogqZ = sum(r .* log(r))   # 10.75
-    Elogqπ = sum((α.-1).*Elogπ) + lgamma(sum(α)) - sum(lgamma(α)) # 10.76
-    ## 10.77
+    ElogqZ = sum(r .* log(r))   # E[log q(Z)] 10.75
+    Elogqπ = sum((α.-1).*Elogπ) + lgamma(sum(α)) - sum(lgamma(α)) # E[log q(π)] 10.76
+    ## E[log q(μ,Λ)] 10.77
     ElogqμΛ = 0.
     for k=1:ng
-        H = -logB(W[k],ν[k]) - 0.5(ν[k]-d-1)ElogdetΛ[k] + ν[k]*d/2
+        H = -logB(W[k],ν[k]) - 0.5(ν[k]-d-1)ElogdetΛ[k] + ν[k]*d/2 # H[q(Λ)] B.82
         ElogqμΛ += 0.5(ElogdetΛ[k] + d*log(β[k]/(2π)) - d) - H
     end                         # 10.77
     return Elogll + ElogpZπ + Elogpπ + ElogpμΛ + ElogqZ + Elogqπ + ElogqμΛ
@@ -196,6 +205,7 @@ function em!(vg::VGMM, x::Matrix; nIter=50)
         addhist!(vg, @sprintf("iteration %d, lowerbound %f", i, last(L)))
     end
     addhist!(vg, @sprintf("%d variational Bayes EM-like iterations, final lowerbound %f", nIter, last(L)))
+    L
 end
 
 ## Not used
@@ -226,6 +236,6 @@ function Gaussian(x::Vector, μ::Vector, Σ::Matrix)
 end
 
 function GaussianWishart(μ::Vector, Λ::Matrix, μ0::Vector, β::Float64, W::Matrix, ν::Float64)
-    Gaussian(μ, μ0, inv(βΛ)) * Wishart(Λ, W, ν)
+    Gaussian(μ, μ0, inv(β*Λ)) * Wishart(Λ, W, ν)
 end 
 
