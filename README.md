@@ -2,7 +2,7 @@ GaussianMixtures
 ========================
 A Julia package for Gaussian Mixture Models (GMMs).
 ----------
-[![Build Status](https://travis-ci.org/davidavdav/GaussianMixtures.jl.png)](https://travis-ci.org/davidavdav/GaussianMixtures.jl)
+[![Build Status](https://travis-ci.org/davidavdav/GaussianMixtures.jl.png)](https://travis-ci.org/davidavdav/GaussianMixtures.jl) [![GaussianMixtures](http://pkg.julialang.org/badges/GaussianMixtures_release.svg)](http://pkg.julialang.org/?pkg=GaussianMixtures&ver=release)
 
 This package contains support for Gaussian Mixture Models.  Basic training, likelihood calculation, model adaptation, and i/o are implemented.
 
@@ -55,7 +55,6 @@ Constructors
 ------------
 
 ```julia
-GMM(n::Int, d::Int)
 GMM(n::Int, d::Int; kind=:diag)
 ```
 Initialize a GMM with `n` multivariate Gaussians of dimension `d`.
@@ -65,10 +64,9 @@ covariances are full rather than diagonal.  One should replace the
 values of the weights, means and covariances afterwards.
 
 ```julia
-GMM(kind::Symbol, weights::Vector, μ::Array,  Σ::Array, hist::Vector)
+GMM(weights::Vector, μ::Array,  Σ::Array, hist::Vector)
 ```
 This is the basic outer constructor for GMM.  Here we have
- - `kind` either `:diag` or `full`
  - `weights` a Vector of length `n` with the weights of the mixtures
  - `μ` a matrix of `n` by `d` means of the Gaussians
  - `Σ` either a matrix of `n` by `d` variances of diagonal Gaussians,
@@ -88,6 +86,9 @@ Create a GMM with 1 mixture, i.e., a multivariate Gaussian, and initialize with 
 GMM(x::Matrix, n::Int; method=:kmeans, kind=:diag, nInit=50, nIter=10, nFinal=nIter)
 ```
 Create a GMM with `n` mixtures, given the training data `x` and using the Expectation Maximization algorithm.  There are two ways of arriving at `n` Gaussians: `method=:kmeans` uses K-means clustering from the Clustering package to initialize with `n` centers.  `nInit` is the number of iterations for the K-means algorithm, `nIter` the number of iterations in EM.  The method `:split` works by initializing a single Gaussian with the data `x` and subsequently splitting the Gaussians followed by retraining using the EM algorithm until `n` Gaussians are obtained.  `n` must be a power of 2 for `method=:split`.  `nIter` is the number of iterations in the EM algorithm, and `nFinal` the number of iterations in the final step. 
+
+Other functions
+-------
 
 ```julia
 split(gmm::GMM; minweight=1e-5, covfactor=0.2)
