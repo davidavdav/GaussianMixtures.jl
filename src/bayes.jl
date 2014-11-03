@@ -33,16 +33,16 @@ end
 
 ## sharpen VGMM to a GMM
 ## This currently breaks because my expected Λ are not positive definite
-function GMM(v::VGMM)
-    w = v.α / sum(v.α)
-    μ = v.m
-    Σ = similar(v.W)
-    for k=1:length(v.W)
-        Σ[k] = inv(v.ν[k] * v.W[k])
+function GMM(vg::VGMM)
+    w = vg.α / sum(vg.α)
+    μ = vg.m
+    Σ = similar(vg.W)
+    for k=1:length(vg.W)
+        Σ[k] = inv(vg.ν[k] * vg.W[k])
     end
-    hist = copy(v.hist)
+    hist = copy(vg.hist)
     push!(hist, History("Variational GMM converted to GMM"))
-    GMM(w, μ, Σ, hist, iround(sum(v.α)))
+    GMM(w, μ, Σ, hist, iround(sum(vg.α)))
 end
 
 ## m-step given prior and stats
@@ -54,7 +54,7 @@ function mstep(π::GMMprior, N, mx, S)
     m = similar(mx)            # ng * d
     W = similar(S)             # ng * (d*d)
     d = size(mx,2)
-    limit = sqrt(eps(eltype(N)))
+    limit = √ eps(eltype(N))
     keep = trues(length(N))
     for k=1:ng
         if N[k] > limit
@@ -73,76 +73,129 @@ end
 
 ## log(ρ_nk) from 10.46, start with a very slow implementation
 ## 10.46
-function logρ(g::VGMM, x::Matrix) 
+function logρ(vg::VGMM, x::Matrix) 
     (nx, d) = size(x)
-    d == g.d || error("dimension mismatch")
-    ng = g.n
-    Elogπ = digamma(g.α) .- digamma(sum(g.α)) # 10.66, size ng 
+    d == vg.d || error("dimension mismatch")
+    ng = vg.n
+    Elogπ = digamma(vg.α) .- digamma(sum(vg.α)) # 10.66, size ng
     ElogdetΛ = similar(Elogπ) # size ng
     for k=1:ng
-        ElogdetΛ[k] = sum(digamma(0.5(g.ν[k] .+ 1 .- [1:d]))) .+ d*log(2) .+ logdet(g.W[k]) # 10.65
+        ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 .- [1:d]))) .+ d*log(2) .+ logdet(vg.W[k]) # 10.65
     end
     EμΛ = similar(x, nx, ng)
     for i=1:nx
         for k=1:ng
-            xx = x[i,:] - g.m[k,:]
-            EμΛ[i,k] = d/g.β[k] + g.ν[k]* dot(xx*g.W[k], xx)
+            Δ = x[i,:] - vg.m[k,:]
+            EμΛ[i,k] = d/vg.β[k] + vg.ν[k]* dot(Δ*vg.W[k], Δ)
         end
     end
-    broadcast(+, (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))', -0.5EμΛ)
+    broadcast(+, (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))', -0.5EμΛ), (Elogπ, ElogdetΛ)
 end
 
 ## 10.49
-function rnk(g::VGMM, x::Matrix) 
+function rnk(vg::VGMM, x::Matrix)
 #    ρ = exp(logρ(g, x))
 #    broadcast(/, ρ, sum(ρ, 2))
-    lρ = logρ(g, x)
+    lρ, rest = logρ(vg, x)
     broadcast!(-, lρ, lρ, logsumexp(lρ, 2))
-    exp(lρ)
+    exp(lρ), rest
 end
 
 ## We'd like to do this though stats(), but don't for now. 
 ## 10.51--10.53
-function threestats(g::VGMM, x::Matrix)
-    ng = g.n
+function threestats(vg::VGMM, x::Matrix)
+    ng = vg.n
     (nx, d) = size(x)
-    r = rnk(g, x)'              # ng * nx, `wrong direction'
+    r, rest = rnk(vg, x)
+    r = r'                      # ng * nx, `wrong direction'
     N = vec(sum(r, 2))          # ng
     mx = broadcast(/, r * x, N) # ng * d
-    S = similar(g.W)            # ng * d*d
+    S = similar(vg.W)           # ng * d*d
     for k = 1:ng
         S[k] = zeros(d,d)
         for i=1:nx
-            xx = x[i,:] - mx[k,:]
-            S[k] += r[k,i]* xx' * xx
+            Δ = x[i,:] - mx[k,:]
+            S[k] += r[k,i]* Δ' * Δ
         end
         S[k] ./= N[k]
     end
-    return N, mx, S
+    return N, mx, S, tuple(r, rest...)
 end
 
-## do exactly one update step for the VGMM
-function emstep!(g::VGMM, x::Matrix)
-    N, mx, S = threestats(g, x)
-    g.α, g.β, g.m, g.ν, g.W, keep = mstep(g.π, N, mx, S)
+## lower bound to the likelihood, using lots of intermediate results
+## ``We can straightforwardly evaluate the lower bound...''
+function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
+                    r::Matrix, Elogπ::Vector, ElogdetΛ::Vector)
+    ## shorthands that make the formulas easier to read...
+    ng = vg.n
+    d = vg.d
+    α0, β0, ν0, m0, W0  = vg.π.α0, vg.π.β0, vg.π.ν0, vg.π.m0, vg.π.W0 # prior vars
+    W0inv = inv(W0)
+    α, β, ν, m, W = vg.α, vg.β, vg.ν, vg.m, vg.W # VGMM vars
+    ## B.79
+    logB(W,ν) = -0.5ν*(logdet(W)+d*log(2)) - d*(d-1)/4*log(π) - sum(lgamma(0.5(ν+1-[1:d])))
+    ## 10.71
+    Elogll = 0.
+    for k = 1:ng               # we might gain from more logρ stats...
+        Δ = mx[k,:] - m[k,:]
+        Elogll += 0.5N[k] * (ElogdetΛ[k] - d/β[k] - d*log(2π)
+                             - ν[k] * (dot(vec(S[k]), vec(W[k])) + dot(Δ * W[k], Δ)))
+    end                         # 10.71
+    ElogpZπ = sum(broadcast(*, r, Elogπ)) # 10.72
+    Elogpπ = lgamma(ng*α0) - ng*lgamma(α0) - (α0-1)sum(Elogπ) # 10.73
+    ElogpμΛ = ng*logB(vg.π.W0,ν0) # B.79
+    for k = 1:ng
+        Δ = m[k,:] - m0'
+        ElogpμΛ += 0.5(d*log(β0/(2π)) + ElogdetΛ[k] - d*β[k]/β0
+                       -β0*ν[k] * dot(Δ*W[k], Δ)
+                       + (ν0-d-1)sum(ElogdetΛ) - ν[k]*dot(W0inv, W[k]))
+    end                         # 10.74
+    ElogqZ = sum(r .* log(r))   # 10.75
+    Elogqπ = sum((α.-1).*Elogπ) + lgamma(sum(α)) - sum(lgamma(α)) # 10.76
+    ## 10.77
+    ElogqμΛ = 0.
+    for k=1:ng
+        H = -logB(W[k],ν[k]) - 0.5(ν[k]-d-1)ElogdetΛ[k] + ν[k]*d/2
+        ElogqμΛ += 0.5(ElogdetΛ[k] + d*log(β[k]/(2π)) - d) - H
+    end                         # 10.77
+    return Elogll + ElogpZπ + Elogpπ + ElogpμΛ + ElogqZ + Elogqπ + ElogqμΛ
+end
+
+## do exactly one update step for the VGMM, and return an estimate for the lower bound
+## of the log marginal probability p(x)
+function emstep!(vg::VGMM, x::Matrix)
+    N, mx, S, rest = threestats(vg, x)
+    r, Elogπ, ElogdetΛ = rest
+    vg.α, vg.β, vg.m, vg.ν, vg.W, keep = mstep(vg.π, N, mx, S)
     n = sum(keep)
-    if n<g.n
+    if n<vg.n
         ## only keep useful Gaussians...
         for f in [:α, :β, :ν, :W]
-            setfield!(g, f, getfield(g, f)[keep])
+            setfield!(vg, f, getfield(vg, f)[keep])
         end
-        g.m = g.m[keep,:]
-        g.n = n
-        addhist!(g, string("dropping number of Gaussions to ",n))
+        vg.m = vg.m[keep,:]
+        vg.n = n
+        L = lowerbound(vg, N[keep], mx[keep,:], S[keep], r[keep,:],
+                       Elogπ[keep], ElogdetΛ[keep])
+        addhist!(vg, @sprintf("dropping number of Gaussions to %d",n))
+    else
+        L = lowerbound(vg, N, mx, S, r, Elogπ, ElogdetΛ)
     end
-    g
+    L
 end
 
-function em!(g::VGMM, x::Matrix; nIter=50)
+## This is called em!, but it is not really expectation maximization I think
+function em!(vg::VGMM, x::Matrix; nIter=50)
+    L = Float64[]
     for i=1:nIter
-        emstep!(g, x)
+        push!(L, emstep!(vg, x))
+        if i>1 && isapprox(L[i], L[i-1], rtol=0)
+            nIter=i
+            break
+        end
+        addhist!(vg, @sprintf("iteration %d, lowerbound %f", i, last(L)))
     end
-    addhist!(g, string(nIter, " variational Bayes EM-like iterations"))
+    addhist!(vg, @sprintf("%d variational Bayes EM-like iterations, final lowerbound %f", nIter, last(L)))
 end
 
 ## Not used
