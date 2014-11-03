@@ -41,6 +41,7 @@ GMM{T<:FloatingPoint}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=5
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
 function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0)
     nx, d = size(x)
+    hist = [History(@sprintf("Initializing GMM, %d Gaussians %s covariance %d dimensions using %d data points", n, diag, d, nx))]
     ## subsample x to max 1000 points per mean
     nneeded = 1000*n
     if nx < nneeded
@@ -94,8 +95,8 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
     w = km.counts ./ sum(km.counts)
     nxx = size(xx,1)
     ng = length(w)
-    hist = History(string("K-means with ", nxx, " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",nxx/((d+1)ng))))
-    gmm = GMM(w, μ, Σ, [hist], nxx)
+    push!(hist, History(string("K-means with ", nxx, " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",nxx/((d+1)ng)))))
+    gmm = GMM(w, μ, Σ, hist, nxx)
     em!(gmm, x; nIter=nIter, sparse=sparse)
     gmm
 end    
@@ -210,6 +211,8 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
         else
             error("Unknown kind")
         end
+        addhist!(gmm, @sprintf("iteration %d, average log likelihood %f", 
+                               i, ll[i] / (nx*d)))
     end
     if nIter>0
         ll /= nx * d
