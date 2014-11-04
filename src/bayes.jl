@@ -27,9 +27,11 @@ function VGMM(g::GMM, π::GMMprior)
     end
     α, β, m, ν, W, keep = mstep(π, N, mx, S)
     hist = copy(g.hist)
-    push!(hist, History("GMM converted to Varitional GMM"))
+    push!(hist, History("GMM converted to Variational GMM"))
     VGMM(g.n, g.d, π, α, β, m, ν, W, hist)
 end
+Base.copy(vg::VGMM) = VGMM(vg.n, vg.d, copy(vg.π), copy(vg.α), copy(vg.β), 
+                           copy(vg.m), copy(vg.ν), copy(vg.W), copy(vg.hist))
 
 ## sharpen VGMM to a GMM
 ## This currently breaks because my expected Λ are not positive definite
@@ -42,17 +44,17 @@ function GMM(vg::VGMM)
     end
     hist = copy(vg.hist)
     push!(hist, History("Variational GMM converted to GMM"))
-    GMM(w, μ, Σ, hist, iround(sum(vg.α)))
+    GMM(w, μ, Σ, hist, iround(sum(vg.α - vg.π.α0)))
 end
 
 ## m-step given prior and stats
-function mstep(π::GMMprior, N, mx, S)
+function mstep(π::GMMprior, N::Vector, mx::Matrix, S::Vector)
     ng = length(N)
-    α = π.α0 + N           # ng, 10.58
-    ν = π.ν0 + N + 1      # ng, 10.63
-    β = π.β0 + N           # ng, 10.60
-    m = similar(mx)            # ng * d
-    W = similar(S)             # ng * (d*d)
+    α = π.α0 + N                # ng, 10.58
+    ν = π.ν0 + N + 1            # ng, 10.63
+    β = π.β0 + N                # ng, 10.60
+    m = similar(mx)             # ng * d
+    W = similar(S)              # ng * (d*d)
     d = size(mx,2)
     limit = √ eps(eltype(N))
     keep = trues(length(N))
@@ -60,8 +62,9 @@ function mstep(π::GMMprior, N, mx, S)
         if N[k] > limit
             m[k,:] = (π.β0*π.m0' + N[k]*mx[k,:]) ./ β[k] # 10.61
             Δ = mx[k,:] - π.m0'
-            third = π.β0 * N[k] / (π.β0 + N[k]) * Δ' * Δ
-            W[k] = inv(inv(π.W0) + N[k]*S[k] + third) # 10.62
+            ## do some effort to keep the matrix positive definite
+            third = π.β0 * N[k] / (π.β0 + N[k]) * (Δ' * Δ) # guarantee symmety in Δ' Δ
+            W[k] = inv(factorize(Hermitian(inv(π.W0) + N[k]*S[k] + third))) # 10.62
         else
             keep[k] = false
             m[k,:] = zeros(d)
@@ -80,13 +83,13 @@ function logρ(vg::VGMM, x::Matrix)
     Elogπ = digamma(vg.α) .- digamma(sum(vg.α)) # 10.66, size ng
     ElogdetΛ = similar(Elogπ) # size ng
     for k=1:ng
-        ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 .- [1:d]))) .+ d*log(2) .+ logdet(vg.W[k]) # 10.65
+        ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 - [1:d]))) .+ d*log(2) .+ logdet(vg.W[k]) # 10.65
     end
     EμΛ = similar(x, nx, ng)    # nx * ng
     for i=1:nx
         for k=1:ng
             Δ = x[i,:] - vg.m[k,:]
-            EμΛ[i,k] = d/vg.β[k] + vg.ν[k]* dot(Δ*vg.W[k], Δ)
+            EμΛ[i,k] = d/vg.β[k] + vg.ν[k]* Δ*vg.W[k] ⋅ Δ
         end
     end
     broadcast(+, (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))', -0.5EμΛ), (Elogπ, ElogdetΛ)
@@ -96,7 +99,7 @@ end
 function rnk(vg::VGMM, x::Matrix)
 #    ρ = exp(logρ(g, x))
 #    broadcast(/, ρ, sum(ρ, 2))
-    lρ, rest = logρ(vg, x)
+    lρ, rest = logρ(vg, x)      # nx * ng
     broadcast!(-, lρ, lρ, logsumexp(lρ, 2))
     exp(lρ), rest
 end
@@ -119,7 +122,7 @@ function threestats(vg::VGMM, x::Matrix)
         end
         S[k] ./= N[k]
     end
-    return N, mx, S, tuple(r, rest...)
+    return N, mx, S, tuple(r, rest...) # r in transposed form...
 end
 
 ## trace(A*B) = sum(A' .* B)
@@ -133,7 +136,7 @@ function trAB{T}(A::Matrix{T}, B::Matrix{T})
     return s
 end
 
-## lower bound to the likelihood, using lots of intermediate results
+## lower bound to the likelihood, using lots of intermediate results (10.2.2)
 ## ``We can straightforwardly evaluate the lower bound...''
 function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
                     r::Matrix, Elogπ::Vector, ElogdetΛ::Vector)
@@ -149,7 +152,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     for k = 1:ng               # we might gain from more logρ stats...
         Δ = mx[k,:] - m[k,:]   # 1 * d
         Elogll += 0.5N[k] * (ElogdetΛ[k] - d/β[k] - d*log(2π)
-                             - ν[k] * (trAB(S[k], W[k]) + dot(Δ * W[k], Δ)))
+                             - ν[k] * (trAB(S[k], W[k]) + Δ * W[k] ⋅ Δ))
     end                        # 10.71
     ElogpZπ = sum(broadcast(*, r, Elogπ)) # E[log p(Z|π)] 10.72
     Elogpπ = lgamma(ng*α0) - ng*lgamma(α0) - (α0-1)sum(Elogπ) # E[log p(π)] 10.73
@@ -175,20 +178,23 @@ end
 function emstep!(vg::VGMM, x::Matrix)
     N, mx, S, rest = threestats(vg, x)
     r, Elogπ, ElogdetΛ = rest
+    vgc = copy(vg)              # for lowerbound computation later
     vg.α, vg.β, vg.m, vg.ν, vg.W, keep = mstep(vg.π, N, mx, S)
     n = sum(keep)
     if n<vg.n
         ## only keep useful Gaussians...
         for f in [:α, :β, :ν, :W]
             setfield!(vg, f, getfield(vg, f)[keep])
+            setfield!(vgc, f, getfield(vgc, f)[keep])
         end
         vg.m = vg.m[keep,:]
-        vg.n = n
-        L = lowerbound(vg, N[keep], mx[keep,:], S[keep], r[keep,:],
+        vgc.m = vgc.m[keep,:]
+        vg.n = vgc.n = n
+        L = lowerbound(vgc, N[keep], mx[keep,:], S[keep], r[keep,:],
                        Elogπ[keep], ElogdetΛ[keep])
         addhist!(vg, @sprintf("dropping number of Gaussions to %d",n))
     else
-        L = lowerbound(vg, N, mx, S, r, Elogπ, ElogdetΛ)
+        L = lowerbound(vgc, N, mx, S, r, Elogπ, ElogdetΛ)
     end
     L
 end
