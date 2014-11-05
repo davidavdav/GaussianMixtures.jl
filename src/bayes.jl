@@ -4,7 +4,9 @@
 ## Attempt to implement a Bayesian approach to EM for GMMs, along the lines of
 ## Christopher Bishop's book, section 10.2.
 
-## This is only for practicing
+## PLAN
+## - convert stats collection to unnormalized stats and reduce results
+## - optimize for speed
 
 ## initialize a prior with minimal knowledge
 function GMMprior{T<:FloatingPoint}(d::Int, alpha::T, beta::T)
@@ -72,17 +74,23 @@ function mstep(π::GMMprior, N::Vector, mx::Matrix, S::Vector)
     return α, β, m, ν, W
 end
 
-## log(ρ_nk) from 10.46, start with a very slow implementation
-## 10.46
-function logρ(vg::VGMM, x::Matrix) 
-    (nx, d) = size(x)
-    d == vg.d || error("dimension mismatch")
-    ng = vg.n
+## this can be computed independently of the data
+function expectations(vg::VGMM)
+    ng, d = vg.n, vg.d
     Elogπ = digamma(vg.α) .- digamma(sum(vg.α)) # 10.66, size ng
     ElogdetΛ = similar(Elogπ) # size ng
     for k=1:ng
         ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 - [1:d]))) .+ d*log(2) .+ logdet(vg.W[k]) # 10.65
     end
+    return Elogπ, ElogdetΛ
+end
+
+## log(ρ_nk) from 10.46, start with a very slow implementation
+## 10.46
+function logρ(vg::VGMM, x::Matrix, ex::Tuple)
+    (nx, d) = size(x)
+    d == vg.d || error("dimension mismatch")
+    ng = vg.n
     EμΛ = similar(x, nx, ng)    # nx * ng
     for i=1:nx
         for k=1:ng
@@ -90,24 +98,25 @@ function logρ(vg::VGMM, x::Matrix)
             EμΛ[i,k] = d/vg.β[k] + vg.ν[k]* Δ*vg.W[k] ⋅ Δ
         end
     end
-    broadcast(+, (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))', -0.5EμΛ), Elogπ, ElogdetΛ
+    Elogπ, ElogdetΛ = ex
+    broadcast(+, (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))', -0.5EμΛ)
 end
 
 ## 10.49
-function rnk(vg::VGMM, x::Matrix)
+function rnk(vg::VGMM, x::Matrix, ex::Tuple)
 #    ρ = exp(logρ(g, x))
 #    broadcast(/, ρ, sum(ρ, 2))
-    lρ, Elogπ, ElogdetΛ = logρ(vg, x)      # nx * ng
+    lρ = logρ(vg, x, ex)      # nx * ng
     broadcast!(-, lρ, lρ, logsumexp(lρ, 2))
-    exp(lρ), Elogπ, ElogdetΛ
+    exp(lρ)
 end
 
 ## We'd like to do this though stats(), but don't for now. 
 ## 10.51--10.53
-function threestats(vg::VGMM, x::Matrix)
+function threestats(vg::VGMM, x::Matrix, ex::Tuple)
     ng = vg.n
     (nx, d) = size(x)
-    r, Elogπ, ElogdetΛ = rnk(vg, x)
+    r = rnk(vg, x, ex)
     r = r'                      # ng * nx, `wrong direction'
     N = vec(sum(r, 2))          # ng
     mx = broadcast(/, r * x, N) # ng * d
@@ -120,7 +129,26 @@ function threestats(vg::VGMM, x::Matrix)
         end
         S[k] ./= N[k]
     end
-    return N, mx, S, r, Elogπ, ElogdetΛ # r in transposed form...
+    return N, mx, S, r # r in transposed form...
+end
+
+## OK, also do stats.
+## Like for the GMM, we return nx, (some logll value), zeroth, first, second prder stats
+function stats(vg::VGMM, x::Matrix, ex::Tuple)
+    ng = vg.n
+    (nx, d) = size(x)
+    r = rnk(vg, x, ex)
+    r = r'                      # ng * nx, `wrong direction'
+    N = vec(sum(r, 2))          # ng
+    F = r * x
+    S = similar(vg.W)
+    for x = 1:ng
+        S[k] = zeros(d,d)
+        for i = 1:nx
+            S[k] += r[k,i]*x[i,:] # not great memory access...
+        end
+    end
+    return nx, 0, N, F, S
 end
 
 ## trace(A*B) = sum(A' .* B)
@@ -183,7 +211,8 @@ rmdisfunct(m::Matrix, keep) = m[keep,:]
 ## do exactly one update step for the VGMM, and return an estimate for the lower bound
 ## of the log marginal probability p(x)
 function emstep!(vg::VGMM, x::Matrix)
-    N, mx, S, r, Elogπ, ElogdetΛ = threestats(vg, x)
+    Elogπ, ElogdetΛ = expectations(vg)
+    N, mx, S, r = threestats(vg, x, (Elogπ, ElogdetΛ))
     ## remove defunct Gaussians
     keep = N .> √ eps(eltype(N))
     n = sum(keep)
