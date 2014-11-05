@@ -147,9 +147,12 @@ end
 ## Like for the GMM, we return nx, (some value), zeroth, first, second order stats
 ## All return values can be accumulated, except r, which we need for
 ## lowerbound ElogpZπ and ElogqZ
-function stats(vg::VGMM, x::Matrix, ex::Tuple)
+function stats{T}(vg::VGMM, x::Matrix{T}, ex::Tuple)
     ng = vg.n
     (nx, d) = size(x)
+    if nx == 0
+        return 0, zero(T), zeros(T, ng), zeros(T, ng, d), [zeros(T, d,d) for k=1:ng]
+    end
     r, ElogpZπqZ = rnk(vg, x, ex)
     r = r'                      # ng * nx, `wrong direction'
     N = vec(sum(r, 2))          # ng
@@ -165,11 +168,15 @@ function stats(vg::VGMM, x::Matrix, ex::Tuple)
     return nx, ElogpZπqZ, N, F, S
 end
 
-## accumulate stats
+## accumulate stats, xx should not be empty
 function stats{T}(vg::VGMM, xx::Vector{Matrix{T}}, ex::Tuple)
-    x = shift!(xx)
+    if length(xx) == 0
+        ng, d = vg.n, vg.d
+        return 0, zero(T), zeros(T, ng), zeros(T, ng, d), [zeros(T, d,d) for k=1:ng]
+    end
+    x = (xx)[1]
     s = stats(vg, x, ex)
-    for x in xx
+    for x in xx[2:end]
         s += stats(vg, x, ex)
     end
     return s
@@ -230,7 +237,7 @@ rmdisfunct(m::Matrix, keep) = m[keep,:]
 
 ## do exactly one update step for the VGMM, and return an estimate for the lower bound
 ## of the log marginal probability p(x)
-function emstep!(vg::VGMM, x::Matrix)
+function emstep!{T}(vg::VGMM, x::Vector{Matrix{T}})
     ## E-like step
     Elogπ, ElogdetΛ = expectations(vg)
     ## N, mx, S, r = threestats(vg, x, (Elogπ, ElogdetΛ))
@@ -255,9 +262,11 @@ function emstep!(vg::VGMM, x::Matrix)
     vg.α, vg.β, vg.m, vg.ν, vg.W = mstep(vg.π, N, mx, S)
     L
 end
+emstep!{T}(vg::VGMM, x::Matrix{T}) = emstep!(vg, Matrix{T}[x])
+
 
 ## This is called em!, but it is not really expectation maximization I think
-function em!(vg::VGMM, x::Matrix; nIter=50)
+function em!(vg::VGMM, x; nIter=50)
     L = Float64[]
     for i=1:nIter
         push!(L, emstep!(vg, x))
