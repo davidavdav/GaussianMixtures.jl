@@ -133,22 +133,25 @@ function threestats(vg::VGMM, x::Matrix, ex::Tuple)
 end
 
 ## OK, also do stats.
-## Like for the GMM, we return nx, (some logll value), zeroth, first, second prder stats
+## Like for the GMM, we return nx, (some value), zeroth, first, second order stats
+## All return values can be accumulated, except r, which we need for
+## lowerbound ElogpZπ and ElogqZ
 function stats(vg::VGMM, x::Matrix, ex::Tuple)
     ng = vg.n
     (nx, d) = size(x)
     r = rnk(vg, x, ex)
     r = r'                      # ng * nx, `wrong direction'
     N = vec(sum(r, 2))          # ng
-    F = r * x
-    S = similar(vg.W)
-    for x = 1:ng
-        S[k] = zeros(d,d)
-        for i = 1:nx
-            S[k] += r[k,i]*x[i,:] # not great memory access...
+    F = r * x                   # ng * d
+    S = [zeros(d,d) for k=1:ng]
+    for i = 1:nx
+        xi = x[i,:]
+        xx = xi' * xi
+        for k = 1:ng
+            S[k] += r[k,i] * xx # perhaps use scale!(), we need an additive version
         end
     end
-    return nx, 0, N, F, S
+    return nx, r, N, F, S
 end
 
 ## trace(A*B) = sum(A' .* B)
@@ -211,8 +214,15 @@ rmdisfunct(m::Matrix, keep) = m[keep,:]
 ## do exactly one update step for the VGMM, and return an estimate for the lower bound
 ## of the log marginal probability p(x)
 function emstep!(vg::VGMM, x::Matrix)
+    ## E-like step
     Elogπ, ElogdetΛ = expectations(vg)
-    N, mx, S, r = threestats(vg, x, (Elogπ, ElogdetΛ))
+    ## N, mx, S, r = threestats(vg, x, (Elogπ, ElogdetΛ))
+    nx, r, N, F, S = stats(vg, x, (Elogπ, ElogdetΛ))
+    mx = F ./ N
+    for k = 1:vg.n
+        mk = mx[k,:]
+        S[k] = S[k] / N[k] - mk' * mk
+    end
     ## remove defunct Gaussians
     keep = N .> √ eps(eltype(N))
     n = sum(keep)
@@ -224,6 +234,7 @@ function emstep!(vg::VGMM, x::Matrix)
     end
     ## then compute the lowerbound
     L = lowerbound(vg, N, mx, S, r, Elogπ, ElogdetΛ)
+    ## and finally compute M-like step
     vg.α, vg.β, vg.m, vg.ν, vg.W = mstep(vg.π, N, mx, S)
     L
 end
