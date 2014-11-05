@@ -102,13 +102,24 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
     broadcast(+, (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))', -0.5EμΛ)
 end
 
-## 10.49
+## r_nk 10.49, plus E[log p(Z|π)] 10.72 and E[log q(Z)] 10.75
 function rnk(vg::VGMM, x::Matrix, ex::Tuple)
 #    ρ = exp(logρ(g, x))
 #    broadcast(/, ρ, sum(ρ, 2))
-    lρ = logρ(vg, x, ex)      # nx * ng
+    lρ = logρ(vg, x, ex)        # nx * ng
     broadcast!(-, lρ, lρ, logsumexp(lρ, 2))
-    exp(lρ)
+    r = exp(lρ)
+    ## ElogpZπ = sum(broadcast(*, r, Elogπ)) # E[log p(Z|π)] 10.72
+    ElogpZπ = 0.                # E[log p(Z|π)] 10.72
+    ElogqZ = 0.                 # E[log q(Z)] 10.75
+    for k in 1:vg.n
+        elπ = ex[1][k]          # Elogπ[k]
+        for i = 1:size(r,1)
+            ElogpZπ += r[i,k] * elπ
+            ElogqZ += r[i,k] * lρ[i,k]
+        end
+    end
+    r, ElogpZπ + ElogqZ
 end
 
 ## We'd like to do this though stats(), but don't for now. 
@@ -139,7 +150,7 @@ end
 function stats(vg::VGMM, x::Matrix, ex::Tuple)
     ng = vg.n
     (nx, d) = size(x)
-    r = rnk(vg, x, ex)
+    r, ElogpZπqZ = rnk(vg, x, ex)
     r = r'                      # ng * nx, `wrong direction'
     N = vec(sum(r, 2))          # ng
     F = r * x                   # ng * d
@@ -151,7 +162,17 @@ function stats(vg::VGMM, x::Matrix, ex::Tuple)
             S[k] += r[k,i] * xx # perhaps use scale!(), we need an additive version
         end
     end
-    return nx, r, N, F, S
+    return nx, ElogpZπqZ, N, F, S
+end
+
+## accumulate stats
+function stats{T}(vg::VGMM, xx::Vector{Matrix{T}}, ex::Tuple)
+    x = shift!(xx)
+    s = stats(vg, x, ex)
+    for x in xx
+        s += stats(vg, x, ex)
+    end
+    return s
 end
 
 ## trace(A*B) = sum(A' .* B)
@@ -168,7 +189,7 @@ end
 ## lower bound to the likelihood, using lots of intermediate results (10.2.2)
 ## ``We can straightforwardly evaluate the lower bound...''
 function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
-                    r::Matrix, Elogπ::Vector, ElogdetΛ::Vector)
+                    Elogπ::Vector, ElogdetΛ::Vector, ElogpZπqZ)
     ## shorthands that make the formulas easier to read...
     ng, d = vg.n, vg.d
     α0, β0, ν0, m0, W0  = vg.π.α0, vg.π.β0, vg.π.ν0, vg.π.m0, vg.π.W0 # prior vars
@@ -184,7 +205,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
         Elogll += 0.5N[k] * (ElogdetΛ[k] - d/β[k] - d*log(2π)
                              - ν[k] * (trAB(S[k], W[k]) + Δ * W[k] ⋅ Δ))
     end                        # 10.71
-    ElogpZπ = sum(broadcast(*, r, Elogπ)) # E[log p(Z|π)] 10.72
+    ## E[log p(Z|π)] from rnk() 10.72
     Elogpπ = lgamma(ng*α0) - ng*lgamma(α0) - (α0-1)sum(Elogπ) # E[log p(π)] 10.73
     ElogpμΛ = ng*logB(W0,ν0)   # E[log p(μ, Λ)] B.79
     for k in gaussians
@@ -192,11 +213,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
         ElogpμΛ += 0.5(d*log(β0/(2π)) + (ν0-d)ElogdetΛ[k] - d*β0/β[k]
                        -β0*ν[k] * dot(Δ*W[k], Δ) - ν[k]*trAB(W0inv, W[k]))
     end                         # 10.74
-    ## E[log q(Z)] 10.75
-    ElogqZ = 0.
-    for i = 1:size(r,2) for k in gaussians
-        ElogqZ += r[k,i] * log(r[k,i])
-    end end                     # 10.75
+    ## E[log q(Z)] from rnk() 10.75, combined with E[log p(Z|π)]
     Elogqπ = sum((α.-1).*Elogπ) + lgamma(sum(α)) - sum(lgamma(α)) # E[log q(π)] 10.76
     ## E[log q(μ,Λ)] 10.77
     ElogqμΛ = 0.
@@ -204,7 +221,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
         H = -logB(W[k],ν[k]) - 0.5(ν[k]-d-1)ElogdetΛ[k] + ν[k]*d/2 # H[q(Λ)] B.82
         ElogqμΛ += 0.5(ElogdetΛ[k] + d*log(β[k]/(2π)) - d) - H
     end                         # 10.77
-    return Elogll + ElogpZπ + Elogpπ + ElogpμΛ + ElogqZ + Elogqπ + ElogqμΛ
+    return Elogll + ElogpZπqZ + Elogpπ + ElogpμΛ + Elogqπ + ElogqμΛ
 end
 
 ## note: for matrix argument, Gaussian index must run down!
@@ -217,7 +234,7 @@ function emstep!(vg::VGMM, x::Matrix)
     ## E-like step
     Elogπ, ElogdetΛ = expectations(vg)
     ## N, mx, S, r = threestats(vg, x, (Elogπ, ElogdetΛ))
-    nx, r, N, F, S = stats(vg, x, (Elogπ, ElogdetΛ))
+    nx, ElogZπqZ, N, F, S = stats(vg, x, (Elogπ, ElogdetΛ))
     mx = F ./ N
     for k = 1:vg.n
         mk = mx[k,:]
@@ -227,13 +244,13 @@ function emstep!(vg::VGMM, x::Matrix)
     keep = N .> √ eps(eltype(N))
     n = sum(keep)
     if n < vg.n
-        N, mx, S, r, Elogπ, ElogdetΛ = map(x->rmdisfunct(x,keep), (N, mx, S, r, Elogπ, ElogdetΛ))
+        N, mx, S, Elogπ, ElogdetΛ = map(x->rmdisfunct(x,keep), (N, mx, S, Elogπ, ElogdetΛ))
         vg.α, vg.β, vg.m, vg.ν, vg.W = map(x->rmdisfunct(x,keep), (vg.α, vg.β, vg.m, vg.ν, vg.W))
         vg.n = n
         addhist!(vg, @sprintf("dropping number of Gaussions to %d",n))
     end
     ## then compute the lowerbound
-    L = lowerbound(vg, N, mx, S, r, Elogπ, ElogdetΛ)
+    L = lowerbound(vg, N, mx, S, Elogπ, ElogdetΛ, ElogZπqZ)
     ## and finally compute M-like step
     vg.α, vg.β, vg.m, vg.ν, vg.W = mstep(vg.π, N, mx, S)
     L
