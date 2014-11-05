@@ -65,7 +65,7 @@ function mstep(π::GMMprior, N::Vector, mx::Matrix, S::Vector)
             Δ = mx[k,:] - π.m0'
             ## do some effort to keep the matrix positive definite
             third = π.β0 * N[k] / (π.β0 + N[k]) * (Δ' * Δ) # guarantee symmety in Δ' Δ
-            W[k] = inv(factorize(Hermitian(inv(π.W0) + N[k]*S[k] + third))) # 10.62
+            W[k] = inv(cholfact(inv(π.W0) + N[k]*S[k] + third)) # 10.62
         else
             m[k,:] = zeros(d)
             W[k] = eye(d)
