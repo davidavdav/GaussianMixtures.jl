@@ -92,10 +92,14 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
     d == vg.d || error("dimension mismatch")
     ng = vg.n
     EμΛ = similar(x, nx, ng)    # nx * ng
-    for i=1:nx
-        for k=1:ng
-            Δ = x[i,:] - vg.m[k,:]
-            EμΛ[i,k] = d/vg.β[k] + vg.ν[k]* Δ*vg.W[k] ⋅ Δ
+    for k=1:ng
+        dβk = d/vg.β[k]
+        mk = vg.m[k,:]
+        for i=1:nx
+            Δ = x[i,:] - mk
+            EμΛ[i,k] = dβk + vg.ν[k]* Δ*vg.W[k] ⋅ Δ
+            ##Base.BLAS.symv!('U', vg.ν[k], vg.W[k], Δ, 0., WkΔ)
+            ##EμΛ[i,k] = d/vg.β[k] + WkΔ ⋅ Δ
         end
     end
     Elogπ, ElogdetΛ = ex
