@@ -42,7 +42,7 @@ function GMM(vg::VGMM)
     μ = vg.m
     Σ = similar(vg.W)
     for k=1:length(vg.W)
-        Σ[k] = inv(vg.ν[k] * vg.W[k])
+        Σ[k] = inv(cholfact(vg.ν[k] * vg.W[k]))
     end
     hist = copy(vg.hist)
     push!(hist, History("Variational GMM converted to GMM"))
@@ -128,38 +128,6 @@ function rnk(vg::VGMM, x::Matrix, ex::Tuple)
         end
     end
     r, ElogpZπ + ElogqZ
-end
-
-## We'd like to do this though stats(), but don't for now. 
-## 10.51--10.53
-function threestats(vg::VGMM, x::Matrix, ex::Tuple)
-    ng = vg.n
-    (nx, d) = size(x)
-    r = rnk(vg, x, ex)
-    r = r'                      # ng * nx, `wrong direction'
-    N = vec(sum(r, 2))          # ng
-    mx = broadcast(/, r * x, N) # ng * d
-    S = similar(vg.W)           # ng * d*d
-    for k = 1:ng
-        S[k] = zeros(d,d)
-        for i=1:nx
-            Δ = x[i,:] - mx[k,:]
-            S[k] += r[k,i]* Δ' * Δ
-        end
-        S[k] ./= N[k]
-    end
-    return N, mx, S, r # r in transposed form...
-end
-
-## make matrix symmetric by copying the upper triangle into the lower
-## this should exist somewhere...
-function symm!(m::Matrix)
-    for i=1:size(m,1)
-        for j=i+1:size(m,2)
-            m[j,i] = m[i,j]
-        end
-    end
-    m
 end
 
 ## OK, also do stats.
@@ -273,7 +241,7 @@ function emstep!{T}(vg::VGMM, x::Vector{Matrix{T}})
     L = lowerbound(vg, N, mx, S, Elogπ, ElogdetΛ, ElogZπqZ)
     ## and finally compute M-like step
     vg.α, vg.β, vg.m, vg.ν, vg.W = mstep(vg.π, N, mx, S)
-    L
+    L, nx
 end
 emstep!{T}(vg::VGMM, x::Matrix{T}) = emstep!(vg, Matrix{T}[x])
 
@@ -281,15 +249,18 @@ emstep!{T}(vg::VGMM, x::Matrix{T}) = emstep!(vg, Matrix{T}[x])
 ## This is called em!, but it is not really expectation maximization I think
 function em!(vg::VGMM, x; nIter=50)
     L = Float64[]
+    nx = 0
     for i=1:nIter
-        push!(L, emstep!(vg, x))
+        lb, nx = emstep!(vg, x)
+        push!(L, lb)
         if i>1 && isapprox(L[i], L[i-1], rtol=0)
             nIter=i
             break
         end
-        addhist!(vg, @sprintf("iteration %d, lowerbound %f", i, last(L)))
+        addhist!(vg, @sprintf("iteration %d, lowerbound %f", i, last(L)/nx/vgmm.n))
     end
-    addhist!(vg, @sprintf("%d variational Bayes EM-like iterations, final lowerbound %f", nIter, last(L)))
+    L ./= nx
+    addhist!(vg, @sprintf("%d variational Bayes EM-like iterations using %d data points, final lowerbound %f", nIter, nx, last(L)))
     L
 end
 
