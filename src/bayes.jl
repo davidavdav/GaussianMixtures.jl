@@ -97,6 +97,7 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
         ## d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
         broadcast!(-, Δ, x, vg.m[k,:])
         EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum((Δ * vg.W[k]) .* Δ, 2)
+        ## same speed is sum(Base.BLAS.symm('R', 'U', vg.ν[k], vg.W[k], Δ) .* Δ, 2)
         ## for i=1:nx
         ##    Δ = x[i,:] - mk
         ##    EμΛ[i,k] = dβk + vg.ν[k]* Δ*vg.W[k] ⋅ Δ
@@ -110,17 +111,20 @@ end
 function rnk(vg::VGMM, x::Matrix, ex::Tuple)
 #    ρ = exp(logρ(g, x))
 #    broadcast(/, ρ, sum(ρ, 2))
-    lρ = logρ(vg, x, ex)        # nx * ng
-    broadcast!(-, lρ, lρ, logsumexp(lρ, 2))
-    r = exp(lρ)
+    logr = logρ(vg, x, ex)        # nx * ng
+    broadcast!(-, logr, logr, logsumexp(logr, 2))
+    ## we slowly replace logr by r, this is just cosmetic!
+    r = logr
     ## ElogpZπ = sum(broadcast(*, r, Elogπ)) # E[log p(Z|π)] 10.72
     ElogpZπ = 0.                # E[log p(Z|π)] 10.72
     ElogqZ = 0.                 # E[log q(Z)] 10.75
     for k in 1:vg.n
         elπ = ex[1][k]          # Elogπ[k]
-        for i = 1:size(r,1)
-            ElogpZπ += r[i,k] * elπ
-            ElogqZ += r[i,k] * lρ[i,k]
+        for i = 1:size(logr,1)
+            rr = exp(logr[i,k])
+            ElogpZπ += rr * elπ
+            ElogqZ += rr * logr[i,k]
+            r[i,k] = rr         # cosmetic, r is identical to logr
         end
     end
     r, ElogpZπ + ElogqZ
@@ -169,22 +173,11 @@ function stats{T}(vg::VGMM, x::Matrix{T}, ex::Tuple)
         return 0, zero(T), zeros(T, ng), zeros(T, ng, d), [zeros(T, d,d) for k=1:ng]
     end
     r, ElogpZπqZ = rnk(vg, x, ex)
-    r = r'                      # ng * nx, `wrong direction'
-    N = vec(sum(r, 2))          # ng
-    F = r * x                   # ng * d
-    S = [zeros(d,d) for k=1:ng]
-    xx = zeros(d,d)
-    for i = 1:nx
-        xi = vec(x[i,:])
-        Base.BLAS.syrk!('U', 'N', 1.0, xi, 0., xx)
-        for k = 1:ng
-            ## S[k] += r[k,i] * xx
-            Base.BLAS.axpy!(d*d, r[k,i], xx, 1, S[k], 1)
-        end
-    end
-    for k=1:ng
-        symm!(S[k])
-    end
+    N = vec(sum(r, 1))          # ng
+    F = r' * x                   # ng * d
+    ## S_k = sum_i r_ik x_i x_i'
+    Sm = x' * hcat([broadcast(*, r[:,k], x) for k=1:ng]...)
+    S = Matrix{T}[Sm[:,(k-1)*d+1:k*d] for k=1:ng]
     return nx, ElogpZπqZ, N, F, S
 end
 
