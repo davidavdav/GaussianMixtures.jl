@@ -143,6 +143,17 @@ function threestats(vg::VGMM, x::Matrix, ex::Tuple)
     return N, mx, S, r # r in transposed form...
 end
 
+## make matrix symmetric by copying the upper triangle into the lower
+## this should exist somewhere...
+function symm!(m::Matrix)
+    for i=1:size(m,1)
+        for j=i+1:size(m,2)
+            m[j,i] = m[i,j]
+        end
+    end
+    m
+end
+
 ## OK, also do stats.
 ## Like for the GMM, we return nx, (some value), zeroth, first, second order stats
 ## All return values can be accumulated, except r, which we need for
@@ -158,12 +169,17 @@ function stats{T}(vg::VGMM, x::Matrix{T}, ex::Tuple)
     N = vec(sum(r, 2))          # ng
     F = r * x                   # ng * d
     S = [zeros(d,d) for k=1:ng]
+    xx = zeros(d,d)
     for i = 1:nx
-        xi = x[i,:]
-        xx = xi' * xi
+        xi = vec(x[i,:])
+        Base.BLAS.syrk!('U', 'N', 1.0, xi, 0., xx)
         for k = 1:ng
-            S[k] += r[k,i] * xx # perhaps use scale!(), we need an additive version
+            ## S[k] += r[k,i] * xx
+            Base.BLAS.axpy!(d*d, r[k,i], xx, 1, S[k], 1)
         end
+    end
+    for k=1:ng
+        symm!(S[k])
     end
     return nx, ElogpZπqZ, N, F, S
 end
