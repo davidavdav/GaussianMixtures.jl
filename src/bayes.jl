@@ -152,11 +152,18 @@ function stats{T}(vg::VGMM, x::Matrix{T}, ex::Tuple)
     if nx == 0
         return 0, zero(T), zeros(T, ng), zeros(T, ng, d), [zeros(T, d,d) for k=1:ng]
     end
-    r, ElogpZπqZ = rnk(vg, x, ex)
+    r, ElogpZπqZ = rnk(vg, x, ex) # nx * ng
     N = vec(sum(r, 1))          # ng
     F = r' * x                  # ng * d
     ## S_k = sum_i r_ik x_i x_i'
-    Sm = x' * hcat([broadcast(*, r[:,k], x) for k=1:ng]...)
+    ## Sm = x' * hcat([broadcast(*, r[:,k], x) for k=1:ng]...)
+    SS = similar(x, nx, d*ng)   # nx*nd*ng mem, nx*nd*ng multiplications
+    for k=1:ng
+        for j=1:d for i=1:nx
+            @inbounds SS[i,(k-1)*d+j] = r[i,k]*x[i,j]
+        end end
+    end
+    Sm = x' * SS                # d * (d*ng) mem
     S = Matrix{T}[Sm[:,(k-1)*d+1:k*d] for k=1:ng]
     return nx, ElogpZπqZ, N, F, S
 end
