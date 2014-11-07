@@ -100,8 +100,16 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
     Δ = similar(x)
     for k=1:ng
         ## d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
-        broadcast!(-, Δ, x, vg.m[k,:])
-        EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum((Δ * vg.W[k]) .* Δ, 2)
+        ## broadcast!(-, Δ, x, vg.m[k,:])
+        for j=1:d
+            vgmk = vg.m[k,j]
+            for i=1:nx
+                Δ[i,j] = x[i,j] - vgmk
+            end
+        end
+        ## EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum((Δ * vg.W[k]) .* Δ, 2)
+        Base.BLAS.trmm!('R', 'U', 'T', 'N', 1.0, chol(vg.W[k]), Δ)
+        EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum(Δ .* Δ, 2)
         ## for i=1:nx
         ##    Δ = x[i,:] - mk
         ##    EμΛ[i,k] = dβk + vg.ν[k]* Δ*vg.W[k] ⋅ Δ
