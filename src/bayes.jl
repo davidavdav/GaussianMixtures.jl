@@ -97,7 +97,7 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
     d == vg.d || error("dimension mismatch")
     ng = vg.n
     EμΛ = similar(x, nx, ng)    # nx * ng
-    Δ = similar(x)
+    Δ = similar(x)              # nx * d
     for k=1:ng
         ## d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
         ## broadcast!(-, Δ, x, vg.m[k,:])
@@ -109,7 +109,15 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
         end
         ## EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum((Δ * vg.W[k]) .* Δ, 2)
         Base.BLAS.trmm!('R', 'U', 'T', 'N', 1.0, chol(vg.W[k]), Δ)
-        EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum(Δ .* Δ, 2)
+        ## EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum(Δ .* Δ, 2)
+        dβk = d/vg.β[k]
+        for i=1:nx
+            s = 0.
+            for j=1:d
+                s += Δ[i,j] * Δ[i,j]
+            end
+            EμΛ[i,k] = dβk + vg.ν[k] * s
+        end
         ## for i=1:nx
         ##    Δ = x[i,:] - mk
         ##    EμΛ[i,k] = dβk + vg.ν[k]* Δ*vg.W[k] ⋅ Δ
