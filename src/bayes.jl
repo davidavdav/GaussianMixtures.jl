@@ -85,8 +85,13 @@ function expectations(vg::VGMM)
     return Elogπ, ElogdetΛ
 end
 
-## log(ρ_nk) from 10.46, start with a very slow implementation
-## 10.46
+## log(ρ_nk) from 10.46, start with a very slow implementation, and optimize it further
+## This is as the heart of VGMM training, it should be super efficient, possibly
+## at the cost of readability.
+## Removing the inner loop over nx, replacing it by a matmul led to a major speed increase
+## not leading to further speed increase for (Δ * vg.W[k]) .* Δ
+## - c = Δ * chol(vg.W[k],:L), c .* c
+## - Base.BLAS.symm('R', 'U', vg.ν[k], vg.W[k], Δ) .* Δ
 function logρ(vg::VGMM, x::Matrix, ex::Tuple)
     (nx, d) = size(x)
     d == vg.d || error("dimension mismatch")
@@ -97,7 +102,6 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
         ## d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
         broadcast!(-, Δ, x, vg.m[k,:])
         EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum((Δ * vg.W[k]) .* Δ, 2)
-        ## same speed is sum(Base.BLAS.symm('R', 'U', vg.ν[k], vg.W[k], Δ) .* Δ, 2)
         ## for i=1:nx
         ##    Δ = x[i,:] - mk
         ##    EμΛ[i,k] = dβk + vg.ν[k]* Δ*vg.W[k] ⋅ Δ
@@ -142,7 +146,7 @@ function stats{T}(vg::VGMM, x::Matrix{T}, ex::Tuple)
     end
     r, ElogpZπqZ = rnk(vg, x, ex)
     N = vec(sum(r, 1))          # ng
-    F = r' * x                   # ng * d
+    F = r' * x                  # ng * d
     ## S_k = sum_i r_ik x_i x_i'
     Sm = x' * hcat([broadcast(*, r[:,k], x) for k=1:ng]...)
     S = Matrix{T}[Sm[:,(k-1)*d+1:k*d] for k=1:ng]
