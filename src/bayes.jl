@@ -104,7 +104,7 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
         for j=1:d
             vgmk = vg.m[k,j]
             for i=1:nx
-                Δ[i,j] = x[i,j] - vgmk
+                @inbounds Δ[i,j] = x[i,j] - vgmk
             end
         end
         ## EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum((Δ * vg.W[k]) .* Δ, 2)
@@ -114,7 +114,7 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
         for i=1:nx
             s = 0.
             for j=1:d
-                s += Δ[i,j] * Δ[i,j]
+                @inbounds s += Δ[i,j] * Δ[i,j]
             end
             EμΛ[i,k] = dβk + vg.ν[k] * s
         end
