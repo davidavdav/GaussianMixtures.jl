@@ -10,7 +10,7 @@ function GMM{T}(x::DataOrMatrix{T}; kind=:diag)
     if kind == :diag
         Σ = (sxx' - n*μ.*μ) ./ (n-1)
     elseif kind == :full
-        ci = inv(chol((sxx - n*(μ'*μ)) ./ (n-1), :U))
+        ci = invchol((sxx - n*(μ'*μ)) ./ (n-1))
         Σ = typeof(ci)[ci]
     else
         error("Unknown kind")
@@ -39,7 +39,7 @@ end
 GMM{T<:FloatingPoint}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sprarse=0) = GMM(n, x'', method;  kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
-function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0)
+function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0)
     nx, d = size(x)
     hist = [History(@sprintf("Initializing GMM, %d Gaussians %s covariance %d dimensions using %d data points", n, diag, d, nx))]
     ## subsample x to max 1000 points per mean
@@ -81,10 +81,10 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
     elseif kind == :full
         function invcholcov(i::Int)
             sel = km.assignments .== i
-            if length(sel) < 2
-                return chol(eye(d), :U)
+            if length(sel) < d
+                return invchol(eye(d))
             else
-                return inv(chol(cov(xx[sel,:]), :U))
+                return invchol(cov(xx[sel,:]))
             end
         end
         Σ = convert(FullCov{Float64},[invcholcov(i) for i=1:n])
@@ -260,7 +260,7 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
         for j=1:ng
 #            C = chol(inv(gmm.Σ[j]), :L)
             broadcast!(-, Δ, x, gmm.μ[j,:]) # nx * d
-            CΔ = Δ * gmm.Σ[j]'              # nx * d, nx*d^2 operations
+            CΔ = Δ * gmm.Σ[j]            # nx * d, nx*d^2 operations
             ll[:,j] = -0.5sumsq(CΔ,2) .- normalization[j]
         end
         return ll

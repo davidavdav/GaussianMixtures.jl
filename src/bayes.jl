@@ -23,9 +23,9 @@ function VGMM(g::GMM, π::GMMprior)
     N = g.w * nx
     mx = g.μ
     if kind(g) == :diag
-        S = full(g).Σ
+        S = covars(full(g))
     else
-        S = g.Σ
+        S = covars(g)
     end
     α, β, m, ν, W = mstep(π, N, mx, S)
     hist = copy(g.hist)
@@ -40,9 +40,9 @@ Base.copy(vg::VGMM) = VGMM(vg.n, vg.d, copy(vg.π), copy(vg.α), copy(vg.β),
 function GMM(vg::VGMM)
     w = vg.α / sum(vg.α)
     μ = vg.m
-    Σ = similar(vg.W)
+    Σ = Array(eltype(FullCov{Float64}), vg.n)
     for k=1:length(vg.W)
-        Σ[k] = inv(cholfact(vg.ν[k] * vg.W[k]))
+        Σ[k] = invchol(inv(vg.ν[k] * vg.W[k])) # a bit awkward...
     end
     hist = copy(vg.hist)
     push!(hist, History("Variational GMM converted to GMM"))
