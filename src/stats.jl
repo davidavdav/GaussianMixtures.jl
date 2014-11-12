@@ -84,7 +84,7 @@ end
 function fullstats{T<:FloatingPoint}(gmm::GMM, x::Array{T,2}, order::Int)
     (nx, d) = size(x)
     ng = gmm.n
-    γ, ll = posterior(gmm, x, true)
+    γ, ll = posterior(gmm, x, true) # nx * ng, both
     llh = sum(logsumexp(broadcast(+, ll, log(gmm.w)'), 2))
     ## zeroth order
     N = vec(sum(γ, 1))
@@ -126,8 +126,12 @@ end
 function stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
     parallel &= nworkers() > 1
     ng = gmm.n
-    (nx, d) = size(x)    
-    bytes = sizeof(T) * ((4d +2)ng + (d + 4ng + 1)nx)
+    (nx, d) = size(x)
+    if kind(gmm) == :diag
+        bytes = sizeof(T) * ((2d +2)ng + (d + ng + 1)nx)
+    elseif kind(gmm) == :full
+        bytes = sizeof(T) * ((d + d^2 + 5nx + nx*d)ng + (2d + 2)nx)
+    end
     blocks = iceil(bytes / (mem * (1<<30)))
     if parallel
         blocks= min(nx, max(blocks, nworkers()))

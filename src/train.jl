@@ -253,22 +253,14 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
     gmmkind = kind(gmm)
     if gmmkind == :diag
         return llpgdiag(gmm, x)
-        ## old, slow code
-        ll = Array(Float64, nx, ng)
-        normalization = 0.5 * (d * log(2π) .+ sum(log(gmm.Σ),2)) # row 1...ng
-        for j=1:ng
-            Δ = broadcast(-, x, gmm.μ[j,:]) # nx * d
-            ΔsqrtΛ = broadcast(/, Δ, sqrt(gmm.Σ[j,:]))
-            ll[:,j] = -0.5sumsq(ΔsqrtΛ,2) .- normalization[j]
-        end
-        return ll
     elseif gmmkind == :full
         ll = Array(Float64, nx, ng)
+        Δ = similar(x)
         # C = [chol(inv(gmm.Σ[i]), :L) for i=1:ng] # should do this only once...
         normalization = 0.5 * [d*log(2π) + logdet(gmm.Σ[i]) for i=1:ng]
         for j=1:ng
             C = chol(inv(gmm.Σ[j]), :L)
-            Δ = broadcast(-, x, gmm.μ[j,:]) # nx * d
+            broadcast!(-, Δ, x, gmm.μ[j,:]) # nx * d
             CΔ = Δ*C                 # nx * d, nx*d^2 operations
             ll[:,j] = -0.5sumsq(CΔ,2) .- normalization[j]
         end

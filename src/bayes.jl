@@ -108,7 +108,7 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
             end
         end
         ## EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum((Δ * vg.W[k]) .* Δ, 2)
-        Base.BLAS.trmm!('R', 'U', 'T', 'N', 1.0, full(chol(vg.W[k])), Δ)
+        A_mul_Bc!(Δ, chol(vg.W[k], :U))
         ## EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum(Δ .* Δ, 2)
         dβk = d/vg.β[k]
         for i=1:nx
