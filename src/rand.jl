@@ -8,10 +8,10 @@ function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
     if kind==:diag
         Σ = hcat([rand(Chisq(1.0), ng) for i=1:d]...)
     elseif kind == :full
-        Σ = Array(Matrix{Float64}, ng)
+        Σ = Array(eltype(FullCov{Float64}), ng)
         for i=1:ng
             T = randn(d,d)
-            Σ[i] = T' * T / d
+            Σ[i] = invchol(T' * T / d)
         end
     else
         error("Unknown kind")
@@ -56,7 +56,7 @@ function Base.rand(gmm::GMM, n::Int)
         if gmmkind == :diag
             x[ind,:] = broadcast(+, gmm.μ[i,:], broadcast(*, sqrt(gmm.Σ[i,:]), randn(nx,gmm.d)))
         elseif gmmkind == :full
-            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), gmm.Σ[i]), nx)'
+            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), covar(gmm.Σ[i])), nx)'
         else
             error("Unknown kind")
         end

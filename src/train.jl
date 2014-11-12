@@ -3,21 +3,21 @@
 
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-function GMM(x::DataOrMatrix; kind=:diag)
-    numtype = eltype(x)
+function GMM{T}(x::DataOrMatrix{T}; kind=:diag)
     n, sx, sxx = stats(x, kind=kind)
     μ = sx' ./ n                        # make this a row vector
     d = length(μ)
     if kind == :diag
         Σ = (sxx' - n*μ.*μ) ./ (n-1)
     elseif kind == :full
-        Σ =  Matrix{numtype}[(sxx - n*(μ'*μ)) ./ (n-1)]
+        ci = inv(chol((sxx - n*(μ'*μ)) ./ (n-1), :U))
+        Σ = typeof(ci)[ci]
     else
         error("Unknown kind")
     end
     hist = History(@sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points",
                             d, kind, n))
-    GMM(ones(numtype,1), μ, Σ, [hist], n)
+    GMM(ones(T,1), μ, Σ, [hist], n)
 end
 ## Also allow a Vector, :full makes no sense
 GMM{T<:Real}(x::Vector{T}) = GMM(x'')
@@ -79,16 +79,15 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
         end
         Σ = convert(Matrix{Float64},vcat(map(variance, 1:n)...))
     elseif kind == :full
-        function covariance(i::Int)
+        function invcholcov(i::Int)
             sel = km.assignments .== i
             if length(sel) < 2
-                return eye(d)
+                return chol(eye(d), :U)
             else
-                return cov(xx[sel,:])
+                return inv(chol(cov(xx[sel,:]), :U))
             end
         end
-        Σ = Matrix{Float64}[covariance(i) for i=1:n]
-        println(Σ)
+        Σ = convert(FullCov{Float64},[invcholcov(i) for i=1:n])
     else
         error("Unknown kind")
     end
@@ -204,9 +203,9 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
                 gmm.Σ[ind,:] = initc[ind,:]
             end
         elseif gmmkind == :full
-            for i=1:ng
-                μi = gmm.μ[i,:]
-                gmm.Σ[i][:] = S[i] / N[i] - μi' * μi
+            for k=1:ng
+                μk = gmm.μ[k,:]
+                gmm.Σ[k] = invchol(S[k] / N[k] - μk' * μk)
             end
         else
             error("Unknown kind")
@@ -256,12 +255,12 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
     elseif gmmkind == :full
         ll = Array(Float64, nx, ng)
         Δ = similar(x)
-        # C = [chol(inv(gmm.Σ[i]), :L) for i=1:ng] # should do this only once...
-        normalization = 0.5 * [d*log(2π) + logdet(gmm.Σ[i]) for i=1:ng]
+        ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
+        normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[i])))) for i=1:ng]
         for j=1:ng
-            C = chol(inv(gmm.Σ[j]), :L)
+#            C = chol(inv(gmm.Σ[j]), :L)
             broadcast!(-, Δ, x, gmm.μ[j,:]) # nx * d
-            CΔ = Δ*C                 # nx * d, nx*d^2 operations
+            CΔ = Δ * gmm.Σ[j]'              # nx * d, nx*d^2 operations
             ll[:,j] = -0.5sumsq(CΔ,2) .- normalization[j]
         end
         return ll

@@ -27,8 +27,10 @@ History(s::String) = History(time(), s)
 abstract GaussianMixture{T,CT}
 
 ## support for two kinds of covariance matrix
+## Full covariance is represented by inverse cholesky of the covariance matrix, 
+## i.e., Σ^-1 = ci * ci'
 typealias DiagCov{T} Matrix{T}
-typealias FullCov{T} Vector{Matrix{T}}
+typealias FullCov{T} Vector{Triangular{T,Matrix{T},:U,false}} 
 
 ## GMMs can be of type FLoat32 or Float64, and diagonal or full
 type GMM{T<:FloatingPoint, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}
@@ -36,7 +38,7 @@ type GMM{T<:FloatingPoint, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}
     d::Int                      # dimension of Gaussian
     w::Vector{T}                # weights: n
     μ::Matrix{T}                # means: n x d
-    Σ::CT                       # covars n x d
+    Σ::CT                       # covars n x d or n x d^2
     hist::Vector{History}       # history
     nx::Int                     # number of points used to train the GMM
     function GMM(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{T}), 
@@ -51,7 +53,7 @@ type GMM{T<:FloatingPoint, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}
             n == length(Σ) || error("Inconsistent number of covars")
             for (i,S) in enumerate(Σ) 
                 (d,d) == size(S) || error(@sprintf("Inconsistent dimension for %d", i))
-                isposdef(S) || error(@sprintf("Covariance %d not positive definite", i))
+##                isposdef(S) || error(@sprintf("Covariance %d not positive definite", i))
             end
         end
         new(n, d, w, μ, Σ, hist, nx)

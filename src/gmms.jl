@@ -16,12 +16,18 @@ function GMM(n::Int, d::Int; kind::Symbol=:diag)
     GMM(w, μ, Σ, hist, 0)
 end
 
+## switch between full covariance and inverse cholesky decomposition representations. 
+covar{T}(ic::Triangular{T}) = (c = inv(ic); c' * c)
+invchol{T}(Σ::Matrix{T}) = inv(chol(Σ, :U))
+
 kind{T}(g::GMM{T,DiagCov{T}}) = :diag
 kind{T}(g::GMM{T,FullCov{T}}) = :full
+
 ## This may clash with STatsBase
 weights(gmm::GMM) = gmm.w
 means(gmm::GMM) = gmm.μ
-covars(gmm::GMM) = gmm.Σ
+covars{T}(gmm::GMM{T,DiagCov{T}}) = gmm.Σ
+covars{T}(gmm::GMM{T,FullCov{T}}) = [covar(ic) for ic in gmm.Σ]
 
 function nparams(gmm::GMM)
     gmmkind = kind(gmm)
@@ -56,7 +62,7 @@ function Base.full{T}(gmm::GMM{T})
     if kind(gmm) == :full
         return gmm
     end
-    Σ = Matrix{T}[diagm(vec(gmm.Σ[i,:])) for i=1:gmm.n]
+    Σ = convert(FullCov{T}, [Triangular(diagm(vec(1./√gmm.Σ[i,:])), :U, false) for i=1:gmm.n])
     new = GMM(copy(gmm.w), copy(gmm.μ), Σ, copy(gmm.hist), gmm.nx)
     addhist!(new, "Converted to full covariance")
 end
@@ -67,9 +73,9 @@ function Base.diag{T}(gmm::GMM{T})
     end
     Σ = Array(T, gmm.n, gmm.d)
     for i=1:gmm.n
-        Σ[i,:] = diag(gmm.Σ[i])
+        Σ[i,:] = 1./abs2(diag(gmm.Σ[i]))
     end
-    new = GMM(:diag, copy(gmm.w), copy(gmm.μ), Σ, copy(gmm.hist), gmm.nx)
+    new = GMM(copy(gmm.w), copy(gmm.μ), Σ, copy(gmm.hist), gmm.nx)
     addhist!(new, "Converted to diag covariance")
 end
 
