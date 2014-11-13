@@ -253,17 +253,17 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
     if gmmkind == :diag
         return llpgdiag(gmm, x)
     elseif gmmkind == :full
-        ll = Array(Float64, nx, ng)
+        ll = similar(x, nx, ng)
         Δ = similar(x)
         ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
         normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[i])))) for i=1:ng]
         for j=1:ng
 #            C = chol(inv(gmm.Σ[j]), :L)
-            broadcast!(-, Δ, x, gmm.μ[j,:]) # nx * d
-            CΔ = Δ * gmm.Σ[j]            # nx * d, nx*d^2 operations
-            ll[:,j] = -0.5sumsq(CΔ,2) .- normalization[j]
+            broadcast!(-, Δ, x, gmm.μ[j,:]) # size: nx * d, add ops: nx * d
+            A_mul_B!(Δ, gmm.Σ[j])           # size: nx * d, mult ops nx*d^2
+            ll[:,j] = -0.5sumsq(Δ,2) .- normalization[j] 
         end
-        return ll
+        return ll::Matrix{T}
     else
         error("Unknown kind")
     end
@@ -285,7 +285,7 @@ import Distributions.posterior
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
 ## TODO: This is a slow and memory-intensive implementation.  It is better to 
 ## use the approaches used in stats()
-function posterior{T}(gmm, x::Matrix{T}, getll=false)      # nx * ng
+function posterior{T<:FloatingPoint}(gmm, x::Matrix{T})      # nx * ng
     (nx, d) = size(x)
     ng = gmm.n
     d==gmm.d || error("Inconsistent size gmm and x")
@@ -293,10 +293,6 @@ function posterior{T}(gmm, x::Matrix{T}, getll=false)      # nx * ng
     logp = broadcast(+, ll, log(gmm.w'))
     logsump = logsumexp(logp, 2)
     broadcast!(-, logp, logp, logsump)
-    if getll
-        exp(logp), ll
-    else
-        exp(logp)
-    end
+    exp(logp)::Matrix{T}, ll::Matrix{T}
 end
 

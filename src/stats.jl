@@ -84,7 +84,7 @@ end
 function fullstats{T<:FloatingPoint}(gmm::GMM, x::Array{T,2}, order::Int)
     (nx, d) = size(x)
     ng = gmm.n
-    γ, ll = posterior(gmm, x, true) # nx * ng, both
+    γ, ll = posterior(gmm, x) # nx * ng, both
     llh = sum(logsumexp(broadcast(+, ll, log(gmm.w)'), 2))
     ## zeroth order
     N = vec(sum(γ, 1))
@@ -93,18 +93,16 @@ function fullstats{T<:FloatingPoint}(gmm::GMM, x::Array{T,2}, order::Int)
     if order == 1
         return nx, llh, N, F
     end
-    ## second order, this is harder now
-    ## broadcast: ng * nx * d multiplications, hcat: nx * (ng*d)
-    ## matmul: nx^2 * d^2 * ng multiplications...
-    Sm = x' * hcat([broadcast(*, γ[:,j], x) for j=1:ng]...) # big bad matmul, nx
-    S = Matrix{T}[Sm[:,(j-1)*d+1:j*d] for j=1:ng]
-    ##S = [zeros(d,d) for i=1:ng]
-    ##for i=1:nx
-    ##    xi = x[i,:]
-    ##    sxx = xi' * xi
-    ##    for j=1:ng
-    ##        S[j] += γ[i,j]*sxx
-    ##    end
+    ## S_k = Σ_i γ _ik x_i' * x
+    S = Matrix{T}[]
+    γx = similar(x)
+    @inbounds for k=1:ng
+        #broadcast!(*, γx, γ[:,k], x) # nx * d mults
+        for j = 1:d for i=1:nx
+            γx[i,j] = γ[i,k]*x[i,j]
+        end end
+        push!(S, x' * γx)            # nx * d^2 mults
+    end
     return nx, llh, N, F, S
 end
     
