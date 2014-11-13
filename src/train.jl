@@ -121,7 +121,7 @@ end
 
 ## weighted logsumexp
 function logsumexpw(x::Matrix, w::Vector)
-    y = broadcast(+, x, log(w)')
+    y = x .+ log(w)'
     logsumexp(y, 2)
 end
 
@@ -192,9 +192,9 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
         nx, ll[i], N, F, S = stats(gmm, x, parallel=true)
         ## M-step
         gmm.w = N / nx
-        gmm.μ = broadcast(/, F, N)
+        gmm.μ = F ./ N
         if gmmkind == :diag
-            gmm.Σ = broadcast(/, S, N) - gmm.μ.^2
+            gmm.Σ = S ./ N - gmm.μ.^2
             ## var flooring
             tooSmall = any(gmm.Σ .< varfloor, 2)
             if (any(tooSmall))
@@ -237,10 +237,10 @@ function llpgdiag(gmm::GMM, x::Matrix)
     normalization = 0.5 * (d * log(2π) .+ sum(log(gmm.Σ),2)) # ng * 1
     sm2p = sum(mp .* gmm.μ, 2)   # sum over d mean^2*precision, ng * 1
     xx = x.^2                    # nx * d
-    pxx = broadcast(+, sm2p', xx * prec') # nx * ng
+    pxx = sm2p' .+ xx * prec'    # nx * ng
     mpx = x * mp'                         # nx * ng
     # L = broadcast(*, a', exp(mpx-0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
-    broadcast(-, mpx-0.5pxx, normalization')
+    mpx-0.5pxx .- normalization'
 end
 
 ## A function we see more often... Λ is in inv(chol(Σ)) form
@@ -257,19 +257,6 @@ function xμTΛxμ!{T}(Δ::Matrix{T}, x::Matrix{T}, μ::Matrix{T}, icΣ::Triangu
     A_mul_B!(Δ, icΣ)            # size: nx * d, mult ops nx*d^2
 end
 
-## r[:,k] = offset + factor * sum(Δ .* Δ, 2)
-function sumsq2!{T}(r::Matrix{T}, Δ::Matrix{T}, k::Int, offset::T, factor::T)
-    nx, d = size(Δ)
-    for i = 1:nx 
-        @inbounds r[i,k]=0
-    end
-    for j = 1:d
-        for i = 1:nx
-            @inbounds r[i,k] += Δ[i,j] * Δ[i,j]
-        end
-    end
-end
-
 ## this function returns the contributions of the individual Gaussians to the LL
 ## ll_ij = log p(x_i | gauss_j)
 function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
@@ -283,12 +270,11 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
         ll = similar(x, nx, ng)
         Δ = similar(x)
         ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
-        normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[i])))) for i=1:ng]
-        for j=1:ng
+        normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[k])))) for k=1:ng]
+        for k=1:ng
             ## Δ = (x_i - μ_k)' Λ_κ (x_i - m_k)
-            xμTΛxμ!(Δ, x, gmm.μ[j,:], gmm.Σ[j])
-            ## ll[:,j] = -0.5sumsq(Δ,2) .- normalization[j] 
-            sumsq2!(ll, Δ, j, -normalization[j], -0.5)
+            xμTΛxμ!(Δ, x, gmm.μ[k,:], gmm.Σ[k])
+            ll[:,k] = -0.5sumsq(Δ,2) .- normalization[k]
         end
         return ll::Matrix{T}
     else
@@ -317,7 +303,7 @@ function posterior{T<:FloatingPoint}(gmm, x::Matrix{T})      # nx * ng
     ng = gmm.n
     d==gmm.d || error("Inconsistent size gmm and x")
     ll = llpg(gmm, x)
-    logp = broadcast(+, ll, log(gmm.w'))
+    logp = ll .+ log(gmm.w')
     logsump = logsumexp(logp, 2)
     broadcast!(-, logp, logp, logsump)
     exp(logp)::Matrix{T}, ll::Matrix{T}

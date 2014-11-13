@@ -102,11 +102,10 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
         ### d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
         ## Δ = (x_i - m_k)' W_k (x_i = m_k)
         xμTΛxμ!(Δ, x, vg.m[k,:], chol(vg.W[k], :L))
-        ## EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum(Δ .* Δ, 2)
-        sumsq2!(EμΛ, Δ, k, d/vg.β[k], vg.ν[k])
+        EμΛ[:,k] = d/vg.β[k] .+ vg.ν[k] * sumsq(Δ, 2)
     end
     Elogπ, ElogdetΛ = ex
-    broadcast(+, (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))', -0.5EμΛ)
+    (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))' .- 0.5EμΛ
 end
 
 ## r_nk 10.49, plus E[log p(Z|π)] 10.72 and E[log q(Z)] 10.75
