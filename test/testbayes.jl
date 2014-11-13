@@ -16,6 +16,7 @@ end
 
 gmm = rand(GMM, 64, 26, kind=:full)
 x = rand(gmm, 1000)
+gmm.nx = 1000
 vgmm = VGMM(gmm, GMMprior(gmm.d, 0.1, 1.0))
 ex = expectations(vgmm)
 

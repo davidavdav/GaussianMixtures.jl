@@ -243,6 +243,33 @@ function llpgdiag(gmm::GMM, x::Matrix)
     broadcast(-, mpx-0.5pxx, normalization')
 end
 
+## A function we see more often... Λ is in inv(chol(Σ)) form
+## compute Δ_i = (x_i - μ)' Λ (x_i - μ)
+function xμTΛxμ!{T}(Δ::Matrix{T}, x::Matrix{T}, μ::Matrix{T}, icΣ::Triangular{T})
+    # broadcast!(-, Δ, x, μ)      # size: nx * d, add ops: nx * d
+    (nx, d) = size(x)
+    @inbounds for j = 1:d
+        μj = μ[j]
+        for i = 1:nx
+            Δ[i,j] = x[i,j] - μj
+        end
+    end
+    A_mul_B!(Δ, icΣ)            # size: nx * d, mult ops nx*d^2
+end
+
+## r[:,k] = offset + factor * sum(Δ .* Δ, 2)
+function sumsq2!{T}(r::Matrix{T}, Δ::Matrix{T}, k::Int, offset::T, factor::T)
+    nx, d = size(Δ)
+    for i = 1:nx 
+        @inbounds r[i,k]=0
+    end
+    for j = 1:d
+        for i = 1:nx
+            @inbounds r[i,k] += Δ[i,j] * Δ[i,j]
+        end
+    end
+end
+
 ## this function returns the contributions of the individual Gaussians to the LL
 ## ll_ij = log p(x_i | gauss_j)
 function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
@@ -258,10 +285,9 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
         ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
         normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[i])))) for i=1:ng]
         for j=1:ng
-#            C = chol(inv(gmm.Σ[j]), :L)
-            broadcast!(-, Δ, x, gmm.μ[j,:]) # size: nx * d, add ops: nx * d
-            A_mul_B!(Δ, gmm.Σ[j])           # size: nx * d, mult ops nx*d^2
-            ll[:,j] = -0.5sumsq(Δ,2) .- normalization[j] 
+            xμTΛxμ!(Δ, x, gmm.μ[j,:], gmm.Σ[j])
+            ## ll[:,j] = -0.5sumsq(Δ,2) .- normalization[j] 
+            sumsq2!(ll, Δ, j, -normalization[j], -0.5)
         end
         return ll::Matrix{T}
     else

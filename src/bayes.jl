@@ -109,6 +109,7 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
         end
         ## EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum((Δ * vg.W[k]) .* Δ, 2)
         A_mul_Bc!(Δ, chol(vg.W[k], :U))
+        ##xμTΛxμ!(Δ, x, vg.m[k,:], chol(vg.W[k], :L))
         ## EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum(Δ .* Δ, 2)
         dβk = d/vg.β[k]
         for i=1:nx
