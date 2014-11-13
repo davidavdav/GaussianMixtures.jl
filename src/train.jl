@@ -285,6 +285,7 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
         ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
         normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[i])))) for i=1:ng]
         for j=1:ng
+            ## Δ = (x_i - μ_k)' Λ_κ (x_i - m_k)
             xμTΛxμ!(Δ, x, gmm.μ[j,:], gmm.Σ[j])
             ## ll[:,j] = -0.5sumsq(Δ,2) .- normalization[j] 
             sumsq2!(ll, Δ, j, -normalization[j], -0.5)

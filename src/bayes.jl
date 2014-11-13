@@ -99,30 +99,11 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
     EμΛ = similar(x, nx, ng)    # nx * ng
     Δ = similar(x)              # nx * d
     for k=1:ng
-        ## d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
-        ## broadcast!(-, Δ, x, vg.m[k,:])
-        for j=1:d
-            vgmk = vg.m[k,j]
-            for i=1:nx
-                @inbounds Δ[i,j] = x[i,j] - vgmk
-            end
-        end
-        ## EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum((Δ * vg.W[k]) .* Δ, 2)
-        A_mul_Bc!(Δ, chol(vg.W[k], :U))
-        ##xμTΛxμ!(Δ, x, vg.m[k,:], chol(vg.W[k], :L))
+        ### d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
+        ## Δ = (x_i - m_k)' W_k (x_i = m_k)
+        xμTΛxμ!(Δ, x, vg.m[k,:], chol(vg.W[k], :L))
         ## EμΛ[:,k] = d/vg.β[k] + vg.ν[k] * sum(Δ .* Δ, 2)
-        dβk = d/vg.β[k]
-        for i=1:nx
-            s = 0.
-            for j=1:d
-                @inbounds s += Δ[i,j] * Δ[i,j]
-            end
-            EμΛ[i,k] = dβk + vg.ν[k] * s
-        end
-        ## for i=1:nx
-        ##    Δ = x[i,:] - mk
-        ##    EμΛ[i,k] = dβk + vg.ν[k]* Δ*vg.W[k] ⋅ Δ
-        ## end
+        sumsq2!(EμΛ, Δ, k, d/vg.β[k], vg.ν[k])
     end
     Elogπ, ElogdetΛ = ex
     broadcast(+, (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))', -0.5EμΛ)
