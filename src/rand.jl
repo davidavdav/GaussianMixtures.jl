@@ -54,7 +54,7 @@ function Base.rand(gmm::GMM, n::Int)
         ind = find(index.==i)
         nx = length(ind)
         if gmmkind == :diag
-            x[ind,:] = broadcast(+, gmm.μ[i,:], broadcast(*, sqrt(gmm.Σ[i,:]), randn(nx,gmm.d)))
+            x[ind,:] = gmm.μ[i,:] .+ √gmm.Σ[i,:] .* randn(nx,gmm.d)
         elseif gmmkind == :full
             x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), covar(gmm.Σ[i])), nx)'
         else

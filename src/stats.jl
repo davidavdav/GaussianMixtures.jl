@@ -85,7 +85,7 @@ function fullstats{T<:FloatingPoint}(gmm::GMM, x::Array{T,2}, order::Int)
     (nx, d) = size(x)
     ng = gmm.n
     γ, ll = posterior(gmm, x) # nx * ng, both
-    llh = sum(logsumexp(broadcast(+, ll, log(gmm.w)'), 2))
+    llh = sum(logsumexp(ll .+ log(gmm.w)', 2))
     ## zeroth order
     N = vec(sum(γ, 1))
     ## first order
@@ -173,7 +173,7 @@ function csstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, order::Int=2)
     else
         nx, llh, N, F, S = stats(gmm, x, order)
     end
-    Nμ = broadcast(*, N, gmm.μ)
+    Nμ = N .* gmm.μ
     f = (F - Nμ) ./ gmm.Σ
     if order==1
         return(N, f)
@@ -191,7 +191,7 @@ CSstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}) = CSstats(csstats(gmm, x
 ## check full covariance...
 function cstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, parallel=false)
     nx, llh, N, F, S = stats(gmm, x, order=2, parallel=parallel)
-    Nμ = broadcast(*, N, gmm.μ)
+    Nμ =  N .* gmm.μ
     ## center the statistics
     gmmkind = kind(gmm)
     if gmmkind == :diag
