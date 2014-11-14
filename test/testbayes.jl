@@ -15,14 +15,15 @@ function check()
 end
 
 gmm = rand(GMM, 64, 26, kind=:full)
-x = rand(gmm, 1000)
-gmm.nx = 1000
+x = rand(gmm, 10000)
+gmm.nx = 1000                   # fake number of data points, otherwise we get the prior
 vgmm = VGMM(gmm, GMMprior(gmm.d, 0.1, 1.0))
 ex = expectations(vgmm)
 
 function prof()
     stats(vgmm, rand(10,vgmm.d), ex)
+    v2 = copy(vgmm)
     Profile.clear()
-    @profile stats(vgmm,x,ex)
+    @profile em!(v2, x, nIter=1)
     Profile.print(format=:flat)
 end
