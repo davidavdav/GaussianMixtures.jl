@@ -35,6 +35,10 @@ end
 Base.copy(vg::VGMM) = VGMM(vg.n, vg.d, copy(vg.π), copy(vg.α), copy(vg.β),
                            copy(vg.m), copy(vg.ν), copy(vg.W), copy(vg.hist))
 
+## W[k] really is chol(W_k, :U), use precision() to get it back
+precision(c::Triangular) = c' * c
+Base.logdet(c::Triangular) = 2sum(log(diag(c)))
+
 ## sharpen VGMM to a GMM
 ## This currently breaks because my expected Λ are not positive definite
 function GMM(vg::VGMM)
@@ -42,7 +46,7 @@ function GMM(vg::VGMM)
     μ = vg.m
     Σ = Array(eltype(FullCov{Float64}), vg.n)
     for k=1:length(vg.W)
-        Σ[k] = invchol(inv(vg.ν[k] * vg.W[k])) # a bit awkward...
+        Σ[k] = invchol(inv(vg.ν[k] * precision(vg.W[k]))) # a bit awkward...
     end
     hist = copy(vg.hist)
     push!(hist, History("Variational GMM converted to GMM"))
@@ -50,13 +54,13 @@ function GMM(vg::VGMM)
 end
 
 ## m-step given prior and stats
-function mstep(π::GMMprior, N::Vector, mx::Matrix, S::Vector)
+function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
     ng = length(N)
     α = π.α0 + N                # ng, 10.58
     ν = π.ν0 + N + 1            # ng, 10.63
     β = π.β0 + N                # ng, 10.60
     m = similar(mx)             # ng * d
-    W = similar(S)              # ng * (d*d)
+    W = Array(eltype(FullCov{T}), ng) # ng * (d*d)
     d = size(mx,2)
     limit = √ eps(eltype(N))
     for k=1:ng
@@ -65,10 +69,10 @@ function mstep(π::GMMprior, N::Vector, mx::Matrix, S::Vector)
             Δ = mx[k,:] - π.m0'
             ## do some effort to keep the matrix positive definite
             third = π.β0 * N[k] / (π.β0 + N[k]) * (Δ' * Δ) # guarantee symmety in Δ' Δ
-            W[k] = inv(cholfact(inv(π.W0) + N[k]*S[k] + third)) # 10.62
+            W[k] = chol(inv(cholfact(inv(π.W0) + N[k]*S[k] + third)), :U) # 10.62
         else
             m[k,:] = zeros(d)
-            W[k] = eye(d)
+            W[k] = chol(eye(d), :U)
         end
     end
     return α, β, m, ν, W
@@ -80,7 +84,7 @@ function expectations(vg::VGMM)
     Elogπ = digamma(vg.α) .- digamma(sum(vg.α)) # 10.66, size ng
     ElogdetΛ = similar(Elogπ) # size ng
     for k=1:ng
-        ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 - [1:d]))) .+ d*log(2) .+ logdet(vg.W[k]) # 10.65
+        ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 - [1:d]))) + d*log(2) + logdet(vg.W[k]) # 10.65
     end
     return Elogπ, ElogdetΛ
 end
@@ -101,7 +105,7 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
     for k=1:ng
         ### d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
         ## Δ = (x_i - m_k)' W_k (x_i = m_k)
-        xμTΛxμ!(Δ, x, vg.m[k,:], chol(vg.W[k], :L))
+        xμTΛxμ!(Δ, x, vg.m[k,:], vg.W[k]')
         EμΛ[:,k] = d/vg.β[k] .+ vg.ν[k] * sumsq(Δ, 2)
     end
     Elogπ, ElogdetΛ = ex
@@ -198,16 +202,18 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     Elogll = 0.
     for k in gaussians
         Δ = mx[k,:] - m[k,:]   # 1 * d
+        Wk = precision(W[k])
         Elogll += 0.5N[k] * (ElogdetΛ[k] - d/β[k] - d*log(2π)
-                             - ν[k] * (trAB(S[k], W[k]) + Δ * W[k] ⋅ Δ))
+                             - ν[k] * (trAB(S[k], Wk) + Δ * Wk ⋅ Δ)) # check chol efficiency
     end                        # 10.71
     ## E[log p(Z|π)] from rnk() 10.72
     Elogpπ = lgamma(ng*α0) - ng*lgamma(α0) - (α0-1)sum(Elogπ) # E[log p(π)] 10.73
     ElogpμΛ = ng*logB(W0,ν0)   # E[log p(μ, Λ)] B.79
     for k in gaussians
         Δ = m[k,:] - m0'
+        Wk = precision(W[k])
         ElogpμΛ += 0.5(d*log(β0/(2π)) + (ν0-d)ElogdetΛ[k] - d*β0/β[k]
-                       -β0*ν[k] * dot(Δ*W[k], Δ) - ν[k]*trAB(W0inv, W[k]))
+                       -β0*ν[k] * dot(Δ*Wk, Δ) - ν[k]*trAB(W0inv, Wk))
     end                         # 10.74
     ## E[log q(Z)] from rnk() 10.75, combined with E[log p(Z|π)]
     Elogqπ = sum((α.-1).*Elogπ) + lgamma(sum(α)) - sum(lgamma(α)) # E[log q(π)] 10.76

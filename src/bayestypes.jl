@@ -21,6 +21,6 @@ type VGMM{T<:FloatingPoint} <: GaussianMixture{T}
     β::Vector{T}                # scale of precision, n
     m::Matrix{T}                # means of means, n * d
     ν::Vector{T}                # no. degrees of freedom, n
-    W::Vector{Matrix{T}}        # scale matrix for precision? n * d * d
+    W::FullCov{T}               # scale matrix for precision? n * d * d
     hist::Vector{History}       # history
 end
