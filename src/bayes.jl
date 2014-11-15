@@ -46,7 +46,7 @@ function GMM(vg::VGMM)
     μ = vg.m
     Σ = Array(eltype(FullCov{Float64}), vg.n)
     for k=1:length(vg.W)
-        Σ[k] = invchol(inv(vg.ν[k] * precision(vg.W[k]))) # a bit awkward...
+        Σ[k] = cholinv(inv(vg.ν[k] * precision(vg.W[k]))) # a bit awkward...
     end
     hist = copy(vg.hist)
     push!(hist, History("Variational GMM converted to GMM"))
