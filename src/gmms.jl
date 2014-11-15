@@ -17,8 +17,8 @@ function GMM(n::Int, d::Int; kind::Symbol=:diag)
 end
 
 ## switch between full covariance and inverse cholesky decomposition representations. 
-covar{T}(ic::Triangular{T}) = (c = inv(ic); c' * c)
-invchol{T}(Σ::Matrix{T}) = inv(chol(Σ, :U))
+covar{T}(ci::Triangular{T}) = (c = inv(ci); c * c')
+cholinv{T}(Σ::Matrix{T}) = chol(inv(cholfact(Σ)), :U)
 
 kind{T}(g::GMM{T,DiagCov{T}}) = :diag
 kind{T}(g::GMM{T,FullCov{T}}) = :full

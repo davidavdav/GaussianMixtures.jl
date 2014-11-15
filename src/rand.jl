@@ -11,7 +11,7 @@ function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
         Σ = Array(eltype(FullCov{Float64}), ng)
         for i=1:ng
             T = randn(d,d)
-            Σ[i] = invchol(T' * T / d)
+            Σ[i] = cholinv(T' * T / d)
         end
     else
         error("Unknown kind")

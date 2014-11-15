@@ -10,7 +10,7 @@ function GMM{T}(x::DataOrMatrix{T}; kind=:diag)
     if kind == :diag
         Σ = (sxx' - n*μ.*μ) ./ (n-1)
     elseif kind == :full
-        ci = invchol((sxx - n*(μ'*μ)) ./ (n-1))
+        ci = cholinv((sxx - n*(μ'*μ)) / (n-1))
         Σ = typeof(ci)[ci]
     else
         error("Unknown kind")
@@ -79,15 +79,15 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
         end
         Σ = convert(Matrix{Float64},vcat(map(variance, 1:n)...))
     elseif kind == :full
-        function invcholcov(i::Int)
+        function cholinvcov(i::Int)
             sel = km.assignments .== i
             if length(sel) < d
                 return invchol(eye(d))
             else
-                return invchol(cov(xx[sel,:]))
+                return cholinv(cov(xx[sel,:]))
             end
         end
-        Σ = convert(FullCov{Float64},[invcholcov(i) for i=1:n])
+        Σ = convert(FullCov{Float64},[cholinvcov(i) for i=1:n])
     else
         error("Unknown kind")
     end
@@ -243,9 +243,9 @@ function llpgdiag(gmm::GMM, x::Matrix)
     mpx-0.5pxx .- normalization'
 end
 
-## A function we see more often... Λ is in inv(chol(Σ)) form
+## A function we see more often... Λ is in chol(inv(Σ)) form
 ## compute Δ_i = (x_i - μ)' Λ (x_i - μ)
-function xμTΛxμ!{T}(Δ::Matrix{T}, x::Matrix{T}, μ::Matrix{T}, icΣ::Triangular{T})
+function xμTΛxμ!{T}(Δ::Matrix{T}, x::Matrix{T}, μ::Matrix{T}, ciΣ::Triangular{T})
     # broadcast!(-, Δ, x, μ)      # size: nx * d, add ops: nx * d
     (nx, d) = size(x)
     @inbounds for j = 1:d
@@ -254,7 +254,7 @@ function xμTΛxμ!{T}(Δ::Matrix{T}, x::Matrix{T}, μ::Matrix{T}, icΣ::Triangu
             Δ[i,j] = x[i,j] - μj
         end
     end
-    A_mul_B!(Δ, icΣ)            # size: nx * d, mult ops nx*d^2
+    A_mul_Bc!(Δ, ciΣ)             # size: nx * d, mult ops nx*d^2
 end
 
 ## this function returns the contributions of the individual Gaussians to the LL
