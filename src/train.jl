@@ -10,7 +10,7 @@ function GMM{T}(x::DataOrMatrix{T}; kind=:diag)
     if kind == :diag
         Σ = (sxx' - n*μ.*μ) ./ (n-1)
     elseif kind == :full
-        ci = inv(chol((sxx - n*(μ'*μ)) ./ (n-1), :U))
+        ci = cholinv((sxx - n*(μ'*μ)) / (n-1))
         Σ = typeof(ci)[ci]
     else
         error("Unknown kind")
@@ -79,15 +79,15 @@ function GMMk(n::Int, x::DataOrMatrix; kind=:diag, nInit::Int=50, nIter::Int=10,
         end
         Σ = convert(Matrix{Float64},vcat(map(variance, 1:n)...))
     elseif kind == :full
-        function invcholcov(i::Int)
+        function cholinvcov(i::Int)
             sel = km.assignments .== i
             if length(sel) < 2
                 return chol(eye(d), :U)
             else
-                return inv(chol(cov(xx[sel,:]), :U))
+                return cholinv(cov(xx[sel,:]))
             end
         end
-        Σ = convert(FullCov{Float64},[invcholcov(i) for i=1:n])
+        Σ = convert(FullCov{Float64},[cholinvcov(i) for i=1:n])
     else
         error("Unknown kind")
     end
@@ -255,12 +255,12 @@ function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
     elseif gmmkind == :full
         ll = Array(Float64, nx, ng)
         Δ = similar(x)
-        ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
+        ## Σ's now are choleski inverse Σs, so logdet becomes -2sum(log(diag))
         normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[i])))) for i=1:ng]
         for j=1:ng
 #            C = chol(inv(gmm.Σ[j]), :L)
             broadcast!(-, Δ, x, gmm.μ[j,:]) # nx * d
-            CΔ = Δ * gmm.Σ[j]'              # nx * d, nx*d^2 operations
+            CΔ = Δ * gmm.Σ[j]'   # nx * d, nx*d^2 operations
             ll[:,j] = -0.5sumsq(CΔ,2) .- normalization[j]
         end
         return ll
