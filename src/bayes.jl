@@ -46,7 +46,7 @@ function GMM(vg::VGMM)
     μ = vg.m
     Σ = Array(eltype(FullCov{Float64}), vg.n)
     for k=1:length(vg.W)
-        Σ[k] = cholinv(inv(vg.ν[k] * precision(vg.W[k]))) # a bit awkward...
+        Σ[k] = vg.W[k] * √vg.ν[k]
     end
     hist = copy(vg.hist)
     push!(hist, History("Variational GMM converted to GMM"))
@@ -63,13 +63,14 @@ function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
     W = Array(eltype(FullCov{T}), ng) # ng * (d*d)
     d = size(mx,2)
     limit = √ eps(eltype(N))
+    invW0 = inv(π.W0)
     for k=1:ng
         if N[k] > limit
             m[k,:] = (π.β0*π.m0' + N[k]*mx[k,:]) ./ β[k] # 10.61
             Δ = mx[k,:] - π.m0'
             ## do some effort to keep the matrix positive definite
             third = π.β0 * N[k] / (π.β0 + N[k]) * (Δ' * Δ) # guarantee symmety in Δ' Δ
-            W[k] = chol(inv(cholfact(inv(π.W0) + N[k]*S[k] + third)), :U) # 10.62
+            W[k] = chol(inv(cholfact(invW0 + N[k]*S[k] + third)), :U) # 10.62
         else
             m[k,:] = zeros(d)
             W[k] = chol(eye(d), :U)
@@ -210,7 +211,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     Elogpπ = lgamma(ng*α0) - ng*lgamma(α0) - (α0-1)sum(Elogπ) # E[log p(π)] 10.73
     ElogpμΛ = ng*logB(W0,ν0)   # E[log p(μ, Λ)] B.79
     for k in gaussians
-        Δ = m[k,:] - m0'
+        Δ = m[k,:] - m0'        # 1 * d
         Wk = precision(W[k])
         ElogpμΛ += 0.5(d*log(β0/(2π)) + (ν0-d)ElogdetΛ[k] - d*β0/β[k]
                        -β0*ν[k] * dot(Δ*Wk, Δ) - ν[k]*trAB(W0inv, Wk))
