@@ -55,7 +55,7 @@ function diagstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
     sm2p::Matrix{T} = dot(mp, gmm.μ, 2)    # sum over d mean^2*precision, ng * 1
     xx = x .* x                            # nx * d
 ##  γ = broadcast(*, a', exp(x * mp' .- 0.5xx * prec')) # nx * ng, Likelihood per frame per Gaussian
-    γ = x * mp'                            # nx * ng
+    γ = x * mp'                            # nx * ng, nx * d * ng multiplications
     Base.BLAS.gemm!('N', 'T', -one(T)/2, xx, prec, one(T), γ)
     for j = 1:ng
         la = log(a[j]) - 0.5sm2p[j]
