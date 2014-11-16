@@ -272,9 +272,9 @@ function em!(vg::VGMM, x; nIter=50)
             nIter=i
             break
         end
-        addhist!(vg, @sprintf("iteration %d, lowerbound %f", i, last(L)/nx/vg.n))
+        addhist!(vg, @sprintf("iteration %d, lowerbound %f", i, last(L)/nx/vg.d))
     end
-    L ./= nx
+    L ./= nx*vg.d
     addhist!(vg, @sprintf("%d variational Bayes EM-like iterations using %d data points, final lowerbound %f", nIter, nx, last(L)))
     L
 end

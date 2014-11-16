@@ -25,6 +25,7 @@ function prof()
     stats(vgmm, rand(10,vgmm.d), ex)
     v2 = copy(vgmm)
     Profile.clear()
-    @profile em!(v2, x, nIter=1)
+    @profile ll = em!(v2, x, nIter=1)
     Profile.print(format=:flat)
+    ll'
 end
