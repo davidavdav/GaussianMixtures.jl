@@ -27,7 +27,7 @@ kind{T}(g::GMM{T,FullCov{T}}) = :full
 weights(gmm::GMM) = gmm.w
 means(gmm::GMM) = gmm.μ
 covars{T}(gmm::GMM{T,DiagCov{T}}) = gmm.Σ
-covars{T}(gmm::GMM{T,FullCov{T}}) = [covar(ic) for ic in gmm.Σ]
+covars{T}(gmm::GMM{T,FullCov{T}}) = [covar(ci) for ci in gmm.Σ]
 
 function nparams(gmm::GMM)
     gmmkind = kind(gmm)
@@ -100,7 +100,7 @@ function Base.show(io::IO, gmm::GMM)
         if gmmkind == :diag
             println(io, "variance: ", gmm.Σ[j,:])
         elseif gmmkind == :full
-            println(io, "covariance: ", gmm.Σ[j])
+            println(io, "covariance: ", covar(gmm.Σ[j]))
         else
             printf("Unknown kind")
         end
