@@ -18,7 +18,7 @@ end
 
 ## switch between full covariance and inverse cholesky decomposition representations. 
 covar{T}(ci::Triangular{T}) = (c = inv(ci); c * c')
-cholinv{T}(Σ::Matrix{T}) = chol(inv(cholfact(Σ)), :U)
+cholinv{T}(Σ::Matrix{T}) = chol(inv(cholfact(0.5(Σ+Σ'))), :U)
 
 kind{T}(g::GMM{T,DiagCov{T}}) = :diag
 kind{T}(g::GMM{T,FullCov{T}}) = :full

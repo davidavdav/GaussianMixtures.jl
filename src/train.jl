@@ -81,8 +81,8 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
     elseif kind == :full
         function cholinvcov(i::Int)
             sel = km.assignments .== i
-            if length(sel) < d
-                return invchol(eye(d))
+            if sum(sel) < d
+                return cholinv(eye(d))
             else
                 return cholinv(cov(xx[sel,:]))
             end
@@ -199,13 +199,17 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
             tooSmall = any(gmm.Σ .< varfloor, 2)
             if (any(tooSmall))
                 ind = find(tooSmall)
-                println("Variances had to be floored ", join(ind, " "))
+                warn("Variances had to be floored ", join(ind, " "))
                 gmm.Σ[ind,:] = initc[ind,:]
             end
         elseif gmmkind == :full
             for k=1:ng
-                μk = gmm.μ[k,:]
-                gmm.Σ[k] = invchol(S[k] / N[k] - μk' * μk)
+                if N[k] < d
+                    warn(@sprintf("Too low occupancy count %3.1f for Gausian %d", N[k], k))
+                else
+                    μk = gmm.μ[k,:]
+                    gmm.Σ[k] = cholinv(S[k] / N[k] - μk' * μk)
+                end
             end
         else
             error("Unknown kind")
