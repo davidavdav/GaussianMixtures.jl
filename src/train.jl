@@ -229,20 +229,24 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
     ll
 end
 
+## this function returns the contributions of the individual Gaussians to the LL
+## ll_ij = log p(x_i | gauss_j)
 ## This is a fast implementation of llpg for diagonal covariance GMMs
 ## It relies on fast matrix multiplication, and takes up more memory
 ## TODO: do this the way we do in stats(), which is currently more memory-efficient
-function llpgdiag(gmm::GMM, x::Matrix)
+function llpg{GT,T<:FloatingPoint}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T})
+    RT = promote_type(GT,T)
     ## ng = gmm.n
     (nx, d) = size(x)
-    prec = 1./gmm.Σ                     # ng * d
+    prec::Matrix{RT} = 1./gmm.Σ         # ng * d
     mp = gmm.μ .* prec                  # mean*precision, ng * d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
     normalization = 0.5 * (d * log(2π) .+ sum(log(gmm.Σ),2)) # ng * 1
     sm2p = sum(mp .* gmm.μ, 2)   # sum over d mean^2*precision, ng * 1
-    xx = x.^2                    # nx * d
-    pxx = sm2p' .+ xx * prec'    # nx * ng
-    mpx = x * mp'                         # nx * ng
+    ## from here on data-dependent calculations
+    xx = x.^2                           # nx * d
+    pxx = sm2p' .+ xx * prec'           # nx * ng
+    mpx = x * mp'                       # nx * ng
     # L = broadcast(*, a', exp(mpx-0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
     mpx-0.5pxx .- normalization'
 end
@@ -261,29 +265,22 @@ function xμTΛxμ!{T}(Δ::Matrix{T}, x::Matrix{T}, μ::Matrix{T}, ciΣ::Triangu
     A_mul_Bc!(Δ, ciΣ)             # size: nx * d, mult ops nx*d^2
 end
 
-## this function returns the contributions of the individual Gaussians to the LL
-## ll_ij = log p(x_i | gauss_j)
-function llpg{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
+## full covariance version of llpg()
+function llpg{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
+    RT = promote_type(GT,T)
     (nx, d) = size(x)
     ng = gmm.n
     d==gmm.d || error ("Inconsistent size gmm and x")
-    gmmkind = kind(gmm)
-    if gmmkind == :diag
-        return llpgdiag(gmm, x)
-    elseif gmmkind == :full
-        ll = similar(x, nx, ng)
-        Δ = similar(x)
-        ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
-        normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[k])))) for k=1:ng]
-        for k=1:ng
-            ## Δ = (x_i - μ_k)' Λ_κ (x_i - m_k)
-            xμTΛxμ!(Δ, x, gmm.μ[k,:], gmm.Σ[k])
-            ll[:,k] = -0.5sumsq(Δ,2) .- normalization[k]
-        end
-        return ll::Matrix{T}
-    else
-        error("Unknown kind")
+    ll = similar(x, nx, ng)
+    Δ = similar(x)
+    ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
+    normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[k])))) for k=1:ng]
+    for k=1:ng
+        ## Δ = (x_i - μ_k)' Λ_κ (x_i - m_k)
+        xμTΛxμ!(Δ, x, gmm.μ[k,:], gmm.Σ[k])
+        ll[:,k] = -0.5sumsq(Δ,2) .- normalization[k]
     end
+    return ll::Matrix{T}
 end
         
 ## Average log-likelihood per data point and per dimension for a given GMM 
