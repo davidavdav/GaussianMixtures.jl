@@ -16,6 +16,8 @@ function GMM(n::Int, d::Int; kind::Symbol=:diag)
     GMM(w, μ, Σ, hist, 0)
 end
 
+Base.eltype{T}(gmm::GMM{T}) = T
+
 ## switch between full covariance and inverse cholesky decomposition representations. 
 covar{T}(ci::Triangular{T}) = (c = inv(ci); c * c')
 cholinv{T}(Σ::Matrix{T}) = chol(inv(cholfact(0.5(Σ+Σ'))), :U)
@@ -107,8 +109,6 @@ function Base.show(io::IO, gmm::GMM)
     end
 end
 
-Base.eltype{T}(gmm::GMM{T}) = T
-
 ## some conversion routines
 for (f,t) in ((:float16, Float16), (:float32, Float32), (:float64, Float64))
     eval(Expr(:import, :Base, f))
@@ -121,7 +121,7 @@ for (f,t) in ((:float16, Float16), (:float32, Float32), (:float64, Float64))
         μ = ($f)(gmm.μ)
         gmmkind = kind(gmm)
         if gmmkind == :full
-            Σ = Matrix{$t}[($f)(x) for x in gmm.Σ]
+            Σ = eltype(FullCov{$t})[($f)(x) for x in gmm.Σ]
         elseif gmmkind == :diag
             Σ = ($f)(gmm.Σ)
         else

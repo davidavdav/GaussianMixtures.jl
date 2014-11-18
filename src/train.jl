@@ -253,7 +253,8 @@ end
 
 ## A function we see more often... Λ is in chol(inv(Σ)) form
 ## compute Δ_i = (x_i - μ)' Λ (x_i - μ)
-function xμTΛxμ!{T}(Δ::Matrix{T}, x::Matrix{T}, μ::Matrix{T}, ciΣ::Triangular{T})
+## Note: the return type of Δ should be the promote_type of x and μ/ciΣ
+function xμTΛxμ!(Δ::Matrix, x::Matrix, μ::Matrix, ciΣ::Triangular)
     # broadcast!(-, Δ, x, μ)      # size: nx * d, add ops: nx * d
     (nx, d) = size(x)
     @inbounds for j = 1:d
@@ -271,8 +272,8 @@ function llpg{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
     (nx, d) = size(x)
     ng = gmm.n
     d==gmm.d || error ("Inconsistent size gmm and x")
-    ll = similar(x, nx, ng)
-    Δ = similar(x)
+    ll = Array(RT, nx, ng)
+    Δ = Array(RT, nx, d)
     ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
     normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[k])))) for k=1:ng]
     for k=1:ng
@@ -280,7 +281,7 @@ function llpg{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
         xμTΛxμ!(Δ, x, gmm.μ[k,:], gmm.Σ[k])
         ll[:,k] = -0.5sumsq(Δ,2) .- normalization[k]
     end
-    return ll::Matrix{T}
+    return ll::Matrix{RT}
 end
         
 ## Average log-likelihood per data point and per dimension for a given GMM 
