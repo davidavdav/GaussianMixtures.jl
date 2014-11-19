@@ -62,6 +62,34 @@ end
 GMM{T<:FloatingPoint}(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{T}), 
                       hist::Vector, nx::Int) = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
 
+## Variational Bayes GMM types.
+
+## Please note our pedantic use of the Greek letter ν (nu), don't confuse this with Latin v!
+type GMMprior{T<:FloatingPoint}
+    α0::T                       # effective prior number of observations
+    β0::T
+    m0::Vector{T}               # prior on μ
+    ν0::T                       # scale precision
+    W0::Matrix{T}               # prior precision
+end
+
+## In Variational Bayes, the GMM is not specified by point estimates of the paramters,
+## but distributions over these parameters.
+## These are Dirichlet for the weights and Gaussian-Wishart for the mean and precision.
+## These distributions have parameters themselves, and these are stored in this type...
+type VGMM{T<:FloatingPoint} <: GaussianMixture{T}
+    n::Int                      # number of Gaussians
+    d::Int                      # dimension of Gaussian
+    π::GMMprior{T}              # The prior used in this VGMM
+    α::Vector{T}                # Dirichlet, n
+    β::Vector{T}                # scale of precision, n
+    m::Matrix{T}                # means of means, n * d
+    ν::Vector{T}                # no. degrees of freedom, n
+    W::FullCov{T}               # scale matrix for precision? n * d * d
+    hist::Vector{History}       # history
+end
+
+
 ## UBM-centered and scaled stats.
 ## This structure currently is useful for dotscoring, so we've limited the
 ## order to 1.  Maybe we can make this more general allowing for uninitialized second order

@@ -13,12 +13,12 @@ function GMMprior{T<:FloatingPoint}(d::Int, alpha::T, beta::T)
     m0 = zeros(T, d)
     W0 = eye(T, d)
     ν0 = convert(T,d)
-    GMMprior(alpha, beta, m0, W0, ν0)
+    GMMprior(alpha, beta, m0, ν0, W0)
 end
-Base.copy(p::GMMprior) = GMMprior(p.α0, p.β0, copy(p.m0), copy(p.W0), p.ν0)
+Base.copy(p::GMMprior) = GMMprior(p.α0, p.β0, copy(p.m0), p.ν0, copy(p.W0))
 
 ## initialize from a GMM and nx, the number of points used to train the GMM.
-function VGMM(g::GMM, π::GMMprior)
+function VGMM{T}(g::GMM{T}, π::GMMprior{T})
     nx = g.nx
     N = g.w * nx
     mx = g.μ
@@ -44,7 +44,7 @@ Base.logdet(c::Triangular) = 2sum(log(diag(c)))
 function GMM(vg::VGMM)
     w = vg.α / sum(vg.α)
     μ = vg.m
-    Σ = Array(eltype(FullCov{Float64}), vg.n)
+    Σ = similar(vg.W)
     for k=1:length(vg.W)
         Σ[k] = vg.W[k] * √vg.ν[k]
     end
@@ -144,7 +144,7 @@ function stats{T}(vg::VGMM, x::Matrix{T}, ex::Tuple)
     ng = vg.n
     (nx, d) = size(x)
     if nx == 0
-        return 0, zero(T), zeros(T, ng), zeros(T, ng, d), [zeros(T, d,d) for k=1:ng]
+        return 0, zero(RT), zeros(RT, ng), zeros(RT, ng, d), [zeros(RT, d,d) for k=1:ng]
     end
     r, ElogpZπqZ = rnk(vg, x, ex) # nx * ng
     N = vec(sum(r, 1))          # ng
@@ -177,10 +177,11 @@ function stats{T}(vg::VGMM, xx::Vector{Matrix{T}}, ex::Tuple)
 end
 
 ## trace(A*B) = sum(A' .* B)
-function trAB{T}(A::Matrix{T}, B::Matrix{T})
+function trAB{T1,T2}(A::Matrix{T1}, B::Matrix{T2})
+    RT = promote_type(T1,T2)
     nr, nc = size(A)
     size(B) == (nc, nr) || error("Inconsistent matrix size")
-    s=zero(T)
+    s=zero(RT)
     for i=1:nr for j=1:nc
         @inbounds s += A[i,j] * B[j,i]
     end end

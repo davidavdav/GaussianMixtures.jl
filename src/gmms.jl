@@ -109,24 +109,38 @@ function Base.show{T}(io::IO, gmm::GMM{T})
     end
 end
 
-## some conversion routines
+## some routines for conversion between float types
 for (f,t) in ((:float16, Float16), (:float32, Float32), (:float64, Float64))
     eval(Expr(:import, :Base, f))
-    @eval function ($f)(gmm::GMM)
-        if eltype(gmm) == $t
-            return gmm
+    @eval begin
+        function Base.convert{T}(::Type{GMM{$t}}, gmm::GMM{T})
+            T == $t && return gmm
+            h = vcat(gmm.hist, History(string("Converted to ", $t)))
+            w = ($f)(gmm.w)
+            μ = ($f)(gmm.μ)
+            gmmkind = kind(gmm)
+            if gmmkind == :full
+                Σ = eltype(FullCov{$t})[($f)(x) for x in gmm.Σ]
+            elseif gmmkind == :diag
+                Σ = ($f)(gmm.Σ)
+            else
+                error("Unknown kind")
+            end
+            GMM(w, μ, Σ, h, gmm.nx)
         end
-        h = vcat(gmm.hist, History(string("Converted to ", $t)))
-        w = ($f)(gmm.w)
-        μ = ($f)(gmm.μ)
-        gmmkind = kind(gmm)
-        if gmmkind == :full
-            Σ = eltype(FullCov{$t})[($f)(x) for x in gmm.Σ]
-        elseif gmmkind == :diag
-            Σ = ($f)(gmm.Σ)
-        else
-            error("Unknown kind")
+        function Base.convert{T}(::Type{VGMM{$t}}, vg::VGMM{T})
+            T == $t && return vg
+            h = vcat(vg.hist, History(string("Converted to ", $t)))
+            W = map($f, vg.W)
+            VGMM(vg.n, vg.d, ($f)(vg.π), ($f)(vg.α), ($f)(vg.β), ($f)(vg.m),
+                 ($f)(vg.ν), W, h)
         end
-        GMM(w, μ, Σ, h, gmm.nx)
+        function Base.convert{T}(::Type{GMMprior{$t}}, p::GMMprior{T})
+            T == $t && return p
+            GMMprior(($f)(p.α0), ($f)(p.β0), ($f)(p.m0), ($f)(p.ν0), ($f)(p.W0))
+        end
+    end
+    for T in (GMM, VGMM, GMMprior)
+        @eval ($f)(x::$T) = convert($T{$t}, x)
     end
 end
