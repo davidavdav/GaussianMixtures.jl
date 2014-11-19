@@ -16,7 +16,7 @@ for (gmmkind, Ng) in zip((:diag, :full), (256, 16))
     println("avll from llpg:  ", sum(log(exp(ll) * gmm.w)) / length(x))
     av = avll(gmm, x)
     println("avll direct:     ", av)
-    p = posterior(gmm, x)
+    p, ll = posterior(gmm, x)
     println("sum posterior: ", sum(p))
 end
     
