@@ -36,7 +36,7 @@ function GMM{T}(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
     end
 end
 ## a 1-dimensional Gaussian can be initialized with a vector, skip kind=
-GMM{T<:FloatingPoint}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sprarse=0) = GMM(n, x'', method;  kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
+GMM{T<:FloatingPoint}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sprarse=0) = GMM(n, x''; method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
 function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0)
