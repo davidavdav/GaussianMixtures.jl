@@ -93,8 +93,8 @@ function history(gmm::GaussianMixture)
 end
 
 ## we could improve this a lot
-function Base.show(io::IO, gmm::GMM) 
-    println(io, @sprintf "GMM with %d components in %d dimensions and %s covariance" gmm.n gmm.d kind(gmm))
+function Base.show{T}(io::IO, gmm::GMM{T})
+    println(io, @sprintf("GMM{%s} with %d components in %d dimensions and %s covariance", T, gmm.n, gmm.d, kind(gmm)))
     gmmkind = kind(gmm)
     for j=1:gmm.n
         println(io, @sprintf "Mix %d: weight %f" j gmm.w[j]);

@@ -86,7 +86,7 @@ type Cstats{T<:FloatingPoint, CT<:Union(Matrix,Vector)}
     N::Vector{T}
     F::Matrix{T}
     S::CT
-    function Cstats(n::Vector{T}, f::Matrix{T}, s::Union(DiagCov{T},FullCov{T}))
+    function Cstats(n::Vector{T}, f::Matrix{T}, s::Union(Matrix{T},Vector{Matrix{T}}))
         size(n,1) == size(f,1) || error("Inconsistent size 0th and 1st order stats")
         if size(n) == size(s)   # full covariance stats
             all([size(f,2) == size(ss,1) == size(ss,2) for ss in s]) || error("inconsistent size 2st and 2nd order stats")           
@@ -96,7 +96,7 @@ type Cstats{T<:FloatingPoint, CT<:Union(Matrix,Vector)}
         new(n, f, s)
     end
 end
-Cstats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}, s::Union(DiagCov{T}, FullCov{T})) = Cstats{T,typeof(s)}(n, f, s)
+Cstats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}, s::Union(Matrix{T}, Vector{Matrix{T}})) = Cstats{T,typeof(s)}(n, f, s)
 Cstats(t::Tuple) = Cstats(t...)
 
 ## A data handle, either in memory or on disk, perhaps even mmapped but I haven't seen any 

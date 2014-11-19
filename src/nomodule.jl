@@ -9,6 +9,7 @@ using MAT
 require("gmmtypes.jl")
 require("bayestypes.jl")
 
+include("compat.jl")
 include("gmms.jl")
 include("train.jl")
 include("io.jl")

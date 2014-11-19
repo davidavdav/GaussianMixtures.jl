@@ -3,7 +3,7 @@
 
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-function GMM{T}(x::DataOrMatrix{T}; kind=:diag)
+function GMM{T<:FloatingPoint}(x::DataOrMatrix{T}; kind=:diag)
     n, sx, sxx = stats(x, kind=kind)
     μ = sx' ./ n                        # make this a row vector
     d = length(μ)
@@ -20,10 +20,10 @@ function GMM{T}(x::DataOrMatrix{T}; kind=:diag)
     GMM(ones(T,1), μ, Σ, [hist], n)
 end
 ## Also allow a Vector, :full makes no sense
-GMM{T<:Real}(x::Vector{T}) = GMM(x'')
+GMM{T<:FloatingPoint}(x::Vector{T}) = GMM(x'')
 
 ## constructors based on data or matrix
-function GMM(n::Int, x::DataOrMatrix; method::Symbol=:kmeans, kind=:diag, 
+function GMM{T}(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
              nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0)
     if n<2
         GMM(x, kind=kind)
@@ -65,8 +65,8 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
             xx = vcat(yy...)
         end
     end
-    km = kmeans(float64(xx'), n, maxiter=nInit, display = :iter)
-    μ = km.centers'
+    km = kmeans(xx', n, maxiter=nInit, display = :iter)
+    μ::Matrix{T} = km.centers'
     if kind == :diag
         ## helper that deals with centers with singleton datapoints.
         function variance(i::Int)
@@ -77,7 +77,7 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
                 return var(xx[sel,:],1)                
             end
         end
-        Σ = convert(Matrix{Float64},vcat(map(variance, 1:n)...))
+        Σ = convert(Matrix{T},vcat(map(variance, 1:n)...))
     elseif kind == :full
         function cholinvcov(i::Int)
             sel = km.assignments .== i
@@ -87,11 +87,11 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
                 return cholinv(cov(xx[sel,:]))
             end
         end
-        Σ = convert(FullCov{Float64},[cholinvcov(i) for i=1:n])
+        Σ = convert(FullCov{T},[cholinvcov(i) for i=1:n])
     else
         error("Unknown kind")
     end
-    w = km.counts ./ sum(km.counts)
+    w::Vector{T} = km.counts ./ sum(km.counts)
     nxx = size(xx,1)
     ng = length(w)
     push!(hist, History(string("K-means with ", nxx, " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",nxx/((d+1)ng)))))
@@ -127,21 +127,24 @@ end
 
 import Base.split
 ## split a mean according to the covariance matrix
-function split(μ::Vector, Σ::Matrix, sep::Float64=0.2)
+function split{T}(μ::Vector{T}, Σ::Matrix{T}, sep=0.2)
+    tsep::T = sep
     d, v = eigs(Σ, nev=1)
-    p1 = sep * d[1] * v[:,1]                         # first principal component
+    p1 = tsep * d[1] * v[:,1]                         # first principal component
     μ - p1, μ + p1
 end
 
-function split(μ::Vector, Σ::Vector, sep::Float64=0.2)
+function split{T}(μ::Vector{T}, Σ::Vector{T}, sep=0.2)
+    tsep::T = sep
     maxi = indmax(Σ)
     p1 = zeros(length(μ))
-    p1[maxi] = sep * Σ[maxi]
+    p1[maxi] = tsep * Σ[maxi]
     μ - p1, μ + p1
 end
     
 ## Split a gmm in order to to double the amount of gaussians
-function split(gmm::GMM; minweight::Float64=1e-5, sep::Float64=0.2)
+function split{T}(gmm::GMM{T}; minweight=1e-5, sep=0.2)
+    tsep::T = sep
     ## In this function i, j, and k all index Gaussians
     maxi = reverse(sortperm(gmm.w))
     offInd = find(gmm.w .< minweight)
@@ -150,30 +153,38 @@ function split(gmm::GMM; minweight::Float64=1e-5, sep::Float64=0.2)
     end
     for i=1:length(offInd) 
         gmm.w[maxi[i]] = gmm.w[offInd[i]] = gmm.w[maxi[i]]/2;
-        gmm.μ[offInd[i],:] = gmm.μ[maxi[i],:] + sep*sqrt((gmm.Σ[maxi[i],:]))
-        gmm.μ[maxi[i],:] = gmm.μ[maxi[i],:] - sep*sqrt((gmm.Σ[maxi[i],:]))
+        gmm.μ[offInd[i],:] = gmm.μ[maxi[i],:] + tsep * √gmm.Σ[maxi[i],:]
+        gmm.μ[maxi[i],:] = gmm.μ[maxi[i],:] - tsep * √gmm.Σ[maxi[i],:]
     end
     gmmkind = kind(gmm)
-    new = GMM(2gmm.n, gmm.d, kind=gmmkind)
-    for oi=1:gmm.n
+    n = gmm.n
+    d = gmm.d
+    w = similar(gmm.w, 2n)
+    μ = similar(gmm.μ, 2n, d)
+    if gmmkind == :diag
+        Σ = similar(gmm.Σ, 2n, d)
+    else
+        Σ = similar(gmm.Σ, 2n)
+    end
+    for oi=1:n
         ni = 2oi-1 : 2oi
-        new.w[ni] = gmm.w[oi]/2
+        w[ni] = gmm.w[oi]/2
         if gmmkind == :diag
-            new.μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), vec(gmm.Σ[oi,:]), sep)...)'
+            μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), vec(gmm.Σ[oi,:]), tsep)...)'
             for k=ni
-                new.Σ[k,:] = gmm.Σ[oi,:]
+                Σ[k,:] = gmm.Σ[oi,:]    # implicity copy
             end
         elseif gmmkind == :full
-            new.μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), gmm.Σ[oi], sep)...)'
+            μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), covar(gmm.Σ[oi]), tsep)...)'
             for k=ni
-                new.Σ[k] = gmm.Σ[oi]
+                Σ[k] = copy(gmm.Σ[oi])
             end
         else
             error("Unknown kind")
         end
     end
-    new.hist = vcat(gmm.hist, History(@sprintf("split to %d Gaussians",new.n)))
-    new
+    hist = vcat(gmm.hist, History(@sprintf("split to %d Gaussians", 2n)))
+    GMM(w, μ, Σ, hist, gmm.nx)
 end
 
 # This function runs the Expectation Maximization algorithm on the GMM, and returns
@@ -300,7 +311,8 @@ import Distributions.posterior
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
 ## TODO: This is a slow and memory-intensive implementation.  It is better to 
 ## use the approaches used in stats()
-function posterior{T<:FloatingPoint}(gmm, x::Matrix{T})      # nx * ng
+function posterior{GT,T<:FloatingPoint}(gmm::GMM{GT}, x::Matrix{T})      # nx * ng
+    RT = promote_type(GT,T)
     (nx, d) = size(x)
     ng = gmm.n
     d==gmm.d || error("Inconsistent size gmm and x")
@@ -308,6 +320,6 @@ function posterior{T<:FloatingPoint}(gmm, x::Matrix{T})      # nx * ng
     logp = ll .+ log(gmm.w')
     logsump = logsumexp(logp, 2)
     broadcast!(-, logp, logp, logsump)
-    exp(logp)::Matrix{T}, ll::Matrix{T}
+    exp(logp)::Matrix{RT}, ll::Matrix{RT}
 end
 

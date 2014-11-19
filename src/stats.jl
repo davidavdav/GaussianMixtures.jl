@@ -7,15 +7,7 @@ function setmem(m::Float64)
     global mem=m
 end
 
-## This function is admittedly hairy: in Octave this is much more
-## efficient than a straightforward calculation.  I don't know if this
-## holds for Julia.  We'd have to re-implement using loops and less
-## memory.  I've done this now in several ways, it seems that the
-## matrix implementation is always much faster.
- 
-## The shifting in dimensions (for Gaussian index k) is a nightmare.  
-
-## stats(gmm, x) computes zero, first, and second order statistics of
+## stats(gmm, x, order) computes zero, first, ... upto order (<=2) statistics of
 ## a feature file aligned to the gmm.  The statistics are ordered (ng
 ## * d), as by the general rule for dimension order in types.jl.
 ## Note: these are _uncentered_ statistics.
@@ -23,20 +15,16 @@ end
 ## you can dispatch this routine by specifying 3 parameters, 
 ## i.e., an unnamed explicit parameter order
 
-function stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
-    gmm.d == size(x,2) || error("dimension mismatch for data")
-    gmmkind = kind(gmm)
-    if gmmkind == :diag
-        diagstats(gmm, x, order)
-    elseif gmmkind == :full
-        fullstats(gmm, x, order)
-    else
-        error("Unknown kind")
-    end
-end
-
 ## For reasons of accumulation, this function returns a tuple
-## (nx, loglh, N, F [S]) which should be easy to accumulate
+## (nx, loglh, N, F [S]).
+
+## This function is admittedly hairy: in Octave this is much more
+## efficient than a straightforward calculation.  I don't know if this
+## holds for Julia.  We'd have to re-implement using loops and less
+## memory.  I've done this now in several ways, it seems that the
+## matrix implementation is always much faster.
+
+## The shifting in dimensions (for Gaussian index k) is a nightmare.
 
 ## The memory footprint is sizeof(T) * ((2d + 2) ng + (d + ng + 1) nx, and
 ## results take an additional (2d +1) ng
@@ -45,18 +33,22 @@ end
 ## Currently, I don't use a logsumexp implementation because of speed considerations, 
 ## this might turn out numerically less stable for Float32
 
-function diagstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
-    ng = gmm.n
+## diagonal covariance
+function stats{GT,T<:FloatingPoint}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T}, order::Int)
+    RT = promote_type(GT,T)
     (nx, d) = size(x)
-    prec::Matrix{T} = 1./gmm.Σ             # ng * d
-    mp::Matrix{T} = gmm.μ .* prec          # mean*precision, ng * d
+    ng = gmm.n
+    gmm.d == d || error("dimension mismatch for data")
+    0 <= order <= 2 || error("order out of range")
+    prec::Matrix{RT} = 1./gmm.Σ             # ng * d
+    mp::Matrix{RT} = gmm.μ .* prec          # mean*precision, ng * d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    a::Matrix{T} = gmm.w ./ (((2π)^(d/2)) * sqrt(prod(gmm.Σ,2))) # ng * 1
-    sm2p::Matrix{T} = dot(mp, gmm.μ, 2)    # sum over d mean^2*precision, ng * 1
+    a::Matrix{RT} = gmm.w ./ (((2π)^(d/2)) * √ prod(gmm.Σ,2)) # ng * 1
+    sm2p::Matrix{RT} = dot(mp, gmm.μ, 2)    # sum over d mean^2*precision, ng * 1
     xx = x .* x                            # nx * d
 ##  γ = broadcast(*, a', exp(x * mp' .- 0.5xx * prec')) # nx * ng, Likelihood per frame per Gaussian
     γ = x * mp'                            # nx * ng, nx * d * ng multiplications
-    Base.BLAS.gemm!('N', 'T', -one(T)/2, xx, prec, one(T), γ)
+    Base.BLAS.gemm!('N', 'T', -one(RT)/2, xx, prec, one(RT), γ)
     for j = 1:ng
         la = log(a[j]) - 0.5sm2p[j]
         for i = 1:nx
@@ -80,10 +72,14 @@ function diagstats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, order::Int)
     end
 end
 
+## Full covariance
 ## this is a `slow' implementation, based on posterior()
-function fullstats{T<:FloatingPoint}(gmm::GMM, x::Array{T,2}, order::Int)
+function stats{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Array{T,2}, order::Int)
+    RT = promote_type(GT,T)
     (nx, d) = size(x)
     ng = gmm.n
+    gmm.d == d || error("dimension mismatch for data")
+    0 <= order <= 2 || error("order out of range")
     γ, ll = posterior(gmm, x) # nx * ng, both
     llh = sum(logsumexp(ll .+ log(gmm.w)', 2))
     ## zeroth order
@@ -94,8 +90,8 @@ function fullstats{T<:FloatingPoint}(gmm::GMM, x::Array{T,2}, order::Int)
         return nx, llh, N, F
     end
     ## S_k = Σ_i γ _ik x_i' * x
-    S = Matrix{T}[]
-    γx = similar(x)
+    S = Matrix{RT}[]
+    γx = Array(RT, nx, d)
     @inbounds for k=1:ng
         #broadcast!(*, γx, γ[:,k], x) # nx * d mults
         for j = 1:d for i=1:nx
@@ -185,7 +181,7 @@ end
 
 ## You can also get centered+scaled stats in a Cstats structure directly by 
 ## using the constructor with a GMM argument
-CSstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}) = CSstats(csstats(gmm, x, 1))
+CSstats(gmm::GMM, x::DataOrMatrix) = CSstats(csstats(gmm, x, 1))
 
 ## centered stats, but not scaled by UBM covariance
 ## check full covariance...
@@ -209,5 +205,5 @@ function cstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, parallel=false)
     return N, F, S
 end
 
-Cstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, parallel=false) = Cstats(cstats(gmm, x, parallel))
+Cstats(gmm::GMM, x::DataOrMatrix, parallel=false) = Cstats(cstats(gmm, x, parallel))
     

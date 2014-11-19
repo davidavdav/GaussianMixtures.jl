@@ -15,6 +15,7 @@ using MAT
 include("gmmtypes.jl")
 include("bayestypes.jl")
 
+include("compat.jl")
 include("gmms.jl")
 include("train.jl")
 include("bayes.jl")
