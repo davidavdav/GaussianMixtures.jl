@@ -1,7 +1,8 @@
 ccall(:jl_zero_subnormals, Bool, (Bool,), true)
 
 using NumericExtensions
-using Distributions, PDMats
+using Distributions
+using PDMats
 using Clustering
 using HDF5, JLD
 using MAT
@@ -9,7 +10,6 @@ using MAT
 require("gmmtypes.jl")
 require("bayestypes.jl")
 
-include("compat.jl")
 include("gmms.jl")
 include("train.jl")
 include("io.jl")
