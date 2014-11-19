@@ -162,18 +162,17 @@ function stats{T}(vg::VGMM, x::Matrix{T}, ex::Tuple)
     return nx, ElogpZπqZ, N, F, S
 end
 
-## accumulate stats, xx should not be empty
-function stats{T}(vg::VGMM, xx::Vector{Matrix{T}}, ex::Tuple)
-    if length(xx) == 0
-        ng, d = vg.n, vg.d
-        return 0, zero(T), zeros(T, ng), zeros(T, ng, d), [zeros(T, d,d) for k=1:ng]
+function stats(vg::VGMM, d::Data, ex::Tuple; parallel=false)
+    if parallel
+        r = dmap(x->stats(vg, x, ex), d)
+        return reduce(+, r)
+    else
+        r = stats(vg, d[1], ex)
+        for i=2:length(d)
+            r += stats(vg, d[i], ex)
+        end
+        return r
     end
-    x = (xx)[1]
-    s = stats(vg, x, ex)
-    for x in xx[2:end]
-        s += stats(vg, x, ex)
-    end
-    return s
 end
 
 ## trace(A*B) = sum(A' .* B)
@@ -234,7 +233,7 @@ rmdisfunct(m::Matrix, keep) = m[keep,:]
 
 ## do exactly one update step for the VGMM, and return an estimate for the lower bound
 ## of the log marginal probability p(x)
-function emstep!{T}(vg::VGMM, x::Vector{Matrix{T}})
+function emstep!(vg::VGMM, x::DataOrMatrix)
     ## E-like step
     Elogπ, ElogdetΛ = expectations(vg)
     ## N, mx, S, r = threestats(vg, x, (Elogπ, ElogdetΛ))
@@ -259,8 +258,6 @@ function emstep!{T}(vg::VGMM, x::Vector{Matrix{T}})
     vg.α, vg.β, vg.m, vg.ν, vg.W = mstep(vg.π, N, mx, S)
     L, nx
 end
-emstep!{T}(vg::VGMM, x::Matrix{T}) = emstep!(vg, Matrix{T}[x])
-
 
 ## This is called em!, but it is not really expectation maximization I think
 function em!(vg::VGMM, x; nIter=50)
