@@ -11,7 +11,6 @@ using Distributions
 using PDMats
 using Clustering
 using HDF5, JLD
-using MAT
 
 include("gmmtypes.jl")
 include("bayestypes.jl")

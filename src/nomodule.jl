@@ -5,7 +5,6 @@ using Distributions
 using PDMats
 using Clustering
 using HDF5, JLD
-using MAT
 
 require("gmmtypes.jl")
 require("bayestypes.jl")

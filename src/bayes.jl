@@ -37,7 +37,8 @@ Base.copy(vg::VGMM) = VGMM(vg.n, vg.d, copy(vg.π), copy(vg.α), copy(vg.β),
 
 ## W[k] really is chol(W_k, :U), use precision() to get it back
 precision(c::Triangular) = c' * c
-Base.logdet(c::Triangular) = 2sum(log(diag(c)))
+mylogdet(c::Triangular) = 2sum(log(diag(c)))
+mylogdet(m::Matrix) = logdet(m)
 
 ## sharpen VGMM to a GMM
 ## This currently breaks because my expected Λ are not positive definite
@@ -85,7 +86,7 @@ function expectations(vg::VGMM)
     Elogπ = digamma(vg.α) .- digamma(sum(vg.α)) # 10.66, size ng
     ElogdetΛ = similar(Elogπ) # size ng
     for k=1:ng
-        ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 - [1:d]))) + d*log(2) + logdet(vg.W[k]) # 10.65
+        ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 - [1:d]))) + d*log(2) + mylogdet(vg.W[k]) # 10.65
     end
     return Elogπ, ElogdetΛ
 end
@@ -198,7 +199,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     α, β, m, ν, W = vg.α, vg.β, vg.m, vg.ν, vg.W # VGMM vars
     gaussians = 1:ng
     ## B.79
-    logB(W,ν) = -0.5ν*(logdet(W) + d*log(2)) - d*(d-1)/4*log(π) - sum(lgamma(0.5(ν+1-[1:d])))
+    logB(W,ν) = -0.5ν*(mylogdet(W) + d*log(2)) - d*(d-1)/4*log(π) - sum(lgamma(0.5(ν+1-[1:d])))
     ## E[log p(x|Ζ,μ,Λ)] 10.71
     Elogll = 0.
     for k in gaussians
