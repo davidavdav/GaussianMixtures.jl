@@ -73,15 +73,15 @@ Base.done(x::Data, state::Int) = state == length(x)
 ## worker, so that file caching at the local machine is beneficial
 function dmap(f::Function, x::Data)
     if kind(x) == :file
-        nx = length(x)
+        nₓ = length(x)
         w = workers()
         nw = length(w)
         worker(i) = w[1 .+ ((i-1) % nw)]
-        results = cell(nx)
+        results = cell(nₓ)
         getnext(i) = x.list[i]
         load = x.API[:load]
         @sync begin
-            for i = 1:nx
+            for i = 1:nₓ
                 @async begin
                     next = getnext(i)
                     results[i] = remotecall_fetch(worker(i), s->f(load(s)), next)

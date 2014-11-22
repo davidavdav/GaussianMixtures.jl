@@ -7,7 +7,7 @@ function setmem(m::Float64)
     global mem=m
 end
 
-## stats(gmm, x, order) computes zero, first, ... upto order (<=2) statistics of
+## stats(gmm, x, order) computes zero, first, ... upto order (≤2) statistics of
 ## a feature file aligned to the gmm.  The statistics are ordered (ng
 ## * d), as by the general rule for dimension order in types.jl.
 ## Note: these are _uncentered_ statistics.
@@ -36,39 +36,39 @@ end
 ## diagonal covariance
 function stats{GT,T<:FloatingPoint}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T}, order::Int)
     RT = promote_type(GT,T)
-    (nx, d) = size(x)
+    (nₓ, d) = size(x)
     ng = gmm.n
     gmm.d == d || error("dimension mismatch for data")
-    0 <= order <= 2 || error("order out of range")
-    prec::Matrix{RT} = 1./gmm.Σ             # ng * d
-    mp::Matrix{RT} = gmm.μ .* prec          # mean*precision, ng * d
+    1 ≤ order ≤ 2 || error("order out of range")
+    prec::Matrix{RT} = 1./gmm.Σ             # ng × d
+    mp::Matrix{RT} = gmm.μ .* prec          # mean*precision, ng × d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    a::Matrix{RT} = gmm.w ./ (((2π)^(d/2)) * √ prod(gmm.Σ,2)) # ng * 1
-    sm2p::Matrix{RT} = dot(mp, gmm.μ, 2)    # sum over d mean^2*precision, ng * 1
-    xx = x .* x                            # nx * d
-##  γ = broadcast(*, a', exp(x * mp' .- 0.5xx * prec')) # nx * ng, Likelihood per frame per Gaussian
-    γ = x * mp'                            # nx * ng, nx * d * ng multiplications
+    a::Matrix{RT} = gmm.w ./ ((2π)^(d/2) * √ prod(gmm.Σ,2)) # ng × 1
+    sm2p::Matrix{RT} = dot(mp, gmm.μ, 2)    # sum over d mean^2*precision, ng × 1
+    xx = x .* x                            # nₓ × d
+##  γ = broadcast(*, a', exp(x * mp' .- 0.5xx * prec')) # nₓ × ng, Likelihood per frame per Gaussian
+    γ = x * mp'                            # nₓ × ng, nₓ * d * ng multiplications
     Base.BLAS.gemm!('N', 'T', -one(RT)/2, xx, prec, one(RT), γ)
     for j = 1:ng
         la = log(a[j]) - 0.5sm2p[j]
-        for i = 1:nx
+        for i = 1:nₓ
             @inbounds γ[i,j] += la
         end
     end
     for i = 1:length(γ) @inbounds γ[i] = exp(γ[i]) end
-    lpf=sum(γ,2)                           # nx * 1, Likelihood per frame
-    broadcast!(/, γ, γ, lpf .+ (lpf .== 0)) # nx * ng, posterior per frame per gaussian
+    lpf=sum(γ,2)                           # nₓ × 1, Likelihood per frame
+    broadcast!(/, γ, γ, lpf .+ (lpf .== 0)) # nₓ × ng, posterior per frame per gaussian
     ## zeroth order
-    N = vec(sum(γ, 1))          # ng * 1, vec()
+    N = vec(sum(γ, 1))          # ng, vec()
     ## first order
-    F =  γ' * x                           # ng * d, Julia has efficient a' * b
+    F =  γ' * x                           # ng × d, Julia has efficient a' * b
     llh = sum(log(lpf))                   # total log likeliood
     if order==1
-        return (nx, llh, N, F)
+        return (nₓ, llh, N, F)
     else
         ## second order
-        S = γ' * xx                       # ng * d
-        return (nx, llh, N, F, S)
+        S = γ' * xx                       # ng × d
+        return (nₓ, llh, N, F, S)
     end
 end
 
@@ -76,30 +76,30 @@ end
 ## this is a `slow' implementation, based on posterior()
 function stats{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Array{T,2}, order::Int)
     RT = promote_type(GT,T)
-    (nx, d) = size(x)
+    (nₓ, d) = size(x)
     ng = gmm.n
     gmm.d == d || error("dimension mismatch for data")
-    0 <= order <= 2 || error("order out of range")
-    γ, ll = posterior(gmm, x) # nx * ng, both
+    1 ≤ order ≤ 2 || error("order out of range")
+    γ, ll = posterior(gmm, x) # nₓ × ng, both
     llh = sum(logsumexp(ll .+ log(gmm.w)', 2))
     ## zeroth order
     N = vec(sum(γ, 1))
     ## first order
     F = γ' * x
     if order == 1
-        return nx, llh, N, F
+        return nₓ, llh, N, F
     end
     ## S_k = Σ_i γ _ik x_i' * x
     S = Matrix{RT}[]
-    γx = Array(RT, nx, d)
+    γx = Array(RT, nₓ, d)
     @inbounds for k=1:ng
-        #broadcast!(*, γx, γ[:,k], x) # nx * d mults
-        for j = 1:d for i=1:nx
+        #broadcast!(*, γx, γ[:,k], x) # nₓ × d mults
+        for j = 1:d for i=1:nₓ
             γx[i,j] = γ[i,k]*x[i,j]
         end end
-        push!(S, x' * γx)            # nx * d^2 mults
+        push!(S, x' * γx)            # nₓ * d^2 mults
     end
-    return nx, llh, N, F, S
+    return nₓ, llh, N, F, S
 end
     
                    
@@ -120,17 +120,17 @@ end
 function stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
     parallel &= nworkers() > 1
     ng = gmm.n
-    (nx, d) = size(x)
+    (nₓ, d) = size(x)
     if kind(gmm) == :diag
-        bytes = sizeof(T) * ((2d +2)ng + (d + ng + 1)nx)
+        bytes = sizeof(T) * ((2d +2)ng + (d + ng + 1)nₓ)
     elseif kind(gmm) == :full
-        bytes = sizeof(T) * ((d + d^2 + 5nx + nx*d)ng + (2d + 2)nx)
+        bytes = sizeof(T) * ((d + d^2 + 5nₓ + nₓ*d)ng + (2d + 2)nₓ)
     end
     blocks = iceil(bytes / (mem * (1<<30)))
     if parallel
-        blocks= min(nx, max(blocks, nworkers()))
+        blocks= min(nₓ, max(blocks, nworkers()))
     end
-    l = nx / blocks     # chop array into smaller pieces xx
+    l = nₓ / blocks     # chop array into smaller pieces xx
     xx = Matrix{T}[x[round(i*l+1):round((i+1)l),:] for i=0:(blocks-1)]
     if parallel
         r = pmap(x->stats(gmm, x, order), xx)
@@ -165,9 +165,9 @@ end
 function csstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, order::Int=2)
     kind(gmm) == :diag || error("Can only do centered and scaled stats for diag covariance")
     if order==1
-        nx, llh, N, F = stats(gmm, x, order)
+        nₓ, llh, N, F = stats(gmm, x, order)
     else
-        nx, llh, N, F, S = stats(gmm, x, order)
+        nₓ, llh, N, F, S = stats(gmm, x, order)
     end
     Nμ = N .* gmm.μ
     f = (F - Nμ) ./ gmm.Σ
@@ -186,7 +186,7 @@ CSstats(gmm::GMM, x::DataOrMatrix) = CSstats(csstats(gmm, x, 1))
 ## centered stats, but not scaled by UBM covariance
 ## check full covariance...
 function cstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, parallel=false)
-    nx, llh, N, F, S = stats(gmm, x, order=2, parallel=parallel)
+    nₓ, llh, N, F, S = stats(gmm, x, order=2, parallel=parallel)
     Nμ =  N .* gmm.μ
     ## center the statistics
     gmmkind = kind(gmm)

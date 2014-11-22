@@ -17,10 +17,10 @@ function GMMprior{T<:FloatingPoint}(d::Int, alpha::T, beta::T)
 end
 Base.copy(p::GMMprior) = GMMprior(p.α0, p.β0, copy(p.m0), p.ν0, copy(p.W0))
 
-## initialize from a GMM and nx, the number of points used to train the GMM.
+## initialize from a GMM and nₓ, the number of points used to train the GMM.
 function VGMM{T}(g::GMM{T}, π::GMMprior{T})
-    nx = g.nx
-    N = g.w * nx
+    nₓ = g.nx
+    N = g.w * nₓ
     mx = g.μ
     if kind(g) == :diag
         S = covars(full(g))
@@ -60,8 +60,8 @@ function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
     α = π.α0 + N                # ng, 10.58
     ν = π.ν0 + N + 1            # ng, 10.63
     β = π.β0 + N                # ng, 10.60
-    m = similar(mx)             # ng * d
-    W = Array(eltype(FullCov{T}), ng) # ng * (d*d)
+    m = similar(mx)             # ng × d
+    W = Array(eltype(FullCov{T}), ng) # ng × (d*d)
     d = size(mx,2)
     limit = √ eps(eltype(N))
     invW0 = inv(π.W0)
@@ -94,16 +94,16 @@ end
 ## log(ρ_nk) from 10.46, start with a very slow implementation, and optimize it further
 ## This is as the heart of VGMM training, it should be super efficient, possibly
 ## at the cost of readability.
-## Removing the inner loop over nx, replacing it by a matmul led to a major speed increase
+## Removing the inner loop over nₓ, replacing it by a matmul led to a major speed increase
 ## not leading to further speed increase for (Δ * vg.W[k]) .* Δ
 ## - c = Δ * chol(vg.W[k],:L), c .* c
 ## - Base.BLAS.symm('R', 'U', vg.ν[k], vg.W[k], Δ) .* Δ
 function logρ(vg::VGMM, x::Matrix, ex::Tuple)
-    (nx, d) = size(x)
+    (nₓ, d) = size(x)
     d == vg.d || error("dimension mismatch")
     ng = vg.n
-    EμΛ = similar(x, nx, ng)    # nx * ng
-    Δ = similar(x)              # nx * d
+    EμΛ = similar(x, nₓ, ng)    # nₓ × ng
+    Δ = similar(x)              # nₓ × d
     for k=1:ng
         ### d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
         ## Δ = (x_i - m_k)' W_k (x_i = m_k)
@@ -118,7 +118,7 @@ end
 function rnk(vg::VGMM, x::Matrix, ex::Tuple)
 #    ρ = exp(logρ(g, x))
 #    broadcast(/, ρ, sum(ρ, 2))
-    logr = logρ(vg, x, ex)        # nx * ng
+    logr = logρ(vg, x, ex)        # nₓ × ng
     broadcast!(-, logr, logr, logsumexp(logr, 2))
     ## we slowly replace logr by r, this is just cosmetic!
     r = logr
@@ -138,29 +138,29 @@ function rnk(vg::VGMM, x::Matrix, ex::Tuple)
 end
 
 ## OK, also do stats.
-## Like for the GMM, we return nx, (some value), zeroth, first, second order stats
+## Like for the GMM, we return nₓ, (some value), zeroth, first, second order stats
 ## All return values can be accumulated, except r, which we need for
 ## lowerbound ElogpZπ and ElogqZ
 function stats{T}(vg::VGMM, x::Matrix{T}, ex::Tuple)
     ng = vg.n
-    (nx, d) = size(x)
-    if nx == 0
+    (nₓ, d) = size(x)
+    if nₓ == 0
         return 0, zero(RT), zeros(RT, ng), zeros(RT, ng, d), [zeros(RT, d,d) for k=1:ng]
     end
-    r, ElogpZπqZ = rnk(vg, x, ex) # nx * ng
+    r, ElogpZπqZ = rnk(vg, x, ex) # nₓ × ng
     N = vec(sum(r, 1))          # ng
-    F = r' * x                  # ng * d
+    F = r' * x                  # ng × d
     ## S_k = sum_i r_ik x_i x_i'
     ## Sm = x' * hcat([broadcast(*, r[:,k], x) for k=1:ng]...)
-    SS = similar(x, nx, d*ng)   # nx*nd*ng mem, nx*nd*ng multiplications
+    SS = similar(x, nₓ, d*ng)   # nₓ*nd*ng mem, nₓ*nd*ng multiplications
     for k=1:ng
-        for j=1:d for i=1:nx
+        for j=1:d for i=1:nₓ
             @inbounds SS[i,(k-1)*d+j] = r[i,k]*x[i,j]
         end end
     end
-    Sm = x' * SS                # d * (d*ng) mem
+    Sm = x' * SS                # d * (d * ng) mem
     S = Matrix{T}[Sm[:,(k-1)*d+1:k*d] for k=1:ng]
-    return nx, ElogpZπqZ, N, F, S
+    return nₓ, ElogpZπqZ, N, F, S
 end
 
 function stats(vg::VGMM, d::Data, ex::Tuple; parallel=false)
@@ -203,7 +203,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     ## E[log p(x|Ζ,μ,Λ)] 10.71
     Elogll = 0.
     for k in gaussians
-        Δ = mx[k,:] - m[k,:]   # 1 * d
+        Δ = mx[k,:] - m[k,:]   # 1 × d
         Wk = precision(W[k])
         Elogll += 0.5N[k] * (ElogdetΛ[k] - d/β[k] - d*log(2π)
                              - ν[k] * (trAB(S[k], Wk) + Δ * Wk ⋅ Δ)) # check chol efficiency
@@ -212,7 +212,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     Elogpπ = lgamma(ng*α0) - ng*lgamma(α0) - (α0-1)sum(Elogπ) # E[log p(π)] 10.73
     ElogpμΛ = ng*logB(W0,ν0)   # E[log p(μ, Λ)] B.79
     for k in gaussians
-        Δ = m[k,:] - m0'        # 1 * d
+        Δ = m[k,:] - m0'        # 1 × d
         Wk = precision(W[k])
         ElogpμΛ += 0.5(d*log(β0/(2π)) + (ν0-d)ElogdetΛ[k] - d*β0/β[k]
                        -β0*ν[k] * dot(Δ*Wk, Δ) - ν[k]*trAB(W0inv, Wk))
@@ -238,7 +238,7 @@ function emstep!(vg::VGMM, x::DataOrMatrix)
     ## E-like step
     Elogπ, ElogdetΛ = expectations(vg)
     ## N, mx, S, r = threestats(vg, x, (Elogπ, ElogdetΛ))
-    nx, ElogZπqZ, N, F, S = stats(vg, x, (Elogπ, ElogdetΛ))
+    nₓ, ElogZπqZ, N, F, S = stats(vg, x, (Elogπ, ElogdetΛ))
     mx = F ./ N
     for k = 1:vg.n
         mk = mx[k,:]
@@ -257,24 +257,24 @@ function emstep!(vg::VGMM, x::DataOrMatrix)
     L = lowerbound(vg, N, mx, S, Elogπ, ElogdetΛ, ElogZπqZ)
     ## and finally compute M-like step
     vg.α, vg.β, vg.m, vg.ν, vg.W = mstep(vg.π, N, mx, S)
-    L, nx
+    L, nₓ
 end
 
 ## This is called em!, but it is not really expectation maximization I think
 function em!(vg::VGMM, x; nIter=50)
     L = Float64[]
-    nx = 0
+    nₓ = 0
     for i=1:nIter
-        lb, nx = emstep!(vg, x)
+        lb, nₓ = emstep!(vg, x)
         push!(L, lb)
         if i>1 && isapprox(L[i], L[i-1], rtol=0)
             nIter=i
             break
         end
-        addhist!(vg, @sprintf("iteration %d, lowerbound %f", i, last(L)/nx/vg.d))
+        addhist!(vg, @sprintf("iteration %d, lowerbound %f", i, last(L)/nₓ/vg.d))
     end
-    L ./= nx*vg.d
-    addhist!(vg, @sprintf("%d variational Bayes EM-like iterations using %d data points, final lowerbound %f", nIter, nx, last(L)))
+    L ./= nₓ*vg.d
+    addhist!(vg, @sprintf("%d variational Bayes EM-like iterations using %d data points, final lowerbound %f", nIter, nₓ, last(L)))
     L
 end
 

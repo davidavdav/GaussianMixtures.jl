@@ -52,11 +52,11 @@ function Base.rand(gmm::GMM, n::Int)
     gmmkind = kind(gmm)
     for i=1:gmm.n
         ind = find(index.==i)
-        nx = length(ind)
+        nₓ = length(ind)
         if gmmkind == :diag
-            x[ind,:] = gmm.μ[i,:] .+ √gmm.Σ[i,:] .* randn(nx,gmm.d)
+            x[ind,:] = gmm.μ[i,:] .+ √gmm.Σ[i,:] .* randn(nₓ,gmm.d)
         elseif gmmkind == :full
-            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), covar(gmm.Σ[i])), nx)'
+            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), covar(gmm.Σ[i])), nₓ)'
         else
             error("Unknown kind")
         end

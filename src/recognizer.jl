@@ -15,7 +15,7 @@ import Base.map
 
 ## Maximum A Posteriori adapt a gmm
 function map{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
-    nx, ll, N, F, S = stats(gmm, x)
+    nₓ, ll, N, F, S = stats(gmm, x)
     α = N ./ (N+r)
     if weights
         w = α .* N / sum(N) + (1-α) .* gmm.w
@@ -35,13 +35,13 @@ function map{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}, r::Real=16.; means::Bool=
         Σ = gmm.Σ
     end
     hist = vcat(gmm.hist, History(@sprintf "MAP adapted with %d data points relevance %3.1f %s %s %s" size(x,1) r means ? "means" : ""  weights ? "weights" : "" covars ? "covars" : ""))
-    return GMM(w, μ, Σ, hist, nx) 
+    return GMM(w, μ, Σ, hist, nₓ) 
 end
 
 ## compute a supervector from a MAP adapted utterance. 
 function Base.vec(gmm::GMM, x::Matrix, r=16.)
     kind(gmm) == :diag || error("Sorry, can't compute MAP adapted supervector for full covariance matrix GMM yet")
-    nx, ll, N, F, S = stats(gmm, x)
+    nₓ, ll, N, F, S = stats(gmm, x)
     α = N ./ (N+r)
     Δμ = broadcast(*, α./N, F) - broadcast(*, α, gmm.μ)
     v = Δμ .* sqrt(broadcast(/, gmm.w, gmm.Σ))

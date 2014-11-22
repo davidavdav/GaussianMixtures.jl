@@ -40,11 +40,11 @@ GMM{T<:FloatingPoint}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=5
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
 function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0)
-    nx, d = size(x)
-    hist = [History(@sprintf("Initializing GMM, %d Gaussians %s covariance %d dimensions using %d data points", n, diag, d, nx))]
+    nₓ, d = size(x)
+    hist = [History(@sprintf("Initializing GMM, %d Gaussians %s covariance %d dimensions using %d data points", n, diag, d, nₓ))]
     ## subsample x to max 1000 points per mean
     nneeded = 1000*n
-    if nx < nneeded
+    if nₓ < nneeded
         if isa(x, Matrix)
             xx = x
         else
@@ -52,7 +52,7 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
         end
     else
         if isa(x, Matrix)
-            xx = x[sample(1:nx, nneeded, replace=false),:]
+            xx = x[sample(1:nₓ, nneeded, replace=false),:]
         else
             ## Data.  Sample an equal amount from every entry in the list x. This reads in 
             ## all data, and may require a lot of memory for very long lists. 
@@ -200,9 +200,9 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
     gmmkind = kind(gmm)
     for i=1:nIter
         ## E-step
-        nx, ll[i], N, F, S = stats(gmm, x, parallel=true)
+        nₓ, ll[i], N, F, S = stats(gmm, x, parallel=true)
         ## M-step
-        gmm.w = N / nx
+        gmm.w = N / nₓ
         gmm.μ = F ./ N
         if gmmkind == :diag
             gmm.Σ = S ./ N - gmm.μ.^2
@@ -226,17 +226,17 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
             error("Unknown kind")
         end
         addhist!(gmm, @sprintf("iteration %d, average log likelihood %f", 
-                               i, ll[i] / (nx*d)))
+                               i, ll[i] / (nₓ*d)))
     end
     if nIter>0
-        ll /= nx * d
+        ll /= nₓ * d
         finalll = ll[nIter]
     else
         finalll = avll(gmm, x)
-        nx = size(x,1)
+        nₓ = size(x,1)
     end
-    gmm.nx = nx
-    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nx,nIter,finalll,nx/nparams(gmm)))
+    gmm.nx = nₓ
+    addhist!(gmm,@sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nₓ,nIter,finalll,nₓ/nparams(gmm)))
     ll
 end
 
@@ -248,17 +248,17 @@ end
 function llpg{GT,T<:FloatingPoint}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T})
     RT = promote_type(GT,T)
     ## ng = gmm.n
-    (nx, d) = size(x)
-    prec::Matrix{RT} = 1./gmm.Σ         # ng * d
-    mp = gmm.μ .* prec                  # mean*precision, ng * d
+    (nₓ, d) = size(x)
+    prec::Matrix{RT} = 1./gmm.Σ         # ng × d
+    mp = gmm.μ .* prec                  # mean*precision, ng × d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    normalization = 0.5 * (d * log(2π) .+ sum(log(gmm.Σ),2)) # ng * 1
-    sm2p = sum(mp .* gmm.μ, 2)   # sum over d mean^2*precision, ng * 1
+    normalization = 0.5 * (d * log(2π) .+ sum(log(gmm.Σ),2)) # ng × 1
+    sm2p = sum(mp .* gmm.μ, 2)   # sum over d mean^2*precision, ng × 1
     ## from here on data-dependent calculations
-    xx = x.^2                           # nx * d
-    pxx = sm2p' .+ xx * prec'           # nx * ng
-    mpx = x * mp'                       # nx * ng
-    # L = broadcast(*, a', exp(mpx-0.5pxx)) # nx * ng, Likelihood per frame per Gaussian
+    xx = x.^2                           # nₓ × d
+    pxx = sm2p' .+ xx * prec'           # nₓ × ng
+    mpx = x * mp'                       # nₓ × ng
+    # L = broadcast(*, a', exp(mpx-0.5pxx)) # nₓ × ng, Likelihood per frame per Gaussian
     mpx-0.5pxx .- normalization'
 end
 
@@ -266,25 +266,25 @@ end
 ## compute Δ_i = (x_i - μ)' Λ (x_i - μ)
 ## Note: the return type of Δ should be the promote_type of x and μ/ciΣ
 function xμTΛxμ!(Δ::Matrix, x::Matrix, μ::Matrix, ciΣ::Triangular)
-    # broadcast!(-, Δ, x, μ)      # size: nx * d, add ops: nx * d
-    (nx, d) = size(x)
+    # broadcast!(-, Δ, x, μ)      # size: nₓ × d, add ops: nₓ * d
+    (nₓ, d) = size(x)
     @inbounds for j = 1:d
         μj = μ[j]
-        for i = 1:nx
+        for i = 1:nₓ
             Δ[i,j] = x[i,j] - μj
         end
     end
-    A_mul_Bc!(Δ, ciΣ)             # size: nx * d, mult ops nx*d^2
+    A_mul_Bc!(Δ, ciΣ)             # size: nₓ × d, mult ops nₓ*d^2
 end
 
 ## full covariance version of llpg()
 function llpg{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
     RT = promote_type(GT,T)
-    (nx, d) = size(x)
+    (nₓ, d) = size(x)
     ng = gmm.n
     d==gmm.d || error ("Inconsistent size gmm and x")
-    ll = Array(RT, nx, ng)
-    Δ = Array(RT, nx, d)
+    ll = Array(RT, nₓ, ng)
+    Δ = Array(RT, nₓ, d)
     ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
     normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[k])))) for k=1:ng]
     for k=1:ng
@@ -311,9 +311,9 @@ import Distributions.posterior
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
 ## TODO: This is a slow and memory-intensive implementation.  It is better to 
 ## use the approaches used in stats()
-function posterior{GT,T<:FloatingPoint}(gmm::GMM{GT}, x::Matrix{T})      # nx * ng
+function posterior{GT,T<:FloatingPoint}(gmm::GMM{GT}, x::Matrix{T})      # nₓ × ng
     RT = promote_type(GT,T)
-    (nx, d) = size(x)
+    (nₓ, d) = size(x)
     ng = gmm.n
     d==gmm.d || error("Inconsistent size gmm and x")
     ll = llpg(gmm, x)
