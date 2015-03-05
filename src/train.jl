@@ -59,7 +59,7 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
             yy = Matrix[]
             for y in x
                 ny = size(y,1)
-                nsample = min(ny, iceil(nneeded / length(x)))
+                nsample = min(ny, @compat ceil(Integer, nneeded / length(x)))
                 push!(yy, y[sample(1:ny, nsample, replace=false),:])
             end
             xx = vcat(yy...)
@@ -265,7 +265,7 @@ end
 ## A function we see more often... Λ is in chol(inv(Σ)) form
 ## compute Δ_i = (x_i - μ)' Λ (x_i - μ)
 ## Note: the return type of Δ should be the promote_type of x and μ/ciΣ
-function xμTΛxμ!(Δ::Matrix, x::Matrix, μ::Matrix, ciΣ::Triangular)
+function xμTΛxμ!(Δ::Matrix, x::Matrix, μ::Matrix, ciΣ::UpperTriangular)
     # broadcast!(-, Δ, x, μ)      # size: nₓ × d, add ops: nₓ * d
     (nₓ, d) = size(x)
     @inbounds for j = 1:d

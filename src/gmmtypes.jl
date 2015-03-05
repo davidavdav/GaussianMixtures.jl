@@ -30,7 +30,7 @@ abstract GaussianMixture{T,CT}
 ## Full covariance is represented by inverse cholesky of the covariance matrix, 
 ## i.e., Σ^-1 = ci * ci'
 typealias DiagCov{T} Matrix{T}
-typealias FullCov{T} Vector{Triangular{T,Matrix{T},:U,false}} 
+typealias FullCov{T} Vector{UpperTriangular{T,Matrix{T}}} 
 
 ## GMMs can be of type FLoat32 or Float64, and diagonal or full
 type GMM{T<:FloatingPoint, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}

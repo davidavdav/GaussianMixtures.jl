@@ -126,7 +126,7 @@ function stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=
     elseif kind(gmm) == :full
         bytes = sizeof(T) * ((d + d^2 + 5nₓ + nₓ*d)ng + (2d + 2)nₓ)
     end
-    blocks = iceil(bytes / (mem * (1<<30)))
+    blocks = @compat ceil(Integer, bytes / (mem * (1<<30)))
     if parallel
         blocks= min(nₓ, max(blocks, nworkers()))
     end

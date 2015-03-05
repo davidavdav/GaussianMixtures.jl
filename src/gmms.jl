@@ -19,7 +19,7 @@ end
 Base.eltype{T}(gmm::GMM{T}) = T
 
 ## switch between full covariance and inverse cholesky decomposition representations. 
-covar{T}(ci::Triangular{T}) = (c = inv(ci); c * c')
+covar{T}(ci::AbstractTriangular{T}) = (c = inv(ci); c * c')
 cholinv{T}(Σ::Matrix{T}) = chol(inv(cholfact(0.5(Σ+Σ'))), :U)
 
 kind{T}(g::GMM{T,DiagCov{T}}) = :diag
@@ -64,7 +64,7 @@ function Base.full{T}(gmm::GMM{T})
     if kind(gmm) == :full
         return gmm
     end
-    Σ = convert(FullCov{T}, [Triangular(diagm(vec(1./√gmm.Σ[i,:])), :U, false) for i=1:gmm.n])
+    Σ = convert(FullCov{T}, [UpperTriangular(diagm(vec(1./√gmm.Σ[i,:]))) for i=1:gmm.n])
     new = GMM(copy(gmm.w), copy(gmm.μ), Σ, copy(gmm.hist), gmm.nx)
     addhist!(new, "Converted to full covariance")
 end

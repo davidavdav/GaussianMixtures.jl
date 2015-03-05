@@ -36,8 +36,8 @@ Base.copy(vg::VGMM) = VGMM(vg.n, vg.d, copy(vg.π), copy(vg.α), copy(vg.β),
                            copy(vg.m), copy(vg.ν), copy(vg.W), copy(vg.hist))
 
 ## W[k] really is chol(W_k, :U), use precision() to get it back
-precision(c::Triangular) = c' * c
-mylogdet(c::Triangular) = 2sum(log(diag(c)))
+precision(c::AbstractTriangular) = c' * c
+mylogdet(c::AbstractTriangular) = 2sum(log(diag(c)))
 mylogdet(m::Matrix) = logdet(m)
 
 ## sharpen VGMM to a GMM
