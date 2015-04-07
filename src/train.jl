@@ -307,11 +307,11 @@ function avll(gmm::GMM, d::Data)
     sum(map(sum, llpf)) / sum(map(length, llpf)) / gmm.d
 end
 
-import Distributions.posterior
+## import Distributions.posterior
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
 ## TODO: This is a slow and memory-intensive implementation.  It is better to 
 ## use the approaches used in stats()
-function posterior{GT,T<:FloatingPoint}(gmm::GMM{GT}, x::Matrix{T})      # nₓ × ng
+function gmmposterior{GT,T<:FloatingPoint}(gmm::GMM{GT}, x::Matrix{T})      # nₓ × ng
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n

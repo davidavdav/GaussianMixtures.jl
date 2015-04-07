@@ -80,7 +80,7 @@ function stats{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Array{T,2}, ord
     ng = gmm.n
     gmm.d == d || error("dimension mismatch for data")
     1 ≤ order ≤ 2 || error("order out of range")
-    γ, ll = posterior(gmm, x) # nₓ × ng, both
+    γ, ll = gmmposterior(gmm, x) # nₓ × ng, both
     llh = sum(logsumexp(ll .+ log(gmm.w)', 2))
     ## zeroth order
     N = vec(sum(γ, 1))

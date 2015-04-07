@@ -21,3 +21,4 @@ include("recognizer.jl")
 
 include("bayes.jl") 
 
+include("distributions.jl")

@@ -280,6 +280,7 @@ end
 
 ## Not used
 
+if false 
 ## Wishart distribution {\cal W}(Λ, W, ν).
 function Wishart(Λ::Matrix, W::Matrix, ν::Float64)
     ## check
@@ -309,3 +310,4 @@ function GaussianWishart(μ::Vector, Λ::Matrix, μ0::Vector, β::Float64, W::Ma
     Gaussian(μ, μ0, inv(β*Λ)) * Wishart(Λ, W, ν)
 end 
 
+end
