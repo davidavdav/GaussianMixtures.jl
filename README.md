@@ -117,7 +117,7 @@ data `x` is distributed as a multivariate diagonal covariance Gaussian
 with `Σ = σI`.  With `σ=1` we then have `avll≈-1.42`. 
 
 ```julia 
-posterior(gmm::GMM, x::Matrix)
+gmmposterior(gmm::GMM, x::Matrix)
 ```
 Returns `p_ij = p(j | gmm, x_i)`, the posterior probability that data point `x_i` 'belongs' to Gaussian `j`.  
 
