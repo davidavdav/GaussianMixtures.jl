@@ -21,10 +21,15 @@ for (gmmkind, Ng) in zip((:diag, :full), (256, 16))
 end
     
 ## and finally train a second GMM using the data
-gmm = rand(GMM, 32, 26, sep=0.1, kind=:diag)
-x = rand(gmm, 100000)
-g2 = GMM(32, x, nIter=50)
-## what is the point of displaying?
-display(means(gmm))
-display(means(g2))
+for gmmkind in [:diag, :full]
+    ## what is the point of displaying?
+    gmm = rand(GMM, 32, 26, sep=0.1, kind=gmmkind)
+    display(means(gmm))
+    x = rand(gmm, 100000)
+    for method in [:split, :kmeans]
+        g2 = GMM(32, x, nIter=50, method=method)
+        display(means(g2))
+    end
+end
+
 

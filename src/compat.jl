@@ -1,6 +1,6 @@
 ## bugs in v0.3 and compatibility
 if VERSION < v"0.4.0-dev"
-#    Base.copy{T,A,uplo}(t::Triangular{T,A,uplo}) = Triangular(copy(t.data), uplo)
+    Base.copy{T,A,uplo}(t::Triangular{T,A,uplo}) = Triangular(copy(t.data), uplo)
     typealias AbstractTriangular Triangular
     typealias UpperTriangular{T,M} Triangular{T,M,:U,false}
 else
