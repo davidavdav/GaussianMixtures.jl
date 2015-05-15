@@ -29,6 +29,8 @@ for gmmkind in [:diag, :full]
     for method in [:split, :kmeans]
         g2 = GMM(32, x, nIter=50, method=method)
         display(means(g2))
+        ## do another iteration of em!
+        em!(g2, x)
     end
 end
 
