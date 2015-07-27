@@ -3,9 +3,6 @@
 
 module GaussianMixtures
 
-## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
-ccall(:jl_zero_subnormals, Bool, (Bool,), true)
-
 using NumericExtensions
 using Distributions
 using PDMats
@@ -31,5 +28,8 @@ include("distributions.jl")
 
 export GMM, VGMM, GMMprior, CSstats, Cstats, History, Data, DataOrMatrix, 
    split, em!, map, llpg, avll, gmmposterior, history, show, stats, nparams, means, covars, weights, setmem, vec, rand, kind, dmap
+
+## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
+set_zero_subnormals(true)
 
 end

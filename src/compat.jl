@@ -3,6 +3,7 @@ if VERSION < v"0.4.0-dev"
     Base.copy{T,A,uplo}(t::Triangular{T,A,uplo}) = Triangular(copy(t.data), uplo)
     typealias AbstractTriangular Triangular
     typealias UpperTriangular{T,M} Triangular{T,M,:U,false}
+    set_zero_subnormals(yes::Bool) = ccall(:jl_zero_subnormals, Bool, (Bool,), yes)
 else
     import Base.LinAlg.AbstractTriangular
 end
