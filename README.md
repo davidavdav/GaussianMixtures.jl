@@ -230,10 +230,11 @@ Saving / loading a GMM
 Using package JLD, two methods allow saving a GMM or an array of GMMs to disk:
 
 ```julia
+using JLD
 save(filename::String, name::String, gmm::GMM)
 save(filename::String, name::String, gmms::Array{GMM})
 ```
-This saves a GMM of an array of GMMs under the name `name`  in a file `filename`. The data can be loaded back into a julia session using plain JLD's 
+This saves a GMM of an array of GMMs under the name `name` in a file `filename`. The data can be loaded back into a julia session using plain JLD's 
 
 ```julia
 gmm = load(filename, name)
