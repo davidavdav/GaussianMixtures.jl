@@ -3,11 +3,10 @@
 
 module GaussianMixtures
 
-using NumericExtensions
 using Distributions
 using PDMats
 using Clustering
-using HDF5, JLD
+using JLD
 using Compat
 
 include("compat.jl")

@@ -101,7 +101,7 @@ function stats{T<:FloatingPoint}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
     n, d = nthperm([size(x)...], dim) ## swap or not trick
     if kind == :diag
         if order == 2
-            return n, vec(sum(x, dim)), vec(sumsq(x, dim))   # NumericExtensions is fast
+            return n, vec(sum(x, dim)), vec(sumabs2(x, dim))
         elseif order == 1
             return n, vec(sum(x, dim))
         else

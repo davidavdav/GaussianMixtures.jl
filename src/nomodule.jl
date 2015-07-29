@@ -1,10 +1,7 @@
-ccall(:jl_zero_subnormals, Bool, (Bool,), true)
-
-using NumericExtensions
 using Distributions
 using PDMats
 using Clustering
-using HDF5, JLD
+using JLD
 using Compat
 
 include("compat.jl")
@@ -22,3 +19,7 @@ include("recognizer.jl")
 include("bayes.jl") 
 
 include("distributions.jl")
+
+## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
+set_zero_subnormals(true)
+

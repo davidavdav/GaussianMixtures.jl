@@ -108,7 +108,7 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
         ### d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
         ## Δ = (x_i - m_k)' W_k (x_i = m_k)
         xμTΛxμ!(Δ, x, vg.m[k,:], vg.W[k])
-        EμΛ[:,k] = d/vg.β[k] .+ vg.ν[k] * sumsq(Δ, 2)
+        EμΛ[:,k] = d/vg.β[k] .+ vg.ν[k] * sumabs2(Δ, 2)
     end
     Elogπ, ElogdetΛ = ex
     (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))' .- 0.5EμΛ
