@@ -11,7 +11,7 @@ Data{T}(x::Matrix{T}) = Data(Matrix{T}[x])
 ## constructor for a vector of files
 ## Data([strings], type, loadfunction)
 function Data{S<:String}(files::Vector{S}, datatype::DataType, load::Function)
-    Data(files, datatype, Dict(:load => load))
+    Data(files, datatype, @compat Dict(:load => load))
 end
 
 ## default load function
