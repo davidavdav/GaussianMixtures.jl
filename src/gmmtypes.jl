@@ -65,12 +65,13 @@ GMM{T<:FloatingPoint}(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{
 ## Variational Bayes GMM types.
 
 ## Please note our pedantic use of the Greek letter ν (nu), don't confuse this with Latin v!
+## The index-0 "₀" is part of the identifier.
 type GMMprior{T<:FloatingPoint}
-    α0::T                       # effective prior number of observations
-    β0::T
-    m0::Vector{T}               # prior on μ
-    ν0::T                       # scale precision
-    W0::Matrix{T}               # prior precision
+    α₀::T                       # effective prior number of observations
+    β₀::T
+    m₀::Vector{T}               # prior on μ
+    ν₀::T                       # scale precision
+    W₀::Matrix{T}               # prior precision
 end
 
 ## In Variational Bayes, the GMM is not specified by point estimates of the paramters,

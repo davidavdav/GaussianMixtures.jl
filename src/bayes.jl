@@ -1,5 +1,5 @@
 ## bayes.jl
-## (c) 2014 David A. van Leeuwen
+## (c) 2014, 2015 David A. van Leeuwen
 ##
 ## Attempt to implement a Bayesian approach to EM for GMMs, along the lines of
 ## Christopher Bishop's book, section 10.2.
@@ -8,14 +8,18 @@
 ## - convert stats collection to unnormalized stats and reduce results
 ## - optimize for speed
 
+## Please note our pedantic use of the Greek symbols nu "ν" and alpha "α" (not to be confused with
+## Latin v and a), and index "₀" and even superscript "⁻¹", which are both part of the identifiers
+## e.g., W₀⁻¹ where others might write W0inv.
+
 ## initialize a prior with minimal knowledge
 function GMMprior{T<:FloatingPoint}(d::Int, alpha::T, beta::T)
-    m0 = zeros(T, d)
-    W0 = eye(T, d)
-    ν0 = convert(T,d)
-    GMMprior(alpha, beta, m0, ν0, W0)
+    m₀ = zeros(T, d)
+    W₀ = eye(T, d)
+    ν₀ = convert(T,d)
+    GMMprior(alpha, beta, m₀, ν₀, W₀)
 end
-Base.copy(p::GMMprior) = GMMprior(p.α0, p.β0, copy(p.m0), p.ν0, copy(p.W0))
+Base.copy(p::GMMprior) = GMMprior(p.α₀, p.β₀, copy(p.m₀), p.ν₀, copy(p.W₀))
 
 ## initialize from a GMM and nₓ, the number of points used to train the GMM.
 function VGMM{T}(g::GMM{T}, π::GMMprior{T})
@@ -51,27 +55,27 @@ function GMM(vg::VGMM)
     end
     hist = copy(vg.hist)
     push!(hist, History("Variational GMM converted to GMM"))
-    GMM(w, μ, Σ, hist, iround(sum(vg.α - vg.π.α0)))
+    GMM(w, μ, Σ, hist, iround(sum(vg.α - vg.π.α₀)))
 end
 
 ## m-step given prior and stats
 function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
     ng = length(N)
-    α = π.α0 + N                # ng, 10.58
-    ν = π.ν0 + N + 1            # ng, 10.63
-    β = π.β0 + N                # ng, 10.60
+    α = π.α₀ + N                # ng, 10.58
+    ν = π.ν₀ + N + 1            # ng, 10.63
+    β = π.β₀ + N                # ng, 10.60
     m = similar(mx)             # ng × d
     W = Array(eltype(FullCov{T}), ng) # ng × (d*d)
     d = size(mx,2)
     limit = √ eps(eltype(N))
-    invW0 = inv(π.W0)
+    W₀⁻¹ = inv(π.W₀)
     for k=1:ng
         if N[k] > limit
-            m[k,:] = (π.β0*π.m0' + N[k]*mx[k,:]) ./ β[k] # 10.61
-            Δ = mx[k,:] - π.m0'
+            m[k,:] = (π.β₀*π.m₀' + N[k]*mx[k,:]) ./ β[k] # 10.61
+            Δ = mx[k,:] - π.m₀'
             ## do some effort to keep the matrix positive definite
-            third = π.β0 * N[k] / (π.β0 + N[k]) * (Δ' * Δ) # guarantee symmety in Δ' Δ
-            W[k] = chol(inv(cholfact(invW0 + N[k]*S[k] + third)), :U) # 10.62
+            third = π.β₀ * N[k] / (π.β₀ + N[k]) * (Δ' * Δ) # guarantee symmety in Δ' Δ
+            W[k] = chol(inv(cholfact(W₀⁻¹ + N[k]*S[k] + third)), :U) # 10.62
         else
             m[k,:] = zeros(d)
             W[k] = chol(eye(d), :U)
@@ -194,8 +198,8 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
                     Elogπ::Vector, ElogdetΛ::Vector, ElogpZπqZ)
     ## shorthands that make the formulas easier to read...
     ng, d = vg.n, vg.d
-    α0, β0, ν0, m0, W0  = vg.π.α0, vg.π.β0, vg.π.ν0, vg.π.m0, vg.π.W0 # prior vars
-    W0inv = inv(W0)
+    α₀, β₀, ν₀, m₀, W₀  = vg.π.α₀, vg.π.β₀, vg.π.ν₀, vg.π.m₀, vg.π.W₀ # prior vars
+    W₀⁻¹ = inv(W₀)
     α, β, m, ν, W = vg.α, vg.β, vg.m, vg.ν, vg.W # VGMM vars
     gaussians = 1:ng
     ## B.79
@@ -209,13 +213,13 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
                              - ν[k] * (trAB(S[k], Wk) + Δ * Wk ⋅ Δ)) # check chol efficiency
     end                        # 10.71
     ## E[log p(Z|π)] from rnk() 10.72
-    Elogpπ = lgamma(ng*α0) - ng*lgamma(α0) - (α0-1)sum(Elogπ) # E[log p(π)] 10.73
-    ElogpμΛ = ng*logB(W0,ν0)   # E[log p(μ, Λ)] B.79
+    Elogpπ = lgamma(ng*α₀) - ng*lgamma(α₀) - (α₀-1)sum(Elogπ) # E[log p(π)] 10.73
+    ElogpμΛ = ng*logB(W₀,ν₀)   # E[log p(μ, Λ)] B.79
     for k in gaussians
-        Δ = m[k,:] - m0'        # 1 × d
+        Δ = m[k,:] - m₀'        # 1 × d
         Wk = precision(W[k])
-        ElogpμΛ += 0.5(d*log(β0/(2π)) + (ν0-d)ElogdetΛ[k] - d*β0/β[k]
-                       -β0*ν[k] * dot(Δ*Wk, Δ) - ν[k]*trAB(W0inv, Wk))
+        ElogpμΛ += 0.5(d*log(β₀/(2π)) + (ν₀-d)ElogdetΛ[k] - d*β₀/β[k]
+                       -β₀*ν[k] * dot(Δ*Wk, Δ) - ν[k]*trAB(W₀⁻¹, Wk))
     end                         # 10.74
     ## E[log q(Z)] from rnk() 10.75, combined with E[log p(Z|π)]
     Elogqπ = sum((α.-1).*Elogπ) + lgamma(sum(α)) - sum(lgamma(α)) # E[log q(π)] 10.76
@@ -306,8 +310,8 @@ function Gaussian(x::Vector, μ::Vector, Σ::Matrix)
     norm * exp(ex)
 end
 
-function GaussianWishart(μ::Vector, Λ::Matrix, μ0::Vector, β::Float64, W::Matrix, ν::Float64)
-    Gaussian(μ, μ0, inv(β*Λ)) * Wishart(Λ, W, ν)
+function GaussianWishart(μ::Vector, Λ::Matrix, μ₀::Vector, β::Float64, W::Matrix, ν::Float64)
+    Gaussian(μ, μ₀, inv(β*Λ)) * Wishart(Λ, W, ν)
 end 
 
 end
