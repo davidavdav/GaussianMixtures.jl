@@ -207,10 +207,10 @@ end
 
 ## this is potentially very slow because it reads all file just to find out the size
 function Base.size(d::Data)
-    if kind(d) == :file && :size in d.API
-        s = dmap(d.API[:size], d.list)
+    if kind(d) == :file && :size in keys(d.API)
+        s = map(d.API[:size], d.list) # don't run parallel for fileserver performance
     else
-        s = dmap(size, d)
+        s = dmap(size, d)       # loads all data in workers, this may thrash the fileserver
     end
     nrow, ncol = s[1]
     ok = true
