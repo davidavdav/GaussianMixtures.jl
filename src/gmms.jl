@@ -81,13 +81,20 @@ function Base.diag{T}(gmm::GMM{T})
     addhist!(new, "Converted to diag covariance")
 end
 
-function history(gmm::GaussianMixture) 
-    t0 = gmm.hist[1].t
-    for h=gmm.hist
+function Base.show(io::IO, h::History)
+    println(io, strftime(h.t), ": ", h.s)
+end
+
+history(gmm::GaussianMixture) = gmm.hist
+
+function Base.writemime(io::IO, ::MIME{symbol("text/plain")}, hist::Vector{History})
+    t0 = hist[1].t
+    println(io, "GMM trained from ", strftime(t0), " to ", strftime(last(hist).t))
+    for h in hist
         s = split(h.s, "\n")
-        print(@sprintf("%6.3f\t%s\n", h.t-t0, s[1]))
-        for i=2:length(s) 
-            print(@sprintf("%6s\t%s\n", " ", s[i]))
+        print(io, @sprintf("%6.3f\t%s\n", h.t-t0, s[1]))
+        for i = 2:length(s) 
+            print(io, @sprintf("%6s\t%s\n", " ", s[i]))
         end
     end
 end

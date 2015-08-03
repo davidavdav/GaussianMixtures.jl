@@ -20,7 +20,7 @@ function GMM{T<:FloatingPoint}(x::DataOrMatrix{T}; kind=:diag)
     GMM(ones(T,1), μ, Σ, [hist], n)
 end
 ## Also allow a Vector, :full makes no sense
-GMM{T<:FloatingPoint}(x::Vector{T}) = GMM(x'')
+GMM{T<:FloatingPoint}(x::Vector{T}) = GMM(x'') # strange idiom...
 
 ## constructors based on data or matrix
 function GMM{T}(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
