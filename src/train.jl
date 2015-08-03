@@ -1,7 +1,6 @@
 ## train.jl  Likelihood calculation and em training for GMMs. 
 ## (c) 2013--2014 David A. van Leeuwen
 
-
 ## Greate a GMM with only one mixture and initialize it to ML parameters
 function GMM{T<:FloatingPoint}(x::DataOrMatrix{T}; kind=:diag)
     n, sx, sxx = stats(x, kind=kind)
@@ -42,6 +41,7 @@ GMM{T<:FloatingPoint}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=5
 function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0)
     nₓ, d = size(x)
     hist = [History(@sprintf("Initializing GMM, %d Gaussians %s covariance %d dimensions using %d data points", n, diag, d, nₓ))]
+    info(last(hist).s)
     ## subsample x to max 1000 points per mean
     nneeded = 1000*n
     if nₓ < nneeded
@@ -95,6 +95,7 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
     nxx = size(xx,1)
     ng = length(w)
     push!(hist, History(string("K-means with ", nxx, " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",nxx/((d+1)ng)))))
+    info(last(hist).s)
     gmm = GMM(w, μ, Σ, hist, nxx)
     em!(gmm, x; nIter=nIter, sparse=sparse)
     gmm
@@ -191,13 +192,14 @@ end
 # the log-likelihood history, per data frame per dimension
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
 ## of the data and stores this in the history.  
-function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3, sparse=0)
+function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3, sparse=0, debug=1)
     size(x,2)==gmm.d || error("Inconsistent size gmm and x")
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
     initc = gmm.Σ
     ll = zeros(nIter)
     gmmkind = kind(gmm)
+    info(string("Running ", nIter, " iterations EM on ", gmmkind, " cov GMM with ", ng, " Gaussians in ", d, " dimensions"))
     for i=1:nIter
         ## E-step
         nₓ, ll[i], N, F, S = stats(gmm, x, parallel=true)
@@ -225,8 +227,9 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
         else
             error("Unknown kind")
         end
-        addhist!(gmm, @sprintf("iteration %d, average log likelihood %f", 
-                               i, ll[i] / (nₓ*d)))
+        loginfo = @sprintf("iteration %d, average log likelihood %f",
+                           i, ll[i] / (nₓ*d))
+        addhist!(gmm, loginfo)
     end
     if nIter>0
         ll /= nₓ * d

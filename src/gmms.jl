@@ -45,6 +45,7 @@ function nparams(gmm::GMM)
 end
 
 function addhist!(gmm::GaussianMixture, s::String) 
+    info(s)
     push!(gmm.hist, History(s))
     gmm
 end
