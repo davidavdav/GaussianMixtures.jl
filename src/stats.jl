@@ -1,10 +1,12 @@
 ## stats.jl  Various ways of computing Baum Welch statistics for a GMM
 ## (c) 2013--2014 David A. van Leeuwen
 
-mem=2.                          # Working memory, in Gig
+mem=0.1                          # Working memory for stats extraction, in Gig
 
-function setmem(m::Float64) 
-    global mem=m
+## you can set the available working memory for stats calculation---this should be
+## quite a bit less than the available memory, since there is (generally unknown) overhead
+function setmem(gig::Float64) 
+    global mem=gig
 end
 
 ## stats(gmm, x, order) computes zero, first, ... upto order (≤2) statistics of

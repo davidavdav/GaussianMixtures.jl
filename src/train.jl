@@ -1,6 +1,8 @@
 ## train.jl  Likelihood calculation and em training for GMMs. 
 ## (c) 2013--2014 David A. van Leeuwen
 
+using StatsBase: sample 
+
 ## Greate a GMM with only one mixture and initialize it to ML parameters
 function GMM{T<:FloatingPoint}(x::DataOrMatrix{T}; kind=:diag)
     n, sx, sxx = stats(x, kind=kind)
@@ -36,6 +38,35 @@ function GMM{T}(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
 end
 ## a 1-dimensional Gaussian can be initialized with a vector, skip kind=
 GMM{T<:FloatingPoint}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) = GMM(n, x''; method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
+
+## we sometimes end up with pathological gmms
+function sanitycheck!(gmm::GMM)
+    pathological=NTuple{2}[]
+    for i in find(isnan(gmm.μ) | isinf(gmm.μ))
+        gmm.μ[i] = 0
+        push!(pathological, ind2sub(size(gmm.μ), i))
+    end
+    if kind(gmm) == :diag
+        for i in find(isnan(gmm.Σ) | isinf(gmm.Σ))
+            gmm.Σ[i] = 1
+            push!(pathological, ind2sub(size(gmm.Σ), i))
+        end
+    else
+        for (si,s) in enumerate(gmm.Σ)
+            for i in find(isnan(s) | isinf(s))
+                s[i] = 1
+                push!(pathological, (si,i))
+            end
+        end
+    end
+    if (np=length(pathological)) > 0
+        mesg = string(np, " pathological elements normalized")
+        addhist!(gmm, mesg)
+        warn(mesg)
+    end
+    pathological
+end
+
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
 function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0)
@@ -97,6 +128,7 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
     push!(hist, History(string("K-means with ", nxx, " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",nxx/((d+1)ng)))))
     info(last(hist).s)
     gmm = GMM(w, μ, Σ, hist, nxx)
+    sanitycheck!(gmm)
     em!(gmm, x; nIter=nIter, sparse=sparse)
     gmm
 end    
@@ -227,6 +259,7 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
         else
             error("Unknown kind")
         end
+        sanitycheck!(gmm)
         loginfo = @sprintf("iteration %d, average log likelihood %f",
                            i, ll[i] / (nₓ*d))
         addhist!(gmm, loginfo)
