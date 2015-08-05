@@ -96,6 +96,53 @@ function dmap(f::Function, x::Data)
     end
 end
 
+## this is like mapreduce(), but works on a data iterator
+## for every worker, the data is reduced immediately, so that
+## we only keep a list of (possibly large results) of the size
+## of the array (and not the size of the data list)
+function dmapreduce(f::Function, op::Function, x::Data)
+    if kind(x) == :matrix
+        nₓ = length(x)
+        nw = nworkers()
+        results = cell(nw)
+        valid = falses(nw)
+        id=0
+        nextid() = (id += 1)
+        @sync for (wi,wid) in enumerate(workers())
+            @async while true
+                i = nextid()
+                if i > nₓ
+                    break
+                elseif valid[wi]
+                    results[wi] = op(results[wi], remotecall_fetch(wid, f, x[i]))
+                else
+                    results[wi] = remotecall_fetch(wid, f, x[i])
+                    valid[wi] = true
+                end
+            end
+        end
+        reduce(op, results[valid])
+    else
+        nₓ = length(x)
+        w = workers()
+        nw = length(w)
+        worker(i) = w[1 .+ ((i-1) % nw)]
+        remotes = Array(RemoteRef, nₓ)
+        getnext(i) = x.list[i]
+        load = x.API[:load]
+        @sync begin
+            for wid in workers()
+                @async begin
+                    next = getnext(i)
+                    remotes[i] = remotecall(worker(i), s->f(load(s)), next)
+                end
+            end
+        end 
+        fetchop(a, b) = op(fetch(a), fetch(b))
+        reduce(fetchop, remotes)
+    end
+end
+
 ## stats: compute nth order stats for array (this belongs in stats.jl)
 function stats{T<:FloatingPoint}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
     n, d = nthperm([size(x)...], dim) ## swap or not trick
