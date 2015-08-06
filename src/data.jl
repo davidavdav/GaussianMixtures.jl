@@ -59,6 +59,7 @@ function getindex(x::Data, i::Int)
     end
 end
 
+## A range as index (including [1:1]) returns a Data object, not the data. 
 function getindex{T,VT}(x::Data{T,VT}, r::Range)
     Data{T, VT}(x.list[r], x.API)
 end
@@ -70,7 +71,8 @@ Base.next(x::Data, state::Int) = x[state+1], state+1
 Base.done(x::Data, state::Int) = state == length(x)
 
 ## This function is like pmap(), but executes each element of Data on a predestined
-## worker, so that file caching at the local machine is beneficial
+## worker, so that file caching at the local machine is beneficial.
+## This is _not_ dynamic scheduling, like pmap(). 
 function dmap(f::Function, x::Data)
     if kind(x) == :file
         nₓ = length(x)
@@ -101,46 +103,36 @@ end
 ## we only keep a list of (possibly large results) of the size
 ## of the array (and not the size of the data list)
 function dmapreduce(f::Function, op::Function, x::Data)
-    if kind(x) == :matrix
-        nₓ = length(x)
-        nw = nworkers()
-        results = cell(nw)
-        valid = falses(nw)
-        id=0
-        nextid() = (id += 1)
-        @sync for (wi,wid) in enumerate(workers())
-            @async while true
-                i = nextid()
-                if i > nₓ
-                    break
-                elseif valid[wi]
-                    results[wi] = op(results[wi], remotecall_fetch(wid, f, x[i]))
-                else
-                    results[wi] = remotecall_fetch(wid, f, x[i])
-                    valid[wi] = true
+    nₓ = length(x)
+    nw = nworkers()
+    results = cell(nw)
+    valid = Any[false for i=1:nw] # can't use bitarray as parallel return value, must be pointers
+    id=0
+    nextid() = (id += 1)
+    @sync begin
+        for (wi,wid) in enumerate(workers())
+            @async begin
+                while true
+                    i = nextid()
+                    if i > nₓ
+                        break
+                    end
+                    if kind(x) == :matrix
+                        r = remotecall_fetch(wid, f, x[i])
+                    else
+                        r = remotecall_fetch(wid, s->f(x.API[:load](s)), x.list[i])
+                    end
+                    if valid[wi]
+                        results[wi] = op(results[wi], r)
+                    else
+                        results[wi] = r
+                        valid[wi] = true
+                    end
                 end
             end
         end
-        reduce(op, results[valid])
-    else
-        nₓ = length(x)
-        w = workers()
-        nw = length(w)
-        worker(i) = w[1 .+ ((i-1) % nw)]
-        remotes = Array(RemoteRef, nₓ)
-        getnext(i) = x.list[i]
-        load = x.API[:load]
-        @sync begin
-            for wid in workers()
-                @async begin
-                    next = getnext(i)
-                    remotes[i] = remotecall(worker(i), s->f(load(s)), next)
-                end
-            end
-        end 
-        fetchop(a, b) = op(fetch(a), fetch(b))
-        reduce(fetchop, remotes)
     end
+    reduce(op, results[find(valid)])
 end
 
 ## stats: compute nth order stats for array (this belongs in stats.jl)

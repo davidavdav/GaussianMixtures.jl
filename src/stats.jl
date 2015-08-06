@@ -151,8 +151,7 @@ Base.zero{T}(x::Array{Matrix{T}}) = [zero(z) for z in x]
 ## This function calls stats() for the elements in d::Data, irrespective of the size, or type
 function stats(gmm::GMM, d::Data; order::Int=2, parallel=false)
     if parallel
-        r = dmap(x->stats(gmm, x, order=order, parallel=false), d)
-        return reduce(+, r)
+        return dmapreduce(x->stats(gmm, x, order=order, parallel=false), +, d)
     else
         r = stats(gmm, d[1], order=order, parallel=false)
         for i=2:length(d)
