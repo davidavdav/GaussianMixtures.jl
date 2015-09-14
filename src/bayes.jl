@@ -75,7 +75,7 @@ function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
             Δ = mx[k,:] - π.m₀'
             ## do some effort to keep the matrix positive definite
             third = π.β₀ * N[k] / (π.β₀ + N[k]) * (Δ' * Δ) # guarantee symmety in Δ' Δ
-            W[k] = chol(inv(cholfact(W₀⁻¹ + N[k]*S[k] + third)), :U) # 10.62
+            W[k] = chol(inv(cholfact(W₀⁻¹ + N[k]*S[k] + third)), Val{:U}) # 10.62
         else
             m[k,:] = zeros(d)
             W[k] = chol(eye(d), :U)
@@ -90,7 +90,7 @@ function expectations(vg::VGMM)
     Elogπ = digamma(vg.α) .- digamma(sum(vg.α)) # 10.66, size ng
     ElogdetΛ = similar(Elogπ) # size ng
     for k=1:ng
-        ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 - [1:d]))) + d*log(2) + mylogdet(vg.W[k]) # 10.65
+        ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 - collect(1:d)))) + d*log(2) + mylogdet(vg.W[k]) # 10.65
     end
     return Elogπ, ElogdetΛ
 end
@@ -203,7 +203,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     α, β, m, ν, W = vg.α, vg.β, vg.m, vg.ν, vg.W # VGMM vars
     gaussians = 1:ng
     ## B.79
-    logB(W,ν) = -0.5ν*(mylogdet(W) + d*log(2)) - d*(d-1)/4*log(π) - sum(lgamma(0.5(ν+1-[1:d])))
+    logB(W,ν) = -0.5ν*(mylogdet(W) + d*log(2)) - d*(d-1)/4*log(π) - sum(lgamma(0.5(ν+1-collect(1:d))))
     ## E[log p(x|Ζ,μ,Λ)] 10.71
     Elogll = 0.
     for k in gaussians

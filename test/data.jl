@@ -23,8 +23,8 @@ f1(gmm,data) = GaussianMixtures.dmapreduce(x->stats(gmm, x), +, data)
 f2(gmm,data) = reduce(+, pmap(x->stats(gmm, x), data))
 
 import Base.isapprox
-isapprox(a::Array, b::Array) = size(a)==size(b) && all([isapprox(a[i], b[i]) for i=1:length(a)])
-isapprox(a::Tuple, b::Tuple) = all([isapprox(x,y) for (x,y) in zip(a,b)])
+isapprox(a::Array, b::Array) = size(a)==size(b) && all(i->isapprox(a[i], b[i]), 1:length(a))
+isapprox(a::Tuple, b::Tuple) = all(Bool[isapprox(x,y) for (x,y) in zip(a,b)])
 
 s = stats(g, collect(d))
 

@@ -133,7 +133,7 @@ function stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=
         blocks= min(nₓ, max(blocks, nworkers()))
     end
     l = nₓ / blocks     # chop array into smaller pieces xx
-    xx = Matrix{T}[x[round(i*l+1):round((i+1)l),:] for i=0:(blocks-1)]
+    xx = Matrix{T}[x[round(Int, i*l+1):round(Int, (i+1)l),:] for i=0:(blocks-1)]
     if parallel
         r = pmap(x->stats(gmm, x, order), xx)
         reduce(+, r)                # get +() from BigData.jl

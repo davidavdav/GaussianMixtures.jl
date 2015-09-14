@@ -4,6 +4,7 @@ if VERSION < v"0.4.0-dev"
     typealias AbstractTriangular Triangular
     typealias UpperTriangular{T,M} Triangular{T,M,:U,false}
     set_zero_subnormals(yes::Bool) = ccall(:jl_zero_subnormals, Bool, (Bool,), yes)
+    Base.chol(a::Array, ::Type{Val{:U}}) = chol(a, :U)
 else
     import Base.LinAlg.AbstractTriangular
 end

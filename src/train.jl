@@ -137,13 +137,13 @@ end
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.  
 function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, sparse=0)
-    log2n = int(log2(n))
+    log2n = round(Int,log2(n))
     2^log2n == n || error("n must be power of 2")
     gmm=GMM(x, kind=kind)
     tll = [avll(gmm,x)]
     println("0: avll = ", tll[1])
     for i=1:log2n
-        gmm=split(gmm)
+        gmm=gmmsplit(gmm)
         avll = em!(gmm, x; nIter=i==log2n ? nFinal : nIter, sparse=sparse)
         println(i, ": avll = ", avll)
         append!(tll, avll)
@@ -158,16 +158,15 @@ function logsumexpw(x::Matrix, w::Vector)
     logsumexp(y, 2)
 end
 
-import Base.split
 ## split a mean according to the covariance matrix
-function split{T}(μ::Vector{T}, Σ::Matrix{T}, sep=0.2)
+function gmmsplit{T}(μ::Vector{T}, Σ::Matrix{T}, sep=0.2)
     tsep::T = sep
     d, v = eigs(Σ, nev=1)
     p1 = tsep * d[1] * v[:,1]                         # first principal component
     μ - p1, μ + p1
 end
 
-function split{T}(μ::Vector{T}, Σ::Vector{T}, sep=0.2)
+function gmmsplit{T}(μ::Vector{T}, Σ::Vector{T}, sep=0.2)
     tsep::T = sep
     maxi = indmax(Σ)
     p1 = zeros(length(μ))
@@ -176,7 +175,7 @@ function split{T}(μ::Vector{T}, Σ::Vector{T}, sep=0.2)
 end
     
 ## Split a gmm in order to to double the amount of gaussians
-function split{T}(gmm::GMM{T}; minweight=1e-5, sep=0.2)
+function gmmsplit{T}(gmm::GMM{T}; minweight=1e-5, sep=0.2)
     tsep::T = sep
     ## In this function i, j, and k all index Gaussians
     maxi = reverse(sortperm(gmm.w))
@@ -203,12 +202,12 @@ function split{T}(gmm::GMM{T}; minweight=1e-5, sep=0.2)
         ni = 2oi-1 : 2oi
         w[ni] = gmm.w[oi]/2
         if gmmkind == :diag
-            μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), vec(gmm.Σ[oi,:]), tsep)...)'
+            μ[ni,:] = hcat(gmmsplit(vec(gmm.μ[oi,:]), vec(gmm.Σ[oi,:]), tsep)...)'
             for k=ni
                 Σ[k,:] = gmm.Σ[oi,:]    # implicity copy
             end
         elseif gmmkind == :full
-            μ[ni,:] = hcat(split(vec(gmm.μ[oi,:]), covar(gmm.Σ[oi]), tsep)...)'
+            μ[ni,:] = hcat(gmmsplit(vec(gmm.μ[oi,:]), covar(gmm.Σ[oi]), tsep)...)'
             for k=ni
                 Σ[k] = copy(gmm.Σ[oi])
             end
@@ -318,7 +317,7 @@ function llpg{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n
-    d==gmm.d || error ("Inconsistent size gmm and x")
+    d==gmm.d || error("Inconsistent size gmm and x")
     ll = Array(RT, nₓ, ng)
     Δ = Array(RT, nₓ, d)
     ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))

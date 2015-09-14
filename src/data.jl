@@ -49,7 +49,7 @@ Data(file::String, datatype::DataType; kwargs...) = Data([file], datatype; kwarg
 ## is this really a shortcut?
 API(d::Data, f::Symbol) = d.API[f]
 
-function getindex(x::Data, i::Int) 
+function Base.getindex(x::Data, i::Int) 
     if kind(x) == :matrix
         x.list[i]
     elseif kind(x) == :file
@@ -60,7 +60,7 @@ function getindex(x::Data, i::Int)
 end
 
 ## A range as index (including [1:1]) returns a Data object, not the data. 
-function getindex{T,VT}(x::Data{T,VT}, r::Range)
+function Base.getindex{T,VT}(x::Data{T,VT}, r::Range)
     Data{T, VT}(x.list[r], x.API)
 end
 
@@ -173,7 +173,8 @@ function stats{T<:FloatingPoint}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
 end
 
 ## Helper functions for stats tuples:
-## This relies on sum(::Tuple), which sums over the elements of the tuple. 
+## This relies on sum(::Tuple), which sums over the elements of the tuple.
+import Base: +
 function +(a::Tuple, b::Tuple)
     length(a) == length(b) || error("Tuples must be of same length in addition")
     tuple(map(sum, zip(a,b))...)
