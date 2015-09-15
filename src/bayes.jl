@@ -78,7 +78,7 @@ function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
             W[k] = chol(inv(cholfact(W₀⁻¹ + N[k]*S[k] + third)), Val{:U}) # 10.62
         else
             m[k,:] = zeros(d)
-            W[k] = chol(eye(d), :U)
+            W[k] = chol(eye(d), Val{:U})
         end
     end
     return α, β, m, ν, W

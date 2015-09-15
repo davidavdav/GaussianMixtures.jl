@@ -5,9 +5,10 @@ using JLD
 using Compat
 
 include("compat.jl")
-require("gmmtypes.jl")
-require("bayestypes.jl")
-
+if !isdefined(:GMM)
+    include("gmmtypes.jl")
+    include("bayestypes.jl")
+end
 include("gmms.jl")
 include("train.jl")
 include("io.jl")

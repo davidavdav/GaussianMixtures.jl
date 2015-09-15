@@ -18,12 +18,21 @@
 
 ## force Emacs utf-8: αβγδεζηθικλμνξοπρστυφχψω 
 
+"""
+`History`, a type to record the history of how a GMM is built.  
+"""
 type History
+    """timestamp"""
     t::Float64
+    """description"""
     s::String
 end
 History(s::String) = History(time(), s)
 
+"""
+`GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
+distributions
+"""
 abstract GaussianMixture{T,CT}
 
 ## support for two kinds of covariance matrix
@@ -33,14 +42,25 @@ typealias DiagCov{T} Matrix{T}
 typealias FullCov{T} Vector{UpperTriangular{T,Matrix{T}}} 
 
 ## GMMs can be of type FLoat32 or Float64, and diagonal or full
+"""
+`GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance 
+types are supported: full covarariance and diagonal covariance. 
+"""
 type GMM{T<:FloatingPoint, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}
-    n::Int                      # number of Gaussians
-    d::Int                      # dimension of Gaussian
-    w::Vector{T}                # weights: n
-    μ::Matrix{T}                # means: n x d
-    Σ::CT                       # covars n x d or n x d^2
-    hist::Vector{History}       # history
-    nx::Int                     # number of points used to train the GMM
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "weights (size n)"
+    w::Vector{T}
+    "means (size n x d)"
+    μ::Matrix{T}
+    "covariances (size n x d for diagonal, or n x (d^2) for full)"
+    Σ::CT
+    "history"
+    hist::Vector{History}
+    "number of points used to train the GMM"
+    nx::Int
     function GMM(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{T}), 
                  hist::Vector, nx::Int)
         n = length(w)
@@ -66,28 +86,47 @@ GMM{T<:FloatingPoint}(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{
 
 ## Please note our pedantic use of the Greek letter ν (nu), don't confuse this with Latin v!
 ## The index-0 "₀" is part of the identifier.
+"""
+`GMMprior` is a type that holds the prior for training GMMs using Variational Bayes. 
+"""
 type GMMprior{T<:FloatingPoint}
-    α₀::T                       # effective prior number of observations
+    "effective prior number of observations"
+    α₀::T
     β₀::T
-    m₀::Vector{T}               # prior on μ
-    ν₀::T                       # scale precision
-    W₀::Matrix{T}               # prior precision
+    "prior on the mean μ"
+    m₀::Vector{T}
+    "scale of precision Λ"
+    ν₀::T
+    "prior of the precision Λ"
+    W₀::Matrix{T}
 end
 
 ## In Variational Bayes, the GMM is not specified by point estimates of the paramters,
 ## but distributions over these parameters.
 ## These are Dirichlet for the weights and Gaussian-Wishart for the mean and precision.
 ## These distributions have parameters themselves, and these are stored in this type...
+"""
+`VGMM` is the type that is used to store a GMM in the Variational Bayes training.
+"""
 type VGMM{T<:FloatingPoint} <: GaussianMixture{T}
-    n::Int                      # number of Gaussians
-    d::Int                      # dimension of Gaussian
-    π::GMMprior{T}              # The prior used in this VGMM
-    α::Vector{T}                # Dirichlet, n
-    β::Vector{T}                # scale of precision, n
-    m::Matrix{T}                # means of means, n * d
-    ν::Vector{T}                # no. degrees of freedom, n
-    W::FullCov{T}               # scale matrix for precision? n * d * d
-    hist::Vector{History}       # history
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "The prior used in this VGMM"
+    π::GMMprior{T}
+    "Dirichlet, size n"
+    α::Vector{T}
+    "scale of precision, size n"
+    β::Vector{T}
+    "means of means, size n * d"
+    m::Matrix{T}
+    "no. degrees of freedom, size n"
+    ν::Vector{T}
+    "scale matrix for precision? size n * (d * d)"
+    W::FullCov{T}
+    "history"
+    hist::Vector{History}
 end
 
 
@@ -97,9 +136,14 @@ end
 ## stats?
 
 ## We store the stats in a (ng * d) structure, i.e., not as a super vector yet.  
-## Perhaps in ivector processing a supervector is easier. 
+## Perhaps in ivector processing a supervector is easier.
+"""
+`CSstats` a type holding centered and scaled zeroth and first order GMM statistics
+"""
 type CSstats{T<:FloatingPoint}
+    "zeroth order stats"
     n::Vector{T}          # zero-order stats, ng
+    "first order stats"
     f::Matrix{T}          # first-order stats, ng * d
     function CSstats(n::Vector, f::Matrix)
         @assert size(n,1)==size(f, 1)
@@ -111,9 +155,15 @@ CSstats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}) = CSstats{T}(n, f)
 CSstats(t::Tuple) = CSstats(t[1], t[2])
 
 ## Cstats is a type of centered but un-scaled stats, necessary for i-vector extraction
+"""
+`Cstats`, a type holding centered zeroth, first and second order GMM statistics
+"""
 type Cstats{T<:FloatingPoint, CT<:Union(Matrix,Vector)}
+    "zeroth order stats"
     N::Vector{T}
+    "first order stats"
     F::Matrix{T}
+    "second order stats"
     S::CT
     function Cstats(n::Vector{T}, f::Matrix{T}, s::Union(Matrix{T},Vector{Matrix{T}}))
         size(n,1) == size(f,1) || error("Inconsistent size 0th and 1st order stats")
@@ -135,6 +185,10 @@ Cstats(t::Tuple) = Cstats(t...)
 
 ## The API is a dictionary of functions that help loading the data into memory
 ## Compulsory is: :load, useful is: :size
+"""
+`Data` is a type for holding an array of feature vectors (i.e., matrices), or references to 
+files on disk.  The data is automatically loaded when needed, e.g., by indexing. 
+"""
 type Data{T,VT<:Union(Matrix,String)}
     list::Vector{VT}
     API::Dict{Symbol,Function}
