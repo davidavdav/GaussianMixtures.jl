@@ -1,7 +1,7 @@
 ## data.jl Julia code to handle matrix-type data on disc
 
 ## report the kind of Data structure from the type instance
-kind{T,S<:String}(d::Data{T,S}) = :file
+kind{T,S<:AbstractString}(d::Data{T,S}) = :file
 kind{T}(d::Data{T,Matrix{T}}) = :matrix
 Base.eltype{T}(d::Data{T}) = T
 
@@ -10,29 +10,29 @@ Data{T}(x::Matrix{T}) = Data(Matrix{T}[x])
 
 ## constructor for a vector of files
 ## Data([strings], type, loadfunction)
-function Data{S<:String}(files::Vector{S}, datatype::DataType, load::Function)
+function Data{S<:AbstractString}(files::Vector{S}, datatype::DataType, load::Function)
     Data(files, datatype, @compat Dict(:load => load))
 end
 
 ## default load function
-function _load(file::String)
+function _load(file::AbstractString)
     load(file, "data")
 end
 
 ## default size function
-function _size(file::String)
+function _size(file::AbstractString)
     jldopen(file) do fd
         size(fd["data"])
     end
 end
 
 ## courtesy compatible save for a matrix
-function JLD.save(file::String, x::Matrix)
+function JLD.save(file::AbstractString, x::Matrix)
     save(file,"data", x)
 end
 
 ## Data([strings], type; load=loadfunction, size=sizefunction)
-function Data{S<:String}(files::Vector{S}, datatype::DataType; kwargs...) 
+function Data{S<:AbstractString}(files::Vector{S}, datatype::DataType; kwargs...) 
     all([isa((k,v), (Symbol,Function)) for (k,v) in kwargs]) || error("Wrong type of argument", args)
     d = Dict{Symbol,Function}([kwargs...])
     if !haskey(d, :load)
@@ -43,8 +43,8 @@ function Data{S<:String}(files::Vector{S}, datatype::DataType; kwargs...)
 end
 
 ## constructor for a plain file.
-Data(file::String, datatype::DataType, load::Function) = Data([file], datatype, load)
-Data(file::String, datatype::DataType; kwargs...) = Data([file], datatype; kwargs...)
+Data(file::AbstractString, datatype::DataType, load::Function) = Data([file], datatype, load)
+Data(file::AbstractString, datatype::DataType; kwargs...) = Data([file], datatype; kwargs...)
 
 ## is this really a shortcut?
 API(d::Data, f::Symbol) = d.API[f]
@@ -136,7 +136,7 @@ function dmapreduce(f::Function, op::Function, x::Data)
 end
 
 ## stats: compute nth order stats for array (this belongs in stats.jl)
-function stats{T<:FloatingPoint}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
+function stats{T<:AbstractFloat}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
     n, d = nthperm([size(x)...], dim) ## swap or not trick
     if kind == :diag
         if order == 2

@@ -4,7 +4,7 @@
 using StatsBase: sample 
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-function GMM{T<:FloatingPoint}(x::DataOrMatrix{T}; kind=:diag)
+function GMM{T<:AbstractFloat}(x::DataOrMatrix{T}; kind=:diag)
     n, sx, sxx = stats(x, kind=kind)
     μ = sx' ./ n                        # make this a row vector
     d = length(μ)
@@ -21,7 +21,7 @@ function GMM{T<:FloatingPoint}(x::DataOrMatrix{T}; kind=:diag)
     GMM(ones(T,1), μ, Σ, [hist], n)
 end
 ## Also allow a Vector, :full makes no sense
-GMM{T<:FloatingPoint}(x::Vector{T}) = GMM(x'') # strange idiom...
+GMM{T<:AbstractFloat}(x::Vector{T}) = GMM(x'') # strange idiom...
 
 ## constructors based on data or matrix
 function GMM{T}(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
@@ -37,7 +37,7 @@ function GMM{T}(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
     end
 end
 ## a 1-dimensional Gaussian can be initialized with a vector, skip kind=
-GMM{T<:FloatingPoint}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) = GMM(n, x''; method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
+GMM{T<:AbstractFloat}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) = GMM(n, x''; method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
 
 ## we sometimes end up with pathological gmms
 function sanitycheck!(gmm::GMM)
@@ -280,7 +280,7 @@ end
 ## This is a fast implementation of llpg for diagonal covariance GMMs
 ## It relies on fast matrix multiplication, and takes up more memory
 ## TODO: do this the way we do in stats(), which is currently more memory-efficient
-function llpg{GT,T<:FloatingPoint}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T})
+function llpg{GT,T<:AbstractFloat}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T})
     RT = promote_type(GT,T)
     ## ng = gmm.n
     (nₓ, d) = size(x)
@@ -313,7 +313,7 @@ function xμTΛxμ!(Δ::Matrix, x::Matrix, μ::Matrix, ciΣ::UpperTriangular)
 end
 
 ## full covariance version of llpg()
-function llpg{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
+function llpg{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n
@@ -331,7 +331,7 @@ function llpg{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
 end
         
 ## Average log-likelihood per data point and per dimension for a given GMM 
-function avll{T<:FloatingPoint}(gmm::GMM, x::Matrix{T})
+function avll{T<:AbstractFloat}(gmm::GMM, x::Matrix{T})
     gmm.d == size(x,2) || error("Inconsistent size gmm and x")
     mean(logsumexpw(llpg(gmm, x), gmm.w)) / gmm.d
 end
@@ -346,7 +346,7 @@ end
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
 ## TODO: This is a slow and memory-intensive implementation.  It is better to 
 ## use the approaches used in stats()
-function gmmposterior{GT,T<:FloatingPoint}(gmm::GMM{GT}, x::Matrix{T})      # nₓ × ng
+function gmmposterior{GT,T<:AbstractFloat}(gmm::GMM{GT}, x::Matrix{T})      # nₓ × ng
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n

@@ -10,18 +10,18 @@ else
 end
 
 ## NumericExtensions is no longer supported, underuptimized implementation:
-function logsumexp{T<:FloatingPoint}(x::Vector{T})
+function logsumexp{T<:AbstractFloat}(x::Vector{T})
     m = maximum(x)
     log(sum(exp(x .- m))) + m
 end
-logsumexp{T<:FloatingPoint}(x::Matrix{T}, dim::Integer) = mapslices(logsumexp, x, dim)
+logsumexp{T<:AbstractFloat}(x::Matrix{T}, dim::Integer) = mapslices(logsumexp, x, dim)
 
 ## Also NumericExtensions' semantics of dot() is no longer supported.
-function Base.dot{T<:FloatingPoint}(x::Matrix{T}, y::Matrix{T})
+function Base.dot{T<:AbstractFloat}(x::Matrix{T}, y::Matrix{T})
     size(x) == size(y) || error("Matrix sizes must match")
     dot(vec(x), vec(y))
 end
-function Base.dot{T<:FloatingPoint}(x::Matrix{T}, y::Matrix{T}, dim::Integer)
+function Base.dot{T<:AbstractFloat}(x::Matrix{T}, y::Matrix{T}, dim::Integer)
     size(x) == size(y) || error("Matrix sizes must match")
     if dim==1
         r = zeros(T, 1, size(x,2))

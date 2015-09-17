@@ -36,7 +36,7 @@ end
 ## this might turn out numerically less stable for Float32
 
 ## diagonal covariance
-function stats{GT,T<:FloatingPoint}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T}, order::Int)
+function stats{GT,T<:AbstractFloat}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T}, order::Int)
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n
@@ -76,7 +76,7 @@ end
 
 ## Full covariance
 ## this is a `slow' implementation, based on posterior()
-function stats{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Array{T,2}, order::Int)
+function stats{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Array{T,2}, order::Int)
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n
@@ -119,7 +119,7 @@ end
 ## split computation up in parts, either because of memory limitations
 ## or because of parallelization
 ## You dispatch this by only using 2 parameters
-function stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
+function stats{T<:AbstractFloat}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
     parallel &= nworkers() > 1
     ng = gmm.n
     (nₓ, d) = size(x)
@@ -163,7 +163,7 @@ end
     
 ## Same, but UBM centered+scaled stats
 ## f and s are ng * d
-function csstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, order::Int=2)
+function csstats{T<:AbstractFloat}(gmm::GMM, x::DataOrMatrix{T}, order::Int=2)
     kind(gmm) == :diag || error("Can only do centered and scaled stats for diag covariance")
     if order==1
         nₓ, llh, N, F = stats(gmm, x, order)
@@ -186,7 +186,7 @@ CSstats(gmm::GMM, x::DataOrMatrix) = CSstats(csstats(gmm, x, 1))
 
 ## centered stats, but not scaled by UBM covariance
 ## check full covariance...
-function cstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, parallel=false)
+function cstats{T<:AbstractFloat}(gmm::GMM, x::DataOrMatrix{T}, parallel=false)
     nₓ, llh, N, F, S = stats(gmm, x, order=2, parallel=parallel)
     Nμ =  N .* gmm.μ
     ## center the statistics

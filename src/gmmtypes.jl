@@ -25,9 +25,9 @@ type History
     """timestamp"""
     t::Float64
     """description"""
-    s::String
+    s::AbstractString
 end
-History(s::String) = History(time(), s)
+History(s::AbstractString) = History(time(), s)
 
 """
 `GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
@@ -46,7 +46,7 @@ typealias FullCov{T} Vector{UpperTriangular{T,Matrix{T}}}
 `GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance 
 types are supported: full covarariance and diagonal covariance. 
 """
-type GMM{T<:FloatingPoint, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}
+type GMM{T<:AbstractFloat, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}
     "number of Gaussians"
     n::Int
     "dimension of Gaussian"
@@ -79,7 +79,7 @@ type GMM{T<:FloatingPoint, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}
         new(n, d, w, μ, Σ, hist, nx)
     end
 end
-GMM{T<:FloatingPoint}(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{T}), 
+GMM{T<:AbstractFloat}(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{T}), 
                       hist::Vector, nx::Int) = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
 
 ## Variational Bayes GMM types.
@@ -89,7 +89,7 @@ GMM{T<:FloatingPoint}(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{
 """
 `GMMprior` is a type that holds the prior for training GMMs using Variational Bayes. 
 """
-type GMMprior{T<:FloatingPoint}
+type GMMprior{T<:AbstractFloat}
     "effective prior number of observations"
     α₀::T
     β₀::T
@@ -108,7 +108,7 @@ end
 """
 `VGMM` is the type that is used to store a GMM in the Variational Bayes training.
 """
-type VGMM{T<:FloatingPoint} <: GaussianMixture{T}
+type VGMM{T<:AbstractFloat} <: GaussianMixture{T}
     "number of Gaussians"
     n::Int
     "dimension of Gaussian"
@@ -140,7 +140,7 @@ end
 """
 `CSstats` a type holding centered and scaled zeroth and first order GMM statistics
 """
-type CSstats{T<:FloatingPoint}
+type CSstats{T<:AbstractFloat}
     "zeroth order stats"
     n::Vector{T}          # zero-order stats, ng
     "first order stats"
@@ -150,7 +150,7 @@ type CSstats{T<:FloatingPoint}
         new(n,f)
     end
 end
-CSstats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}) = CSstats{T}(n, f)
+CSstats{T<:AbstractFloat}(n::Vector{T}, f::Matrix{T}) = CSstats{T}(n, f)
 ## special case for tuple (why would I need this?)
 CSstats(t::Tuple) = CSstats(t[1], t[2])
 
@@ -158,7 +158,7 @@ CSstats(t::Tuple) = CSstats(t[1], t[2])
 """
 `Cstats`, a type holding centered zeroth, first and second order GMM statistics
 """
-type Cstats{T<:FloatingPoint, CT<:Union(Matrix,Vector)}
+type Cstats{T<:AbstractFloat, CT<:Union(Matrix,Vector)}
     "zeroth order stats"
     N::Vector{T}
     "first order stats"
@@ -175,7 +175,7 @@ type Cstats{T<:FloatingPoint, CT<:Union(Matrix,Vector)}
         new(n, f, s)
     end
 end
-Cstats{T<:FloatingPoint}(n::Vector{T}, f::Matrix{T}, s::Union(Matrix{T}, Vector{Matrix{T}})) = Cstats{T,typeof(s)}(n, f, s)
+Cstats{T<:AbstractFloat}(n::Vector{T}, f::Matrix{T}, s::Union(Matrix{T}, Vector{Matrix{T}})) = Cstats{T,typeof(s)}(n, f, s)
 Cstats(t::Tuple) = Cstats(t...)
 
 ## A data handle, either in memory or on disk, perhaps even mmapped but I haven't seen any 
@@ -189,12 +189,12 @@ Cstats(t::Tuple) = Cstats(t...)
 `Data` is a type for holding an array of feature vectors (i.e., matrices), or references to 
 files on disk.  The data is automatically loaded when needed, e.g., by indexing. 
 """
-type Data{T,VT<:Union(Matrix,String)}
+type Data{T,VT<:Union(Matrix,AbstractString)}
     list::Vector{VT}
     API::Dict{Symbol,Function}
     Data(list::Union(Vector{VT},Vector{Matrix{T}}), API::Dict{Symbol,Function})=new(list,API)
 end
 Data{T}(list::Vector{Matrix{T}}) = Data{T, eltype(list)}(list, Dict{Symbol,Function}())
-Data{S<:String}(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) = Data{t, S}(list, API)
+Data{S<:AbstractString}(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) = Data{t, S}(list, API)
 
 typealias DataOrMatrix{T} Union(Data{T}, Matrix{T})

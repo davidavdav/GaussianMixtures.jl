@@ -60,7 +60,7 @@ function nparams(gmm::GMM)
 end
 
 "`addhist!(::GMM, s)` adds a comment `s` to the GMMM"
-function addhist!(gmm::GaussianMixture, s::String) 
+function addhist!(gmm::GaussianMixture, s::AbstractString) 
     info(s)
     push!(gmm.hist, History(s))
     gmm

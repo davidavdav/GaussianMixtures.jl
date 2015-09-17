@@ -4,14 +4,14 @@
 ## This code is for exchange with our octave / matlab based system
 
 ## save a single GMM
-function JLD.save(filename::String, name::String, gmm::GMM)
+function JLD.save(filename::AbstractString, name::AbstractString, gmm::GMM)
     jldopen(filename, "w") do file
         addrequire(file, "GaussianMixtures")
         write(file, name, gmm)
     end
 end
 ## save multiple GMMs
-function JLD.save(filename::String, name::String, gmms::Array{GMM})
+function JLD.save(filename::AbstractString, name::AbstractString, gmms::Array{GMM})
     jldopen(filename, "w") do file
         addrequire(file, "GaussianMixtures")
         write(file, name, gmms)

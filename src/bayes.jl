@@ -13,7 +13,7 @@
 ## e.g., W₀⁻¹ where others might write W0inv.
 
 ## initialize a prior with minimal knowledge
-function GMMprior{T<:FloatingPoint}(d::Int, alpha::T, beta::T)
+function GMMprior{T<:AbstractFloat}(d::Int, alpha::T, beta::T)
     m₀ = zeros(T, d)
     W₀ = eye(T, d)
     ν₀ = convert(T,d)
