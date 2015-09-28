@@ -11,10 +11,8 @@ end
 dotscore{T<:Real}(gmm::GMM, x::Matrix{T}, y::Matrix{T}, r::Real=1.) =
     dotscore(CSstats(gmm, x), CSstats(gmm, y), r)
 
-import Base.map
-
 ## Maximum A Posteriori adapt a gmm
-function map{T<:AbstractFloat}(gmm::GMM, x::Matrix{T}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
+function maxapost{T<:AbstractFloat}(gmm::GMM, x::Matrix{T}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
     nₓ, ll, N, F, S = stats(gmm, x)
     α = N ./ (N+r)
     if weights

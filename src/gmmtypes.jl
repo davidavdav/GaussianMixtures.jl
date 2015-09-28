@@ -1,5 +1,5 @@
 ## gmm/types.jl  The type that implements a GMM. 
-## (c) 2013--2014 David A. van Leeuwen
+## (c) 2013--2015 David A. van Leeuwen
 
 ## Some remarks on the dimension.  There are three main indexing variables:
 ## - The gaussian index 
@@ -41,12 +41,15 @@ abstract GaussianMixture{T,CT}
 typealias DiagCov{T} Matrix{T}
 typealias FullCov{T} Vector{UpperTriangular{T,Matrix{T}}} 
 
+@compat typealias VecOrMat Union{Vector,Matrix}
+@compat typealias MatOrVecMat{T} Union{Matrix{T}, Vector{Matrix{T}}}
+
 ## GMMs can be of type FLoat32 or Float64, and diagonal or full
 """
 `GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance 
 types are supported: full covarariance and diagonal covariance. 
 """
-type GMM{T<:AbstractFloat, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}
+@compat type GMM{T<:AbstractFloat, CT<:VecOrMat} <: GaussianMixture{T,CT}
     "number of Gaussians"
     n::Int
     "dimension of Gaussian"
@@ -61,7 +64,7 @@ type GMM{T<:AbstractFloat, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}
     hist::Vector{History}
     "number of points used to train the GMM"
     nx::Int
-    function GMM(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{T}), 
+    function GMM(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}}, 
                  hist::Vector, nx::Int)
         n = length(w)
         isapprox(1, sum(w)) || error("weights do not sum to one")
@@ -79,7 +82,7 @@ type GMM{T<:AbstractFloat, CT<:Union(Matrix,Vector)} <: GaussianMixture{T,CT}
         new(n, d, w, μ, Σ, hist, nx)
     end
 end
-GMM{T<:AbstractFloat}(w::Vector{T}, μ::Matrix{T}, Σ::Union(DiagCov{T},FullCov{T}), 
+@compat GMM{T<:AbstractFloat}(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}}, 
                       hist::Vector, nx::Int) = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
 
 ## Variational Bayes GMM types.
@@ -158,14 +161,14 @@ CSstats(t::Tuple) = CSstats(t[1], t[2])
 """
 `Cstats`, a type holding centered zeroth, first and second order GMM statistics
 """
-type Cstats{T<:AbstractFloat, CT<:Union(Matrix,Vector)}
+type Cstats{T<:AbstractFloat, CT<:VecOrMat}
     "zeroth order stats"
     N::Vector{T}
     "first order stats"
     F::Matrix{T}
     "second order stats"
     S::CT
-    function Cstats(n::Vector{T}, f::Matrix{T}, s::Union(Matrix{T},Vector{Matrix{T}}))
+    function Cstats(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T})
         size(n,1) == size(f,1) || error("Inconsistent size 0th and 1st order stats")
         if size(n) == size(s)   # full covariance stats
             all([size(f,2) == size(ss,1) == size(ss,2) for ss in s]) || error("inconsistent size 2st and 2nd order stats")           
@@ -175,7 +178,7 @@ type Cstats{T<:AbstractFloat, CT<:Union(Matrix,Vector)}
         new(n, f, s)
     end
 end
-Cstats{T<:AbstractFloat}(n::Vector{T}, f::Matrix{T}, s::Union(Matrix{T}, Vector{Matrix{T}})) = Cstats{T,typeof(s)}(n, f, s)
+Cstats{T<:AbstractFloat}(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T}) = Cstats{T,typeof(s)}(n, f, s)
 Cstats(t::Tuple) = Cstats(t...)
 
 ## A data handle, either in memory or on disk, perhaps even mmapped but I haven't seen any 
@@ -189,12 +192,12 @@ Cstats(t::Tuple) = Cstats(t...)
 `Data` is a type for holding an array of feature vectors (i.e., matrices), or references to 
 files on disk.  The data is automatically loaded when needed, e.g., by indexing. 
 """
-type Data{T,VT<:Union(Matrix,AbstractString)}
+@compat type Data{T,VT<:Union{Matrix,AbstractString}}
     list::Vector{VT}
     API::Dict{Symbol,Function}
-    Data(list::Union(Vector{VT},Vector{Matrix{T}}), API::Dict{Symbol,Function})=new(list,API)
+    Data(list::Union{Vector{VT},Vector{Matrix{T}}}, API::Dict{Symbol,Function})=new(list,API)
 end
 Data{T}(list::Vector{Matrix{T}}) = Data{T, eltype(list)}(list, Dict{Symbol,Function}())
 Data{S<:AbstractString}(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) = Data{t, S}(list, API)
 
-typealias DataOrMatrix{T} Union(Data{T}, Matrix{T})
+@compat typealias DataOrMatrix{T} Union{Data{T}, Matrix{T}}

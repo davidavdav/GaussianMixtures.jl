@@ -28,7 +28,7 @@ include("recognizer.jl")
 include("distributions.jl")
 
 export GMM, VGMM, GMMprior, CSstats, Cstats, History, Data, DataOrMatrix, 
-gmmsplit, em!, map, llpg, avll, gmmposterior, sanitycheck!, 
+gmmsplit, em!, maxapost, llpg, avll, gmmposterior, sanitycheck!, 
 history, show, stats, nparams, means, covars, weights, setmem, vec, rand, kind, dmap
 
 ## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
