@@ -2,18 +2,18 @@
 
 ## conversion to GMM
 function GMM(m::MixtureModel{Multivariate,Continuous,MvNormal{PDMat,Vector{Float64}}})
-    Σ = eltype(FullCov{Float64})[cholinv(c.Σ.mat) for c in m.components]
-    μ = hcat([c.μ for c in m.components]...)'
-    w = m.prior.prob
+    Σ = eltype(FullCov{Float64})[cholinv(c.Σ.mat) for c in components(m)]
+    μ = hcat([c.μ for c in components(m)]...)'
+    w = probs(m)
     n, d = size(μ)
     h = [History(@sprintf("Initialization from MixtureModel n=%d, d=%d, kind=full", n, d))]
     GMM(w, μ, Σ, h, 0)
 end
 
 function GMM(m::MixtureModel{Multivariate,Continuous,MvNormal{PDiagMat,Vector{Float64}}})
-    Σ = hcat([c.Σ.diag for c in m.components]...)'
-    μ = hcat([c.μ for c in m.components]...)'
-    w = m.prior.prob
+    Σ = hcat([c.Σ.diag for c in components(m)]...)'
+    μ = hcat([c.μ for c in components(m)]...)'
+    w = probs(m)
     n, d = size(μ)
     h = [History(@sprintf("Initialization from MixtureModel n=%d, d=%d, kind=diag", n, d))]
     GMM(w, μ, Σ, h, 0)
