@@ -1,5 +1,7 @@
+using JLD
 using GaussianMixtures
 
 setmem(0.1)
-include("testvb.jl")
-include("test.jl")
+include("data.jl")
+include("bayes.jl")
+include("train.jl")

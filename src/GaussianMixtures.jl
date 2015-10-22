@@ -1,16 +1,14 @@
 ## GaussianMixtures.jl  Some functions for potentially large Gaussian Mixture Models
-## (c) 2013--2014 David A. van Leeuwen
+## (c) 2013--2015 David A. van Leeuwen
+
+VERSION >= v"0.4.0-dev+6521" && __precompile__()
 
 module GaussianMixtures
 
-## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
-ccall(:jl_zero_subnormals, Bool, (Bool,), true)
-
-using NumericExtensions
 using Distributions
 using PDMats
 using Clustering
-using HDF5, JLD
+using JLD
 using Compat
 
 include("compat.jl")
@@ -30,6 +28,10 @@ include("recognizer.jl")
 include("distributions.jl")
 
 export GMM, VGMM, GMMprior, CSstats, Cstats, History, Data, DataOrMatrix, 
-   split, em!, map, llpg, avll, gmmposterior, history, show, stats, nparams, means, covars, weights, setmem, vec, rand, kind, dmap
+gmmsplit, em!, maxapost, llpg, avll, gmmposterior, sanitycheck!, 
+history, show, stats, nparams, means, covars, weights, setmem, vec, rand, kind, dmap
+
+## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
+set_zero_subnormals(true)
 
 end

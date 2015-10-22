@@ -1,6 +1,4 @@
 ## test most routines with randomly generated data
-using NumericExtensions
-
 for (gmmkind, Ng) in zip((:diag, :full), (256, 16))
     println("Kind: ", gmmkind, ", size", Ng)
     ## generate a random GMM

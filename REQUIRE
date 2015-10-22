@@ -1,6 +1,6 @@
-NumericExtensions
+julia 0.3 
 Clustering
 Distributions
 PDMats
-HDF5
 Compat
+JLD

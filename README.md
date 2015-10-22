@@ -2,7 +2,9 @@ GaussianMixtures
 ========================
 A Julia package for Gaussian Mixture Models (GMMs).
 ----------
-[![Build Status](https://travis-ci.org/davidavdav/GaussianMixtures.jl.png)](https://travis-ci.org/davidavdav/GaussianMixtures.jl) [![GaussianMixtures](http://pkg.julialang.org/badges/GaussianMixtures_release.svg)](http://pkg.julialang.org/?pkg=GaussianMixtures&ver=release)
+[![Build Status](https://travis-ci.org/davidavdav/GaussianMixtures.jl.svg?branch=master)](https://travis-ci.org/davidavdav/GaussianMixtures.jl) 
+[![GaussianMixtures](http://pkg.julialang.org/badges/GaussianMixtures_0.3.svg)](http://pkg.julialang.org/?pkg=GaussianMixtures&ver=release)
+[![GaussianMixtures](http://pkg.julialang.org/badges/GaussianMixtures_0.4.svg)](http://pkg.julialang.org/?pkg=GaussianMixtures&ver=nightly)
 
 This package contains support for Gaussian Mixture Models.  Basic training, likelihood calculation, model adaptation, and i/o are implemented.
 
@@ -218,7 +220,7 @@ dotscore(x::CSstats, y::CSstats, r::Float64=1.)
 Computes the dot-scoring approximation to the GMM/UBM log likelihood ratio for a GMM MAP adapted from the UBM (means only) using the data from `x` and a relevance factor of `r`, and test data from `y`. 
 
 ```julia
-map(gmm::GMM, x::Matrix, r=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
+maxapost(gmm::GMM, x::Matrix, r=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
 ```
 Perform Maximum A Posterior (MAP) adaptation of the UBM `gmm` to the data from `x` using relevance `r`.  `means`, `weights` and `covars` indicate which parts of the UBM need to be updated. 
 
@@ -228,10 +230,11 @@ Saving / loading a GMM
 Using package JLD, two methods allow saving a GMM or an array of GMMs to disk:
 
 ```julia
+using JLD
 save(filename::String, name::String, gmm::GMM)
 save(filename::String, name::String, gmms::Array{GMM})
 ```
-This saves a GMM of an array of GMMs under the name `name`  in a file `filename`. The data can be loaded back into a julia session using plain JLD's 
+This saves a GMM of an array of GMMs under the name `name` in a file `filename`. The data can be loaded back into a julia session using plain JLD's 
 
 ```julia
 gmm = load(filename, name)

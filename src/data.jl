@@ -1,7 +1,7 @@
 ## data.jl Julia code to handle matrix-type data on disc
 
 ## report the kind of Data structure from the type instance
-kind{T,S<:String}(d::Data{T,S}) = :file
+kind{T,S<:AbstractString}(d::Data{T,S}) = :file
 kind{T}(d::Data{T,Matrix{T}}) = :matrix
 Base.eltype{T}(d::Data{T}) = T
 
@@ -10,29 +10,29 @@ Data{T}(x::Matrix{T}) = Data(Matrix{T}[x])
 
 ## constructor for a vector of files
 ## Data([strings], type, loadfunction)
-function Data{S<:String}(files::Vector{S}, datatype::DataType, load::Function)
-    Data(files, datatype, Dict(:load => load))
+function Data{S<:AbstractString}(files::Vector{S}, datatype::DataType, load::Function)
+    Data(files, datatype, @compat Dict(:load => load))
 end
 
 ## default load function
-function _load(file::String)
+function _load(file::AbstractString)
     load(file, "data")
 end
 
 ## default size function
-function _size(file::String)
+function _size(file::AbstractString)
     jldopen(file) do fd
         size(fd["data"])
     end
 end
 
 ## courtesy compatible save for a matrix
-function JLD.save(file::String, x::Matrix)
+function JLD.save(file::AbstractString, x::Matrix)
     save(file,"data", x)
 end
 
 ## Data([strings], type; load=loadfunction, size=sizefunction)
-function Data{S<:String}(files::Vector{S}, datatype::DataType; kwargs...) 
+function Data{S<:AbstractString}(files::Vector{S}, datatype::DataType; kwargs...) 
     all([isa((k,v), (Symbol,Function)) for (k,v) in kwargs]) || error("Wrong type of argument", args)
     d = Dict{Symbol,Function}([kwargs...])
     if !haskey(d, :load)
@@ -43,13 +43,13 @@ function Data{S<:String}(files::Vector{S}, datatype::DataType; kwargs...)
 end
 
 ## constructor for a plain file.
-Data(file::String, datatype::DataType, load::Function) = Data([file], datatype, load)
-Data(file::String, datatype::DataType; kwargs...) = Data([file], datatype; kwargs...)
+Data(file::AbstractString, datatype::DataType, load::Function) = Data([file], datatype, load)
+Data(file::AbstractString, datatype::DataType; kwargs...) = Data([file], datatype; kwargs...)
 
 ## is this really a shortcut?
 API(d::Data, f::Symbol) = d.API[f]
 
-function getindex(x::Data, i::Int) 
+function Base.getindex(x::Data, i::Int) 
     if kind(x) == :matrix
         x.list[i]
     elseif kind(x) == :file
@@ -59,7 +59,8 @@ function getindex(x::Data, i::Int)
     end
 end
 
-function getindex{T,VT}(x::Data{T,VT}, r::Range)
+## A range as index (including [1:1]) returns a Data object, not the data. 
+function Base.getindex{T,VT}(x::Data{T,VT}, r::Range)
     Data{T, VT}(x.list[r], x.API)
 end
 
@@ -70,7 +71,8 @@ Base.next(x::Data, state::Int) = x[state+1], state+1
 Base.done(x::Data, state::Int) = state == length(x)
 
 ## This function is like pmap(), but executes each element of Data on a predestined
-## worker, so that file caching at the local machine is beneficial
+## worker, so that file caching at the local machine is beneficial.
+## This is _not_ dynamic scheduling, like pmap(). 
 function dmap(f::Function, x::Data)
     if kind(x) == :file
         nₓ = length(x)
@@ -96,12 +98,49 @@ function dmap(f::Function, x::Data)
     end
 end
 
+## this is like mapreduce(), but works on a data iterator
+## for every worker, the data is reduced immediately, so that
+## we only keep a list of (possibly large results) of the size
+## of the array (and not the size of the data list)
+function dmapreduce(f::Function, op::Function, x::Data)
+    nₓ = length(x)
+    nw = nworkers()
+    results = cell(nw)
+    valid = Any[false for i=1:nw] # can't use bitarray as parallel return value, must be pointers
+    id=0
+    nextid() = (id += 1)
+    @sync begin
+        for (wi,wid) in enumerate(workers())
+            @async begin
+                while true
+                    i = nextid()
+                    if i > nₓ
+                        break
+                    end
+                    if kind(x) == :matrix
+                        r = remotecall_fetch(wid, f, x[i])
+                    else
+                        r = remotecall_fetch(wid, s->f(x.API[:load](s)), x.list[i])
+                    end
+                    if valid[wi]
+                        results[wi] = op(results[wi], r)
+                    else
+                        results[wi] = r
+                        valid[wi] = true
+                    end
+                end
+            end
+        end
+    end
+    reduce(op, results[find(valid)])
+end
+
 ## stats: compute nth order stats for array (this belongs in stats.jl)
-function stats{T<:FloatingPoint}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
+function stats{T<:AbstractFloat}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
     n, d = nthperm([size(x)...], dim) ## swap or not trick
     if kind == :diag
         if order == 2
-            return n, vec(sum(x, dim)), vec(sumsq(x, dim))   # NumericExtensions is fast
+            return n, vec(sum(x, dim)), vec(sumabs2(x, dim))
         elseif order == 1
             return n, vec(sum(x, dim))
         else
@@ -134,7 +173,8 @@ function stats{T<:FloatingPoint}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
 end
 
 ## Helper functions for stats tuples:
-## This relies on sum(::Tuple), which sums over the elements of the tuple. 
+## This relies on sum(::Tuple), which sums over the elements of the tuple.
+import Base: +
 function +(a::Tuple, b::Tuple)
     length(a) == length(b) || error("Tuples must be of same length in addition")
     tuple(map(sum, zip(a,b))...)
@@ -207,10 +247,10 @@ end
 
 ## this is potentially very slow because it reads all file just to find out the size
 function Base.size(d::Data)
-    if kind(d) == :file && :size in d.API
-        s = dmap(d.API[:size], d.list)
+    if kind(d) == :file && :size in keys(d.API)
+        s = map(d.API[:size], d.list) # don't run parallel for fileserver performance
     else
-        s = dmap(size, d)
+        s = dmap(size, d)       # loads all data in workers, this may thrash the fileserver
     end
     nrow, ncol = s[1]
     ok = true

@@ -1,10 +1,12 @@
 ## stats.jl  Various ways of computing Baum Welch statistics for a GMM
 ## (c) 2013--2014 David A. van Leeuwen
 
-mem=2.                          # Working memory, in Gig
+mem=0.1                          # Working memory for stats extraction, in Gig
 
-function setmem(m::Float64) 
-    global mem=m
+## you can set the available working memory for stats calculation---this should be
+## quite a bit less than the available memory, since there is (generally unknown) overhead
+function setmem(gig::Float64) 
+    global mem=gig
 end
 
 ## stats(gmm, x, order) computes zero, first, ... upto order (≤2) statistics of
@@ -34,7 +36,7 @@ end
 ## this might turn out numerically less stable for Float32
 
 ## diagonal covariance
-function stats{GT,T<:FloatingPoint}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T}, order::Int)
+function stats{GT,T<:AbstractFloat}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T}, order::Int)
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n
@@ -74,7 +76,7 @@ end
 
 ## Full covariance
 ## this is a `slow' implementation, based on posterior()
-function stats{GT,T<:FloatingPoint}(gmm::GMM{GT,FullCov{GT}}, x::Array{T,2}, order::Int)
+function stats{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Array{T,2}, order::Int)
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n
@@ -117,7 +119,7 @@ end
 ## split computation up in parts, either because of memory limitations
 ## or because of parallelization
 ## You dispatch this by only using 2 parameters
-function stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
+function stats{T<:AbstractFloat}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
     parallel &= nworkers() > 1
     ng = gmm.n
     (nₓ, d) = size(x)
@@ -131,7 +133,7 @@ function stats{T<:FloatingPoint}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=
         blocks= min(nₓ, max(blocks, nworkers()))
     end
     l = nₓ / blocks     # chop array into smaller pieces xx
-    xx = Matrix{T}[x[round(i*l+1):round((i+1)l),:] for i=0:(blocks-1)]
+    xx = Matrix{T}[x[round(Int, i*l+1):round(Int, (i+1)l),:] for i=0:(blocks-1)]
     if parallel
         r = pmap(x->stats(gmm, x, order), xx)
         reduce(+, r)                # get +() from BigData.jl
@@ -149,8 +151,7 @@ Base.zero{T}(x::Array{Matrix{T}}) = [zero(z) for z in x]
 ## This function calls stats() for the elements in d::Data, irrespective of the size, or type
 function stats(gmm::GMM, d::Data; order::Int=2, parallel=false)
     if parallel
-        r = dmap(x->stats(gmm, x, order=order, parallel=false), d)
-        return reduce(+, r)
+        return dmapreduce(x->stats(gmm, x, order=order, parallel=false), +, d)
     else
         r = stats(gmm, d[1], order=order, parallel=false)
         for i=2:length(d)
@@ -162,7 +163,7 @@ end
     
 ## Same, but UBM centered+scaled stats
 ## f and s are ng * d
-function csstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, order::Int=2)
+function csstats{T<:AbstractFloat}(gmm::GMM, x::DataOrMatrix{T}, order::Int=2)
     kind(gmm) == :diag || error("Can only do centered and scaled stats for diag covariance")
     if order==1
         nₓ, llh, N, F = stats(gmm, x, order)
@@ -185,7 +186,7 @@ CSstats(gmm::GMM, x::DataOrMatrix) = CSstats(csstats(gmm, x, 1))
 
 ## centered stats, but not scaled by UBM covariance
 ## check full covariance...
-function cstats{T<:FloatingPoint}(gmm::GMM, x::DataOrMatrix{T}, parallel=false)
+function cstats{T<:AbstractFloat}(gmm::GMM, x::DataOrMatrix{T}, parallel=false)
     nₓ, llh, N, F, S = stats(gmm, x, order=2, parallel=parallel)
     Nμ =  N .* gmm.μ
     ## center the statistics
