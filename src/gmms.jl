@@ -5,7 +5,7 @@
 """
 `GMM(n::Int, d::Int, kind::Symbol=:diag)` initializes a GMM with means 0 and Indentity covariances
 """
-function GMM(n::Int, d::Int; kind::Symbol=:diag) 
+function GMM(n::Int, d::Int; kind::Symbol=:diag)
     w = ones(n)/n
     μ = zeros(n, d)
     if kind == :diag
@@ -60,7 +60,7 @@ function nparams(gmm::GMM)
 end
 
 "`addhist!(::GMM, s)` adds a comment `s` to the GMMM"
-function addhist!(gmm::GaussianMixture, s::AbstractString) 
+function addhist!(gmm::GaussianMixture, s::AbstractString)
     info(s)
     push!(gmm.hist, History(s))
     gmm
@@ -109,11 +109,11 @@ history(gmm::GaussianMixture) = gmm.hist
 
 function Base.writemime(io::IO, ::MIME{symbol("text/plain")}, hist::Vector{History})
     t0 = hist[1].t
-    println(io, "GMM trained from ", Libc.strftime(t0), " to ", strftime(last(hist).t))
+    println(io, "GMM trained from ", Libc.strftime(t0), " to ", Libc.strftime(last(hist).t))
     for h in hist
         s = split(h.s, "\n")
         print(io, @sprintf("%6.3f\t%s\n", h.t-t0, s[1]))
-        for i = 2:length(s) 
+        for i = 2:length(s)
             print(io, @sprintf("%6s\t%s\n", " ", s[i]))
         end
     end
