@@ -32,4 +32,7 @@ for gmmkind in [:diag, :full]
     end
 end
 
-
+## Check that the uninitialized constructor doesn't trigger an error.
+for gmmkind in [:diag, :full]
+    GMM(32, 26; kind=gmmkind)
+end
