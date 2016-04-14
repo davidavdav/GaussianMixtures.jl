@@ -5,7 +5,7 @@ mem=0.1                          # Working memory for stats extraction, in Gig
 
 ## you can set the available working memory for stats calculation---this should be
 ## quite a bit less than the available memory, since there is (generally unknown) overhead
-function setmem(gig::Float64) 
+function setmem(gig::Float64)
     global mem=gig
 end
 
@@ -14,7 +14,7 @@ end
 ## * d), as by the general rule for dimension order in types.jl.
 ## Note: these are _uncentered_ statistics.
 
-## you can dispatch this routine by specifying 3 parameters, 
+## you can dispatch this routine by specifying 3 parameters,
 ## i.e., an unnamed explicit parameter order
 
 ## For reasons of accumulation, this function returns a tuple
@@ -31,8 +31,8 @@ end
 ## The memory footprint is sizeof(T) * ((2d + 2) ng + (d + ng + 1) nx, and
 ## results take an additional (2d +1) ng
 ## This is not very efficient, since this is designed for speed, and
-## we don't want to do too much in-memory yet.  
-## Currently, I don't use a logsumexp implementation because of speed considerations, 
+## we don't want to do too much in-memory yet.
+## Currently, I don't use a logsumexp implementation because of speed considerations,
 ## this might turn out numerically less stable for Float32
 
 ## diagonal covariance
@@ -103,8 +103,8 @@ function stats{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Array{T,2}, ord
     end
     return nₓ, llh, N, F, S
 end
-    
-                   
+
+
 ## ## reduction function for the plain results of stats(::GMM)
 ## function accumulate(r::Vector{Tuple})
 ##     res = {r[1]...}           # first stats tuple, as array
@@ -147,7 +147,7 @@ function stats{T<:AbstractFloat}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=
 end
 ## the reduce above needs the following
 Base.zero{T}(x::Array{Matrix{T}}) = [zero(z) for z in x]
-    
+
 ## This function calls stats() for the elements in d::Data, irrespective of the size, or type
 function stats(gmm::GMM, d::Data; order::Int=2, parallel=false)
     if parallel
@@ -160,7 +160,7 @@ function stats(gmm::GMM, d::Data; order::Int=2, parallel=false)
         return r
     end
 end
-    
+
 ## Same, but UBM centered+scaled stats
 ## f and s are ng * d
 function csstats{T<:AbstractFloat}(gmm::GMM, x::DataOrMatrix{T}, order::Int=2)
@@ -180,7 +180,7 @@ function csstats{T<:AbstractFloat}(gmm::GMM, x::DataOrMatrix{T}, order::Int=2)
     end
 end
 
-## You can also get centered+scaled stats in a Cstats structure directly by 
+## You can also get centered+scaled stats in a Cstats structure directly by
 ## using the constructor with a GMM argument
 CSstats(gmm::GMM, x::DataOrMatrix) = CSstats(csstats(gmm, x, 1))
 
@@ -207,4 +207,10 @@ function cstats{T<:AbstractFloat}(gmm::GMM, x::DataOrMatrix{T}, parallel=false)
 end
 
 Cstats(gmm::GMM, x::DataOrMatrix, parallel=false) = Cstats(cstats(gmm, x, parallel))
-    
+
+## some convenience functions
+Base.eltype{T}(stats::Cstats{T}) = T
+Base.size(stats::Cstats) = size(stats.F)
+kind(stats::Cstats) = typeof(stats.S) <: Vector ? :full : :diag
+Base.(:+)(a::Cstats, b::Cstats) = Cstats(a.N + b.N, a.F + b.F, a.S + b.S)
+Base.zero(x::Cstats) = Cstats(zero(x.N), zero(x.F), zero(x.S))
