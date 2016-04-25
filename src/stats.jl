@@ -208,6 +208,9 @@ end
 
 Cstats(gmm::GMM, x::DataOrMatrix, parallel=false) = Cstats(cstats(gmm, x, parallel))
 
+## conversion from Cstats to CSstats:
+CSstats(gmm::GMM, cstats::Cstats) = CSstats(cstats.N, cstats.F ./ gmm.Σ)
+
 ## some convenience functions
 Base.eltype{T}(stats::Cstats{T}) = T
 Base.size(stats::Cstats) = size(stats.F)

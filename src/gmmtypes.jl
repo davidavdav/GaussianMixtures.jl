@@ -1,25 +1,25 @@
-## gmm/types.jl  The type that implements a GMM. 
+## gmm/types.jl  The type that implements a GMM.
 ## (c) 2013--2015 David A. van Leeuwen
 
 ## Some remarks on the dimension.  There are three main indexing variables:
-## - The gaussian index 
+## - The gaussian index
 ## - The data point
 ## - The feature dimension
-## Often data is stores in 2D arrays, and computations can be done efficiently in 
+## Often data is stores in 2D arrays, and computations can be done efficiently in
 ## matrix multiplications.  For this it is nice to have the data in standard row,column order
-## however, we can't have these consistently over all three indexes. 
+## however, we can't have these consistently over all three indexes.
 
 ## My approach is do have:
 ## - The data index (i) always be a row-index
 ## - The feature dimenssion index (k) always to be a column index
 ## - The Gaussian index (j) to be mixed, depending on how it is used
 ## For full covar Σ, we need 2 feature dims.  For individuals covars to be
-## consecutive in memory, the gaussian index should be _last_. 
+## consecutive in memory, the gaussian index should be _last_.
 
-## force Emacs utf-8: αβγδεζηθικλμνξοπρστυφχψω 
+## force Emacs utf-8: αβγδεζηθικλμνξοπρστυφχψω
 
 """
-`History`, a type to record the history of how a GMM is built.  
+`History`, a type to record the history of how a GMM is built.
 """
 type History
     """timestamp"""
@@ -36,18 +36,18 @@ distributions
 abstract GaussianMixture{T,CT}
 
 ## support for two kinds of covariance matrix
-## Full covariance is represented by inverse cholesky of the covariance matrix, 
+## Full covariance is represented by inverse cholesky of the covariance matrix,
 ## i.e., Σ^-1 = ci * ci'
 typealias DiagCov{T} Matrix{T}
-typealias FullCov{T} Vector{UpperTriangular{T,Matrix{T}}} 
+typealias FullCov{T} Vector{UpperTriangular{T,Matrix{T}}}
 
 @compat typealias VecOrMat Union{Vector,Matrix}
 @compat typealias MatOrVecMat{T} Union{Matrix{T}, Vector{Matrix{T}}}
 
 ## GMMs can be of type FLoat32 or Float64, and diagonal or full
 """
-`GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance 
-types are supported: full covarariance and diagonal covariance. 
+`GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance
+types are supported: full covarariance and diagonal covariance.
 """
 @compat type GMM{T<:AbstractFloat, CT<:VecOrMat} <: GaussianMixture{T,CT}
     "number of Gaussians"
@@ -64,7 +64,7 @@ types are supported: full covarariance and diagonal covariance.
     hist::Vector{History}
     "number of points used to train the GMM"
     nx::Int
-    function GMM(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}}, 
+    function GMM(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}},
                  hist::Vector, nx::Int)
         n = length(w)
         isapprox(1, sum(w)) || error("weights do not sum to one")
@@ -74,7 +74,7 @@ types are supported: full covarariance and diagonal covariance.
             (n,d) == size(Σ) || error("Inconsistent covar dimension")
         else
             n == length(Σ) || error("Inconsistent number of covars")
-            for (i,S) in enumerate(Σ) 
+            for (i,S) in enumerate(Σ)
                 (d,d) == size(S) || error(@sprintf("Inconsistent dimension for %d", i))
 ##                isposdef(S) || error(@sprintf("Covariance %d not positive definite", i))
             end
@@ -82,7 +82,7 @@ types are supported: full covarariance and diagonal covariance.
         new(n, d, w, μ, Σ, hist, nx)
     end
 end
-@compat GMM{T<:AbstractFloat}(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}}, 
+@compat GMM{T<:AbstractFloat}(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}},
                       hist::Vector, nx::Int) = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
 
 ## Variational Bayes GMM types.
@@ -90,7 +90,7 @@ end
 ## Please note our pedantic use of the Greek letter ν (nu), don't confuse this with Latin v!
 ## The index-0 "₀" is part of the identifier.
 """
-`GMMprior` is a type that holds the prior for training GMMs using Variational Bayes. 
+`GMMprior` is a type that holds the prior for training GMMs using Variational Bayes.
 """
 type GMMprior{T<:AbstractFloat}
     "effective prior number of observations"
@@ -138,7 +138,7 @@ end
 ## order to 1.  Maybe we can make this more general allowing for uninitialized second order
 ## stats?
 
-## We store the stats in a (ng * d) structure, i.e., not as a super vector yet.  
+## We store the stats in a (ng * d) structure, i.e., not as a super vector yet.
 ## Perhaps in ivector processing a supervector is easier.
 """
 `CSstats` a type holding centered and scaled zeroth and first order GMM statistics
@@ -171,8 +171,8 @@ type Cstats{T<:AbstractFloat, CT<:VecOrMat}
     function Cstats(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T})
         size(n,1) == size(f,1) || error("Inconsistent size 0th and 1st order stats")
         if size(n) == size(s)   # full covariance stats
-            all([size(f,2) == size(ss,1) == size(ss,2) for ss in s]) || error("inconsistent size 2st and 2nd order stats")           
-       else 
+            all([size(f,2) == size(ss,1) == size(ss,2) for ss in s]) || error("inconsistent size 1st and 2nd order stats")           
+       else
             size(f) == size(s) || error("inconsistent size 1st and 2nd order stats")
         end
         new(n, f, s)
@@ -181,16 +181,16 @@ end
 Cstats{T<:AbstractFloat}(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T}) = Cstats{T,typeof(s)}(n, f, s)
 Cstats(t::Tuple) = Cstats(t...)
 
-## A data handle, either in memory or on disk, perhaps even mmapped but I haven't seen any 
+## A data handle, either in memory or on disk, perhaps even mmapped but I haven't seen any
 ## advantage of that.  It contains a list of either files (where the data is stored)
 ## or data units.  The point is, that in processing, these units can naturally be processed
-## independently.  
+## independently.
 
 ## The API is a dictionary of functions that help loading the data into memory
 ## Compulsory is: :load, useful is: :size
 """
-`Data` is a type for holding an array of feature vectors (i.e., matrices), or references to 
-files on disk.  The data is automatically loaded when needed, e.g., by indexing. 
+`Data` is a type for holding an array of feature vectors (i.e., matrices), or references to
+files on disk.  The data is automatically loaded when needed, e.g., by indexing.
 """
 @compat type Data{T,VT<:Union{Matrix,AbstractString}}
     list::Vector{VT}
