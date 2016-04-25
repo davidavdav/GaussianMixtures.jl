@@ -2,14 +2,21 @@
 ## (c) 2013--2014 David A. van Leeuwen
 
 ## This function computes the `dotscoring' linear appoximation of a GMM/UBM log likelihood ratio
-## of test data y using MAP adapted model for x.  
+## of test data y using MAP adapted model for x.
 ## We can compute this with just the stats:
-function dotscore(x::CSstats, y::CSstats, r::Real=1.) 
+function dotscore(x::CSstats, y::CSstats, r::Real=1.)
     sum(broadcast(/, x.f, x.n + r) .* y.f)
 end
 ## or directly from the UBM and the data x and y
 dotscore{T<:Real}(gmm::GMM, x::Matrix{T}, y::Matrix{T}, r::Real=1.) =
     dotscore(CSstats(gmm, x), CSstats(gmm, y), r)
+
+## or produce a score matrix
+function dotscore{T}(x::Vector{CSstats{T}}, y::Vector{CSstats{T}}, r::Real=1.)
+    xx = hcat([vec(x.f ./ (x.n+r)) for x in x]...)
+    yy = hcat([vec(y.f) for y in y]...)
+    return xx' * yy
+end
 
 ## Maximum A Posteriori adapt a gmm
 function maxapost{T<:AbstractFloat}(gmm::GMM, x::Matrix{T}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
@@ -33,10 +40,10 @@ function maxapost{T<:AbstractFloat}(gmm::GMM, x::Matrix{T}, r::Real=16.; means::
         Σ = gmm.Σ
     end
     hist = vcat(gmm.hist, History(@sprintf "MAP adapted with %d data points relevance %3.1f %s %s %s" size(x,1) r means ? "means" : ""  weights ? "weights" : "" covars ? "covars" : ""))
-    return GMM(w, μ, Σ, hist, nₓ) 
+    return GMM(w, μ, Σ, hist, nₓ)
 end
 
-## compute a supervector from a MAP adapted utterance. 
+## compute a supervector from a MAP adapted utterance.
 function Base.vec(gmm::GMM, x::Matrix, r=16.)
     kind(gmm) == :diag || error("Sorry, can't compute MAP adapted supervector for full covariance matrix GMM yet")
     nₓ, ll, N, F, S = stats(gmm, x)
