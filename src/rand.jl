@@ -2,7 +2,7 @@
 ## (c) 2013--2014 David A. van Leeuwen
 
 ## This function initializes a random GMM, with random means and random covariances
-## The variances are somewhat arbitrarily chosen.  This can certainly be improved. 
+## The variances are somewhat arbitrarily chosen.  This can certainly be improved.
 function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
     μ = sep * randn(ng, d)
     if kind==:diag
@@ -44,7 +44,7 @@ function binsearch{T}(x::T, a::Vector{T})
 end
 
 
-## This function samples n data points from a GMM.  This is pretty slow, probably due to the array assignments. 
+## This function samples n data points from a GMM.  This is pretty slow, probably due to the array assignments.
 function Base.rand(gmm::GMM, n::Int)
     x = Array(Float64, n, gmm.d)
     ## generate indices distriuted according to weights
@@ -54,7 +54,7 @@ function Base.rand(gmm::GMM, n::Int)
         ind = find(index.==i)
         nₓ = length(ind)
         if gmmkind == :diag
-            x[ind,:] = gmm.μ[i,:] .+ √gmm.Σ[i,:] .* randn(nₓ,gmm.d)
+            x[ind,:] = (vec(gmm.μ[i,:]) .+ vec(√gmm.Σ[i,:]) .* randn(gmm.d, nₓ))' ## v0.5 arraymageddon
         elseif gmmkind == :full
             x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), covar(gmm.Σ[i])), nₓ)'
         else

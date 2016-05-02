@@ -71,14 +71,14 @@ function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
     W₀⁻¹ = inv(π.W₀)
     for k=1:ng
         if N[k] > limit
-            m[k,:] = (π.β₀*π.m₀' + N[k]*mx[k,:]) ./ β[k] # 10.61
-            Δ = mx[k,:] - π.m₀'
+            m[k,:] = (π.β₀*π.m₀ + N[k]vec(mx[k,:])) ./ β[k] # 10.61 ## v0.5 arraymageddon
+            Δ = vec(mx[k,:]) - π.m₀ ## v0.5 arraymageddon
             ## do some effort to keep the matrix positive definite
-            third = π.β₀ * N[k] / (π.β₀ + N[k]) * (Δ' * Δ) # guarantee symmety in Δ' Δ
-            W[k] = chol(inv(cholfact(W₀⁻¹ + N[k]*S[k] + third)), Val{:U}) # 10.62
+            third = π.β₀ * N[k] / (π.β₀ + N[k]) * (Δ * Δ') # guarantee symmety in Δ Δ'
+            W[k] = chol(inv(cholfact(W₀⁻¹ + N[k]*S[k] + third))) # 10.62
         else
             m[k,:] = zeros(d)
-            W[k] = chol(eye(d), Val{:U})
+            W[k] = chol(eye(d))
         end
     end
     return α, β, m, ν, W
@@ -111,7 +111,7 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
     for k=1:ng
         ### d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
         ## Δ = (x_i - m_k)' W_k (x_i = m_k)
-        xμTΛxμ!(Δ, x, vg.m[k,:], vg.W[k])
+        xμTΛxμ!(Δ, x, vec(vg.m[k,:]), vg.W[k])
         EμΛ[:,k] = d/vg.β[k] .+ vg.ν[k] * sumabs2(Δ, 2)
     end
     Elogπ, ElogdetΛ = ex
@@ -207,19 +207,19 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     ## E[log p(x|Ζ,μ,Λ)] 10.71
     Elogll = 0.
     for k in gaussians
-        Δ = mx[k,:] - m[k,:]   # 1 × d
+        Δ = vec(mx[k,:] - m[k,:])   # d ## v0.5 arraymageddon
         Wk = precision(W[k])
         Elogll += 0.5N[k] * (ElogdetΛ[k] - d/β[k] - d*log(2π)
-                             - ν[k] * (trAB(S[k], Wk) + Δ * Wk ⋅ Δ)) # check chol efficiency
+                             - ν[k] * (trAB(S[k], Wk) + Wk * Δ ⋅ Δ)) # check chol efficiency
     end                        # 10.71
     ## E[log p(Z|π)] from rnk() 10.72
     Elogpπ = lgamma(ng*α₀) - ng*lgamma(α₀) - (α₀-1)sum(Elogπ) # E[log p(π)] 10.73
     ElogpμΛ = ng*logB(W₀,ν₀)   # E[log p(μ, Λ)] B.79
     for k in gaussians
-        Δ = m[k,:] - m₀'        # 1 × d
+        Δ = vec(m[k,:]) - m₀        # d ## v0.5 arraymageddon
         Wk = precision(W[k])
         ElogpμΛ += 0.5(d*log(β₀/(2π)) + (ν₀-d)ElogdetΛ[k] - d*β₀/β[k]
-                       -β₀*ν[k] * dot(Δ*Wk, Δ) - ν[k]*trAB(W₀⁻¹, Wk))
+                       -β₀*ν[k] * Wk * Δ ⋅ Δ - ν[k]*trAB(W₀⁻¹, Wk))
     end                         # 10.74
     ## E[log q(Z)] from rnk() 10.75, combined with E[log p(Z|π)]
     Elogqπ = sum((α.-1).*Elogπ) + lgamma(sum(α)) - sum(lgamma(α)) # E[log q(π)] 10.76
@@ -245,8 +245,8 @@ function emstep!(vg::VGMM, x::DataOrMatrix)
     nₓ, ElogZπqZ, N, F, S = stats(vg, x, (Elogπ, ElogdetΛ))
     mx = F ./ N
     for k = 1:vg.n
-        mk = mx[k,:]
-        S[k] = S[k] / N[k] - mk' * mk
+        mk = vec(mx[k,:]) ## v0.5 arraymageddon
+        S[k] = S[k] / N[k] - mk * mk'
     end
     ## remove defunct Gaussians
     keep = N .> √ eps(eltype(N))
@@ -284,7 +284,7 @@ end
 
 ## Not used
 
-if false 
+if false
 ## Wishart distribution {\cal W}(Λ, W, ν).
 function Wishart(Λ::Matrix, W::Matrix, ν::Float64)
     ## check
@@ -312,6 +312,6 @@ end
 
 function GaussianWishart(μ::Vector, Λ::Matrix, μ₀::Vector, β::Float64, W::Matrix, ν::Float64)
     Gaussian(μ, μ₀, inv(β*Λ)) * Wishart(Λ, W, ν)
-end 
+end
 
 end

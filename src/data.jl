@@ -137,7 +137,11 @@ end
 
 ## stats: compute nth order stats for array (this belongs in stats.jl)
 function stats{T<:AbstractFloat}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
-    n, d = nthperm([size(x)...], dim) ## swap or not trick
+    if dim==1
+        n, d = size(x)
+    else
+        d, n = size(x)
+    end
     if kind == :diag
         if order == 2
             return n, vec(sum(x, dim)), vec(sumabs2(x, dim))

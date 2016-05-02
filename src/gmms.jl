@@ -26,7 +26,7 @@ Base.eltype{T}(gmm::GMM{T}) = T
 `covar(GMM.Σ)` extracts the covariances Σ (which may be encoded as chol(inv(Σ))
 """
 covar{T}(ci::AbstractTriangular{T}) = (c = inv(ci); c * c')
-cholinv{T}(Σ::Matrix{T}) = chol(inv(cholfact(0.5(Σ+Σ'))), Val{:U})
+cholinv{T}(Σ::Matrix{T}) = chol(inv(cholfact(0.5(Σ+Σ'))))
 
 """
 `kind(::GMM)` returns the kind of GMM, either `:diag` or `:full`

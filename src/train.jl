@@ -251,8 +251,8 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
                 if N[k] < d
                     warn(@sprintf("Too low occupancy count %3.1f for Gausian %d", N[k], k))
                 else
-                    μk = gmm.μ[k,:]
-                    gmm.Σ[k] = cholinv(S[k] / N[k] - μk' * μk)
+                    μk = vec(gmm.μ[k,:]) ## v0.5 arraymageddon
+                    gmm.Σ[k] = cholinv(S[k] / N[k] - μk * μk')
                 end
             end
         else

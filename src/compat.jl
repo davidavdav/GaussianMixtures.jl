@@ -6,7 +6,7 @@ if VERSION < v"0.4.0-dev"
     ## julia-0.3 hack
     UTriangular(a::Matrix) = Triangular(a, :U)
     set_zero_subnormals(yes::Bool) = ccall(:jl_zero_subnormals, Bool, (Bool,), yes)
-    Base.chol(a::Array, ::Type{Val{:U}}) = chol(a, :U)
+    Base.chol(a::Array) = chol(a, :U)
 else
     import Base.LinAlg.AbstractTriangular
     UTriangular(a::Matrix) = UpperTriangular(a)
