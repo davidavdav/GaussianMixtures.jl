@@ -1,7 +1,7 @@
-## train.jl  Likelihood calculation and em training for GMMs. 
+## train.jl  Likelihood calculation and em training for GMMs.
 ## (c) 2013--2014 David A. van Leeuwen
 
-using StatsBase: sample 
+using StatsBase: sample
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
 function GMM{T<:AbstractFloat}(x::DataOrMatrix{T}; kind=:diag)
@@ -85,8 +85,8 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
         if isa(x, Matrix)
             xx = x[sample(1:nₓ, nneeded, replace=false),:]
         else
-            ## Data.  Sample an equal amount from every entry in the list x. This reads in 
-            ## all data, and may require a lot of memory for very long lists. 
+            ## Data.  Sample an equal amount from every entry in the list x. This reads in
+            ## all data, and may require a lot of memory for very long lists.
             yy = Matrix[]
             for y in x
                 ny = size(y,1)
@@ -104,8 +104,8 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
             sel = km.assignments .== i
             if length(sel) < 2
                 return ones(1,d)
-            else 
-                return var(xx[sel,:],1)                
+            else
+                return var(xx[sel,:],1)
             end
         end
         Σ = convert(Matrix{T},vcat(map(variance, 1:n)...))
@@ -131,11 +131,11 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
     sanitycheck!(gmm)
     em!(gmm, x; nIter=nIter, sparse=sparse)
     gmm
-end    
+end
 
 ## Train a GMM by consecutively splitting all means.  n most be a power of 2
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
-## We start with one Gaussian, and consecutively split.  
+## We start with one Gaussian, and consecutively split.
 function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, sparse=0)
     log2n = round(Int,log2(n))
     2^log2n == n || error("n must be power of 2")
@@ -173,17 +173,17 @@ function gmmsplit{T}(μ::Vector{T}, Σ::Vector{T}, sep=0.2)
     p1[maxi] = tsep * Σ[maxi]
     μ - p1, μ + p1
 end
-    
+
 ## Split a gmm in order to to double the amount of gaussians
 function gmmsplit{T}(gmm::GMM{T}; minweight=1e-5, sep=0.2)
     tsep::T = sep
     ## In this function i, j, and k all index Gaussians
     maxi = reverse(sortperm(gmm.w))
     offInd = find(gmm.w .< minweight)
-    if (length(offInd)>0) 
+    if (length(offInd)>0)
         println("Removing Gaussians with no data");
     end
-    for i=1:length(offInd) 
+    for i=1:length(offInd)
         gmm.w[maxi[i]] = gmm.w[offInd[i]] = gmm.w[maxi[i]]/2;
         gmm.μ[offInd[i],:] = gmm.μ[maxi[i],:] + tsep * √gmm.Σ[maxi[i],:]
         gmm.μ[maxi[i],:] = gmm.μ[maxi[i],:] - tsep * √gmm.Σ[maxi[i],:]
@@ -222,7 +222,7 @@ end
 # This function runs the Expectation Maximization algorithm on the GMM, and returns
 # the log-likelihood history, per data frame per dimension
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
-## of the data and stores this in the history.  
+## of the data and stores this in the history.
 function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3, sparse=0, debug=1)
     size(x,2)==gmm.d || error("Inconsistent size gmm and x")
     d = gmm.d                   # dim
@@ -300,7 +300,7 @@ end
 ## A function we see more often... Λ is in chol(inv(Σ)) form
 ## compute Δ_i = (x_i - μ)' Λ (x_i - μ)
 ## Note: the return type of Δ should be the promote_type of x and μ/ciΣ
-function xμTΛxμ!(Δ::Matrix, x::Matrix, μ::Matrix, ciΣ::UpperTriangular)
+function xμTΛxμ!(Δ::Matrix, x::Matrix, μ::Vector, ciΣ::UpperTriangular)
     # broadcast!(-, Δ, x, μ)      # size: nₓ × d, add ops: nₓ * d
     (nₓ, d) = size(x)
     @inbounds for j = 1:d
@@ -324,13 +324,13 @@ function llpg{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
     normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[k])))) for k=1:ng]
     for k=1:ng
         ## Δ = (x_i - μ_k)' Λ_κ (x_i - m_k)
-        xμTΛxμ!(Δ, x, gmm.μ[k,:], gmm.Σ[k])
+        xμTΛxμ!(Δ, x, vec(gmm.μ[k,:]), gmm.Σ[k])
         ll[:,k] = -0.5sumabs2(Δ,2) .- normalization[k]
     end
     return ll::Matrix{RT}
 end
-        
-## Average log-likelihood per data point and per dimension for a given GMM 
+
+## Average log-likelihood per data point and per dimension for a given GMM
 function avll{T<:AbstractFloat}(gmm::GMM, x::Matrix{T})
     gmm.d == size(x,2) || error("Inconsistent size gmm and x")
     mean(logsumexpw(llpg(gmm, x), gmm.w)) / gmm.d
@@ -344,7 +344,7 @@ end
 
 ## import Distributions.posterior
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
-## TODO: This is a slow and memory-intensive implementation.  It is better to 
+## TODO: This is a slow and memory-intensive implementation.  It is better to
 ## use the approaches used in stats()
 function gmmposterior{GT,T<:AbstractFloat}(gmm::GMM{GT}, x::Matrix{T})      # nₓ × ng
     RT = promote_type(GT,T)
@@ -357,4 +357,3 @@ function gmmposterior{GT,T<:AbstractFloat}(gmm::GMM{GT}, x::Matrix{T})      # n�
     broadcast!(-, logp, logp, logsump)
     exp(logp)::Matrix{RT}, ll::Matrix{RT}
 end
-

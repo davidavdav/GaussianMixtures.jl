@@ -3,8 +3,6 @@ GaussianMixtures
 A Julia package for Gaussian Mixture Models (GMMs).
 ----------
 [![Build Status](https://travis-ci.org/davidavdav/GaussianMixtures.jl.svg?branch=master)](https://travis-ci.org/davidavdav/GaussianMixtures.jl) 
-[![GaussianMixtures](http://pkg.julialang.org/badges/GaussianMixtures_0.3.svg)](http://pkg.julialang.org/?pkg=GaussianMixtures&ver=release)
-[![GaussianMixtures](http://pkg.julialang.org/badges/GaussianMixtures_0.4.svg)](http://pkg.julialang.org/?pkg=GaussianMixtures&ver=nightly)
 
 This package contains support for Gaussian Mixture Models.  Basic training, likelihood calculation, model adaptation, and i/o are implemented.
 

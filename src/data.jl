@@ -32,7 +32,7 @@ function JLD.save(file::AbstractString, x::Matrix)
 end
 
 ## Data([strings], type; load=loadfunction, size=sizefunction)
-function Data{S<:AbstractString}(files::Vector{S}, datatype::DataType; kwargs...) 
+function Data{S<:AbstractString}(files::Vector{S}, datatype::DataType; kwargs...)
     all([isa((k,v), (Symbol,Function)) for (k,v) in kwargs]) || error("Wrong type of argument", args)
     d = Dict{Symbol,Function}([kwargs...])
     if !haskey(d, :load)
@@ -49,7 +49,7 @@ Data(file::AbstractString, datatype::DataType; kwargs...) = Data([file], datatyp
 ## is this really a shortcut?
 API(d::Data, f::Symbol) = d.API[f]
 
-function Base.getindex(x::Data, i::Int) 
+function Base.getindex(x::Data, i::Int)
     if kind(x) == :matrix
         x.list[i]
     elseif kind(x) == :file
@@ -59,7 +59,7 @@ function Base.getindex(x::Data, i::Int)
     end
 end
 
-## A range as index (including [1:1]) returns a Data object, not the data. 
+## A range as index (including [1:1]) returns a Data object, not the data.
 function Base.getindex{T,VT}(x::Data{T,VT}, r::Range)
     Data{T, VT}(x.list[r], x.API)
 end
@@ -72,7 +72,7 @@ Base.done(x::Data, state::Int) = state == length(x)
 
 ## This function is like pmap(), but executes each element of Data on a predestined
 ## worker, so that file caching at the local machine is beneficial.
-## This is _not_ dynamic scheduling, like pmap(). 
+## This is _not_ dynamic scheduling, like pmap().
 function dmap(f::Function, x::Data)
     if kind(x) == :file
         nₓ = length(x)
@@ -118,9 +118,9 @@ function dmapreduce(f::Function, op::Function, x::Data)
                         break
                     end
                     if kind(x) == :matrix
-                        r = remotecall_fetch(wid, f, x[i])
+                        r = remotecall_fetch(f, wid, x[i])
                     else
-                        r = remotecall_fetch(wid, s->f(x.API[:load](s)), x.list[i])
+                        r = remotecall_fetch(s->f(x.API[:load](s)), wid, x.list[i])
                     end
                     if valid[wi]
                         results[wi] = op(results[wi], r)
@@ -232,7 +232,7 @@ function Base.var(d::Data)
     μ = ssx / n
     return (ssxx - n*μ^2) / (n - 1)
 end
-    
+
 function Base.var(d::Data, dim::Int)
     n, sx, sxx = stats(d, 2, dim=dim)
     μ = sx ./ n
@@ -276,7 +276,7 @@ Base.collect(d::Data) = vcat([x for x in d]...)
 for (f,t) in ((:float32, Float32), (:float64, Float64))
     eval(Expr(:import, :Base, f))
     @eval begin
-        function ($f)(d::Data) 
+        function ($f)(d::Data)
             if kind(d) == :file
                 api = copy(d.API)
                 _load = api[:load] # local copy

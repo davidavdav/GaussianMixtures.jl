@@ -17,7 +17,7 @@ for (gmmkind, Ng) in zip((:diag, :full), (256, 16))
     p, ll = gmmposterior(gmm, x)
     println("sum posterior: ", sum(p))
 end
-    
+
 ## and finally train a second GMM using the data
 for gmmkind in [:diag, :full]
     ## what is the point of displaying?
@@ -25,6 +25,7 @@ for gmmkind in [:diag, :full]
     display(means(gmm))
     x = rand(gmm, 100000)
     for method in [:split, :kmeans]
+        println("kind $gmmkind, method $method")
         g2 = GMM(32, x, nIter=50, method=method)
         display(means(g2))
         ## do another iteration of em!

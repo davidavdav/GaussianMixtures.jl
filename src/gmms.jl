@@ -11,7 +11,7 @@ function GMM(n::Int, d::Int; kind::Symbol=:diag)
     if kind == :diag
         Σ = ones(n, d)
     elseif kind == :full
-        Σ = UpperTriangular{Float64, Matrix{Float64}}[UpperTriangular(eye(d)) for i=1:n]
+        Σ = UpperTriangular{Float64, Matrix{Float64}}[UTriangular(eye(d)) for i=1:n]
     else
         error("Unknown kind")
     end
