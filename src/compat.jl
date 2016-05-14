@@ -44,6 +44,9 @@ function Base.dot{T<:AbstractFloat}(x::Matrix{T}, y::Matrix{T}, dim::Integer)
     r
 end
 
+if VERSION < v"0.5.0-dev+2023"
+    displaysize(io::IO) = Base.tty_size()
+end
 
 ## this we need for xμTΛxμ!
 #Base.A_mul_Bc!(A::StridedMatrix{Float64}, B::AbstractTriangular{Float32}) = A_mul_Bc!(A, convert(AbstractMatrix{Float64}, B))

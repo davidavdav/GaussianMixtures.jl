@@ -119,20 +119,58 @@ function Base.writemime(io::IO, ::MIME{symbol("text/plain")}, hist::Vector{Histo
     end
 end
 
+# compute the ranges to be displayed, plus a total index comprising all ranges.
+function compute_range(maxn, n)
+    if maxn < n
+        hn = div(maxn,2)
+        r = (1:hn, n-hn+1:n)
+    else
+        r = (1:n,)
+    end
+    totr = vcat(map(collect, r)...)
+    r, totr
+end
+
 ## we could improve this a lot
-function Base.show{T}(io::IO, gmm::GMM{T})
+function Base.writemime{T}(io::IO, mime::MIME"text/plain", gmm::GMM{T})
     println(io, @sprintf("GMM{%s} with %d components in %d dimensions and %s covariance", T, gmm.n, gmm.d, kind(gmm)))
     gmmkind = kind(gmm)
-    for j=1:gmm.n
-        println(io, @sprintf "Mix %d: weight %f" j gmm.w[j]);
-        println(io, "mean: ", gmm.μ[j,:])
-        if gmmkind == :diag
-            println(io, "variance: ", gmm.Σ[j,:])
-        elseif gmmkind == :full
-            println(io, "covariance: ", covar(gmm.Σ[j]))
-        else
-            printf("Unknown kind")
+    if gmmkind == :diag
+        maxngauss = clamp((displaysize(io)[1] - 1) ÷ 6gmm.n, 1, gmm.n)
+        ranges, = compute_range(maxngauss, gmm.n)
+        for (i, r) in enumerate(ranges)
+            if i > 1
+                println(io, "⋮")
+            end
+            for j in r
+                println(io, @sprintf "Mix %d: weight %f" j gmm.w[j]);
+                println(io, "  mean: ", gmm.μ[j,:])
+                println(io, "  variance: ", gmm.Σ[j,:])
+            end
         end
+    elseif gmmkind == :full
+        nlinesneeded = gmm.n * (4 + gmm.d) + 1
+        if displaysize(io)[1] > nlinesneeded
+            ranges = (1:gmm.n,)
+        else
+            maxngauss = clamp((displaysize(io)[1] - 1) ÷ (4 + gmm.d), min(gmm.n,3), gmm.n)
+            ranges, = compute_range(maxngauss, gmm.n)
+            println(maxngauss, " ", ranges)
+        end
+        for (i, r) in enumerate(ranges)
+            if i > 1
+                println(io, "⋮")
+            end
+            for j in r
+                println(io, @sprintf "Mix %d: weight %f" j gmm.w[j]);
+                println(io, " mean: ", gmm.μ[j,:])
+                print(io, " covariance: ")
+                writemime(io, mime, covar(gmm.Σ[j]))
+                println(io)
+            end
+        end
+    else
+        printf("Unknown kind")
     end
 end
 
