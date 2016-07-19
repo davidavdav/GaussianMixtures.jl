@@ -56,7 +56,7 @@ function Base.rand(gmm::GMM, n::Int)
         if gmmkind == :diag
             x[ind,:] = (vec(gmm.μ[i,:]) .+ vec(√gmm.Σ[i,:]) .* randn(gmm.d, nₓ))' ## v0.5 arraymageddon
         elseif gmmkind == :full
-            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), Symmetric(covar(gmm.Σ[i]))), nₓ)'
+            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), covar(gmm.Σ[i])), nₓ)'
         else
             error("Unknown kind")
         end
