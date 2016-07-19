@@ -215,5 +215,5 @@ CSstats(gmm::GMM, cstats::Cstats) = CSstats(cstats.N, cstats.F ./ gmm.Σ)
 Base.eltype{T}(stats::Cstats{T}) = T
 Base.size(stats::Cstats) = size(stats.F)
 kind(stats::Cstats) = typeof(stats.S) <: Vector ? :full : :diag
-Base.(:+)(a::Cstats, b::Cstats) = Cstats(a.N + b.N, a.F + b.F, a.S + b.S)
+@compat Base.:+(a::Cstats, b::Cstats) = Cstats(a.N + b.N, a.F + b.F, a.S + b.S)
 Base.zero(x::Cstats) = Cstats(zero(x.N), zero(x.F), zero(x.S))

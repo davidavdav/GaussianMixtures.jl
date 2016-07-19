@@ -105,7 +105,7 @@ end
 function dmapreduce(f::Function, op::Function, x::Data)
     nₓ = length(x)
     nw = nworkers()
-    results = cell(nw)
+    results = Array{Any}(nw) ## will contain pointers for parallel return value.
     valid = Any[false for i=1:nw] # can't use bitarray as parallel return value, must be pointers
     id=0
     nextid() = (id += 1)
@@ -277,20 +277,17 @@ function Base.size(d::Data, dim::Int)
 end
 
 Base.collect(d::Data) = vcat([x for x in d]...)
-for (f,t) in ((:float32, Float32), (:float64, Float64))
-    eval(Expr(:import, :Base, f))
-    @eval begin
-        function ($f)(d::Data)
-            if kind(d) == :file
-                api = copy(d.API)
-                _load = api[:load] # local copy
-                api[:load] = x -> ($f)(_load(x))
-                Data(d.list, $t, api)
-            elseif kind(d) == :matrix
-                Data(Matrix{$t}[($f)(x) for x in d.list])
-            else
-                error("Unknown kind")
-            end
-        end
+
+function Base.convert{Td,Ts}(::Type{Data{Td}}, d::Data{Ts})
+    Td == Ts && return d
+    if kind(d) == :file
+        api = copy(d.API)
+        _load = api[:load] # local copy
+        api[:load] = x -> Array{Td}(_load(x))
+        return Data(d.list, Td, api)
+    elseif kind(d) == :matrix
+        Data(Matrix{Td}[Matrix{Td}(x) for x in d.list])
+    else
+        error("Unknown kind")
     end
 end

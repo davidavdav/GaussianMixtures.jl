@@ -11,9 +11,12 @@ else
     import Base.LinAlg.AbstractTriangular
     UTriangular(a::Matrix) = UpperTriangular(a)
 end
+if VERSION < v"0.5.0-dev"
+    Base.cholfact(s::Symmetric) = cholfact(full(s))
+end
 
-## NumericExtensions is no longer supported, underuptimized implementation:
-function logsumexp{T<:AbstractFloat}(x::Vector{T})
+## NumericExtensions is no longer supported, underoptimized implementation:
+function logsumexp{T<:AbstractFloat}(x::AbstractVector{T})
     m = maximum(x)
     log(sum(exp(x .- m))) + m
 end

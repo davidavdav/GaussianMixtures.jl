@@ -22,6 +22,9 @@ dd = Data(["$i.jld" for i=1:10], Float64)
 f1(gmm, data) = GaussianMixtures.dmapreduce(x->stats(gmm, x), +, data)
 f2(gmm, data) = reduce(+, pmap(x->stats(gmm, x), data))
 
+sleep(1)
+println(f2(g,dd))
+
 import Base.isapprox
 isapprox(a::Array, b::Array) = size(a)==size(b) && all(i->isapprox(a[i], b[i]), 1:length(a))
 isapprox(a::Tuple, b::Tuple) = all(Bool[isapprox(x,y) for (x,y) in zip(a,b)])

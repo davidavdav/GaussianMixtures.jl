@@ -75,7 +75,7 @@ function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
             Δ = vec(mx[k,:]) - π.m₀ ## v0.5 arraymageddon
             ## do some effort to keep the matrix positive definite
             third = π.β₀ * N[k] / (π.β₀ + N[k]) * (Δ * Δ') # guarantee symmety in Δ Δ'
-            W[k] = chol(inv(cholfact(W₀⁻¹ + N[k]*S[k] + third))) # 10.62
+            W[k] = chol(inv(cholfact(Symmetric(W₀⁻¹ + N[k]*S[k] + third)))) # 10.62
         else
             m[k,:] = zeros(d)
             W[k] = chol(eye(d))

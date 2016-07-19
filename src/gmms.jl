@@ -107,7 +107,7 @@ end
 
 history(gmm::GaussianMixture) = gmm.hist
 
-function Base.writemime(io::IO, ::MIME{symbol("text/plain")}, hist::Vector{History})
+function Base.show(io::IO, ::MIME"text/plain", hist::Vector{History})
     t0 = hist[1].t
     println(io, "GMM trained from ", Libc.strftime(t0), " to ", Libc.strftime(last(hist).t))
     for h in hist
@@ -132,7 +132,7 @@ function compute_range(maxn, n)
 end
 
 ## we could improve this a lot
-function Base.writemime{T}(io::IO, mime::MIME"text/plain", gmm::GMM{T})
+function Base.show{T}(io::IO, mime::MIME"text/plain", gmm::GMM{T})
     println(io, @sprintf("GMM{%s} with %d components in %d dimensions and %s covariance", T, gmm.n, gmm.d, kind(gmm)))
     gmmkind = kind(gmm)
     if gmmkind == :diag
@@ -165,7 +165,7 @@ function Base.writemime{T}(io::IO, mime::MIME"text/plain", gmm::GMM{T})
                 println(io, @sprintf "Mix %d: weight %f" j gmm.w[j]);
                 println(io, " mean: ", gmm.μ[j,:])
                 print(io, " covariance: ")
-                writemime(io, mime, covar(gmm.Σ[j]))
+                show(io, mime, covar(gmm.Σ[j]))
                 println(io)
             end
         end
@@ -175,68 +175,31 @@ function Base.writemime{T}(io::IO, mime::MIME"text/plain", gmm::GMM{T})
 end
 
 ## some routines for conversion between float types
-if VERSION < v"0.4.0-dev"
-    for (f,t) in ((:float16, Float16), (:float32, Float32), (:float64, Float64))
-        eval(Expr(:import, :Base, f))
-        @eval begin
-            function Base.convert{T}(::Type{GMM{$t}}, gmm::GMM{T})
-                T == $t && return gmm
-                h = vcat(gmm.hist, History(string("Converted to ", $t)))
-                w = ($f)(gmm.w)
-                μ = ($f)(gmm.μ)
-                gmmkind = kind(gmm)
-                if gmmkind == :full
-                    Σ = eltype(FullCov{$t})[($f)(x) for x in gmm.Σ]
-                elseif gmmkind == :diag
-                    Σ = ($f)(gmm.Σ)
-                else
-                    error("Unknown kind")
-                end
-                GMM(w, μ, Σ, h, gmm.nx)
-            end
-            function Base.convert{T}(::Type{VGMM{$t}}, vg::VGMM{T})
-                T == $t && return vg
-                h = vcat(vg.hist, History(string("Converted to ", $t)))
-                W = map($f, vg.W)
-                VGMM(vg.n, vg.d, ($f)(vg.π), ($f)(vg.α), ($f)(vg.β), ($f)(vg.m),
-                     ($f)(vg.ν), W, h)
-            end
-            function Base.convert{T}(::Type{GMMprior{$t}}, p::GMMprior{T})
-                T == $t && return p
-                GMMprior(($f)(p.α0), ($f)(p.β0), ($f)(p.m0), ($f)(p.ν0), ($f)(p.W0))
-            end
-        end
-        for T in (GMM, VGMM, GMMprior)
-            @eval ($f)(x::$T) = convert($T{$t}, x)
-        end
-    end
-else
 #    @doc """`convert(GMM{::Type}, GMM)` convert the GMM to a different floating point type""" ->
-    function Base.convert{Td,Ts}(::Type{GMM{Td}}, gmm::GMM{Ts})
-        Ts == Td && return gmm
-        h = vcat(gmm.hist, History(string("Converted to ", Td)))
-        w = map(Td, gmm.w)
-        μ = map(Td, gmm.μ)
-        gmmkind = kind(gmm)
-        if gmmkind == :full
-            Σ = map(eltype(FullCov{Td}),  gmm.Σ)
-        elseif gmmkind == :diag
-            Σ = map(Td, gmm.Σ)
-        else
-            error("Unknown kind")
-        end
-        GMM(w, μ, Σ, h, gmm.nx)
+function Base.convert{Td,Ts}(::Type{GMM{Td}}, gmm::GMM{Ts})
+    Ts == Td && return gmm
+    h = vcat(gmm.hist, History(string("Converted to ", Td)))
+    w = map(Td, gmm.w)
+    μ = map(Td, gmm.μ)
+    gmmkind = kind(gmm)
+    if gmmkind == :full
+        Σ = map(eltype(FullCov{Td}),  gmm.Σ)
+    elseif gmmkind == :diag
+        Σ = map(Td, gmm.Σ)
+    else
+        error("Unknown kind")
     end
-    function Base.convert{Td,Ts}(::Type{VGMM{Td}}, vg::VGMM{Ts})
-        Ts == Td && return vg
-        h = vcat(vg.hist, History(string("Converted to ", Td)))
-        W = map(eltype(FullCov{Td}), vg.W)
-        π = convert(GMMprior{Td}, vg.π)
-        VGMM(vg.n, vg.d, π, map(Td,vg.α), map(Td, vg.β), map(Td,vg.m),
-             map(Td, vg.ν), W, h)
-    end
-    function Base.convert{Td,Ts}(::Type{GMMprior{Td}}, p::GMMprior{Ts})
-        Ts == Td && return p
-        GMMprior(map(Td, p.α₀), map(Td, p.β₀), map(Td, p.m₀), map(Td, p.ν₀), map(Td, p.W₀))
-    end
+    GMM(w, μ, Σ, h, gmm.nx)
+end
+function Base.convert{Td,Ts}(::Type{VGMM{Td}}, vg::VGMM{Ts})
+    Ts == Td && return vg
+    h = vcat(vg.hist, History(string("Converted to ", Td)))
+    W = map(eltype(FullCov{Td}), vg.W)
+    π = convert(GMMprior{Td}, vg.π)
+    VGMM(vg.n, vg.d, π, map(Td,vg.α), map(Td, vg.β), map(Td,vg.m),
+    map(Td, vg.ν), W, h)
+end
+function Base.convert{Td,Ts}(::Type{GMMprior{Td}}, p::GMMprior{Ts})
+    Ts == Td && return p
+    GMMprior(map(Td, p.α₀), map(Td, p.β₀), map(Td, p.m₀), map(Td, p.ν₀), map(Td, p.W₀))
 end
