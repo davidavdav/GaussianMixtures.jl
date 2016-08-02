@@ -43,6 +43,7 @@ function binsearch{T}(x::T, a::Vector{T})
     return mi
 end
 
+forcesymmetric(c::Matrix) = full(Symmetric(c))
 
 ## This function samples n data points from a GMM.  This is pretty slow, probably due to the array assignments.
 function Base.rand(gmm::GMM, n::Int)
@@ -56,7 +57,7 @@ function Base.rand(gmm::GMM, n::Int)
         if gmmkind == :diag
             x[ind,:] = (vec(gmm.μ[i,:]) .+ vec(√gmm.Σ[i,:]) .* randn(gmm.d, nₓ))' ## v0.5 arraymageddon
         elseif gmmkind == :full
-            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), covar(gmm.Σ[i])), nₓ)'
+            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), forcesymmetric(covar(gmm.Σ[i]))), nₓ)'
         else
             error("Unknown kind")
         end
