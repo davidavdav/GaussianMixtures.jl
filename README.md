@@ -90,7 +90,7 @@ GMM(n::Int, d::Int; kind=:diag)
 ```
 Initialize a GMM with `n` multivariate Gaussians of dimension `d`.
 The means are all set to **0** (the origin) and the variances to
-**I**, which is silly by itself.  If `diag=:full` is specified, the
+**I**, which is silly by itself.  If `kind=:full` is specified, the
 covariances are full rather than diagonal.  One should replace the
 values of the weights, means and covariances afterwards.
 
