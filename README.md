@@ -105,7 +105,7 @@ Update the parameters of the GMM using the Expectation Maximization (EM) algorit
 ```julia
 llpg(gmm::GMM, x::Matrix)
 ```
-Returns `ll_ij = log p(x_i | gauss_j)`, the Log Likelihood Per Gaussian `j` given data point `i`.
+Returns `ll_ij = log p(x_i | gauss_j)`, the Log Likelihood Per Gaussian `j` given data point `x_i`.
 
 ```julia
 avll(gmm::GMM, x::Matrix)
@@ -119,7 +119,7 @@ with `Σ = σI`.  With `σ=1` we then have `avll≈-1.42`.
 ```julia 
 gmmposterior(gmm::GMM, x::Matrix)
 ```
-Returns `p_ij = p(j | gmm, x_i)`, the posterior probability that data point `x_i` 'belongs' to Gaussian `j`.  
+Returns a tuple containing  `p_ij = p(j | gmm, x_i)`, the posterior probability that data point `x_i` 'belongs' to Gaussian `j`, and the Log Likelihood Per Gaussian `j` given data point `x_i` as in `llpg`. 
 
 ```julia
 history(gmm::GMM)
