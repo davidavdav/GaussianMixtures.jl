@@ -126,7 +126,7 @@ history(gmm::GMM)
 ```
 Shows the history of the GMM, i.e., how it was initialized, split, how the parameters were trained, etc.  A history item contains a time of completion and an event string. 
 
-You can examin a minimla example [using GMM for clustering](https://gist.github.com/mbeltagy/22e7fdf7e3be3fbfd97f1bde7a789b91). 
+You can examine a minimal example [using GMM for clustering](https://gist.github.com/mbeltagy/22e7fdf7e3be3fbfd97f1bde7a789b91). 
 
 Other functions
 ---------------
