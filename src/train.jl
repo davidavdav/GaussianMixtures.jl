@@ -2,6 +2,7 @@
 ## (c) 2013--2014 David A. van Leeuwen
 
 using StatsBase: sample
+import Logging
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
 function GMM{T<:AbstractFloat}(x::DataOrMatrix{T}; kind=:diag)
@@ -96,7 +97,14 @@ function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::I
             xx = vcat(yy...)
         end
     end
-    km = kmeans(xx', n, maxiter=nInit, display = :iter)
+    if Logging._root.level ≤ Logging.DEBUG
+        loglevel = :iter
+    elseif Logging._root.level ≤ Logging.INFO
+        loglevel = :final
+    else
+        loglevel = :none
+    end
+    km = Clustering.kmeans(xx', n, maxiter=nInit, display = loglevel)
     μ::Matrix{T} = km.centers'
     if kind == :diag
         ## helper that deals with centers with singleton datapoints.
@@ -141,14 +149,14 @@ function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nI
     2^log2n == n || error("n must be power of 2")
     gmm=GMM(x, kind=kind)
     tll = [avll(gmm,x)]
-    println("0: avll = ", tll[1])
+    info("0: avll = ", tll[1])
     for i=1:log2n
         gmm=gmmsplit(gmm)
         avll = em!(gmm, x; nIter=i==log2n ? nFinal : nIter, sparse=sparse)
-        println(i, ": avll = ", avll)
+        info(i, ": avll = ", avll)
         append!(tll, avll)
     end
-    println(tll)
+    info("Total log likelihood: ", tll)
     gmm
 end
 
@@ -181,7 +189,7 @@ function gmmsplit{T}(gmm::GMM{T}; minweight=1e-5, sep=0.2)
     maxi = reverse(sortperm(gmm.w))
     offInd = find(gmm.w .< minweight)
     if (length(offInd)>0)
-        println("Removing Gaussians with no data");
+        info("Removing Gaussians with no data");
     end
     for i=1:length(offInd)
         gmm.w[maxi[i]] = gmm.w[offInd[i]] = gmm.w[maxi[i]]/2;
