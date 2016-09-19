@@ -290,3 +290,23 @@ em!(v, x)
 ```
 
 This EM training checks if the occupancy of the Gaussians still is nonzero after each M-step.  In case it isn't, the Gaussian is removed.  The effect is that the total number of Gaussians can reduce in this procedure.
+
+Working with Distributions.jl 
+-------------------
+
+A GMM model can used to build a `MixtureModel` in the [Distributions.jl](https://github.com/JuliaStats/Distributions.jl) package. For example:
+```julia 
+using GaussianMixtures
+using Distributions
+g = rand(GMM, 3, 4)
+m = MixtureModel(g)
+```
+This can be conveniently use for sampling from the GMM, e.g.
+```julia
+sample= rand(m)
+```
+Furthermore, a Gaussian mixture model constructed using `MixtureModel` can be
+converted to GMM via a constructor call 
+```julia
+gg = GMM(m)
+`
