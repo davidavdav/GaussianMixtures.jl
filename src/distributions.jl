@@ -22,11 +22,11 @@ end
 ## conversion to MixtureModel
 function Distributions.MixtureModel{T<:AbstractFloat}(gmm::GMM{T})
     if gmm.d == 1
-        mixtures = [Normal(gmm.μ[i,1], gmm.Σ[i,1]) for i=1:gmm.n]
+        mixtures = [Normal(gmm.μ[i,1], sqrt(gmm.Σ[i,1])) for i=1:gmm.n]
     elseif kind(gmm) == :full
         mixtures = [MvNormal(vec(gmm.μ[i,:]), covar(gmm.Σ[i])) for i=1:gmm.n]
     else
-        mixtures = [MvNormal(vec(gmm.μ[i,:]), vec(gmm.Σ[i,:])) for i=1:gmm.n]
+        mixtures = [MvNormal(vec(gmm.μ[i,:]), sqrt(vec(gmm.Σ[i,:]))) for i=1:gmm.n]
     end
     MixtureModel(mixtures, gmm.w)
 end
