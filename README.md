@@ -6,8 +6,6 @@ A Julia package for Gaussian Mixture Models (GMMs).
 
 This package contains support for Gaussian Mixture Models.  Basic training, likelihood calculation, model adaptation, and i/o are implemented.
 
-This Julia type is more specific than Dahua Lin's [MixtureModels](http://distributionsjl.readthedocs.org/en/latest/mixture.html), in that it deals only with normal (multivariate) distributions (a.k.a Gaussians), but it does so more efficiently, hopefully.  We have support for switching between GMM and MixtureModels types. 
-
 At this moment, we have implemented both diagonal covariance and full covariance GMMs, and full covariance variational Bayes GMMs.  
 
 In training the parameters of a GMM using the Expectation Maximization (EM) algorithm, the inner loop (computing the Baum-Welch statistics) can be executed efficiently using Julia's standard parallelization infrastructure, e.g., by using SGE.  We further support very large data (larger than will fit in the combined memory of the computing cluster) though [BigData](https://github.com/davidavdav/BigData.jl), which has now been incorporated in this package. 
