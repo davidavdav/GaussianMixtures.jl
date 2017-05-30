@@ -38,11 +38,11 @@ distributions
 ## support for two kinds of covariance matrix
 ## Full covariance is represented by inverse cholesky of the covariance matrix,
 ## i.e., Σ^-1 = ci * ci'
-typealias DiagCov{T} Matrix{T}
-typealias FullCov{T} Vector{UpperTriangular{T,Matrix{T}}}
+@compat typealias DiagCov{T} AbstractArray{T,2}
+@compat typealias FullCov{T} Vector{UpperTriangular{T,Matrix{T}}}
 
-typealias VecOrMat Union{Vector,Matrix}
-typealias MatOrVecMat{T} Union{Matrix{T}, Vector{Matrix{T}}}
+@compat typealias VecOrMat{T} Union{Vector{T},AbstractArray{T,2}}
+@compat typealias MatOrVecMat{T} Union{AbstractArray{T,2}, Vector{AbstractArray{T,2}}}
 
 ## GMMs can be of type FLoat32 or Float64, and diagonal or full
 """
@@ -82,7 +82,7 @@ types are supported: full covarariance and diagonal covariance.
         new(n, d, w, μ, Σ, hist, nx)
     end
 end
-@compat GMM{T<:AbstractFloat}(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}},
+@compat GMM{T<:AbstractFloat}(w::Vector{T}, μ::AbstractArray{T,2}, Σ::Union{DiagCov{T},FullCov{T}},
                       hist::Vector, nx::Int) = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
 
 ## Variational Bayes GMM types.
