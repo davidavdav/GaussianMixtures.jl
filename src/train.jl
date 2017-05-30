@@ -326,8 +326,8 @@ function llpg{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
     (nₓ, d) = size(x)
     ng = gmm.n
     d==gmm.d || error("Inconsistent size gmm and x")
-    ll = Array(RT, nₓ, ng)
-    Δ = Array(RT, nₓ, d)
+    ll = Array{RT}(nₓ, ng)
+    Δ = Array{RT}(nₓ, d)
     ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
     normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[k])))) for k=1:ng]
     for k=1:ng

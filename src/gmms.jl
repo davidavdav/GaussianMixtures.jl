@@ -93,7 +93,7 @@ function Base.diag{T}(gmm::GMM{T})
     if kind(gmm) == :diag
         return gmm
     end
-    Σ = Array(T, gmm.n, gmm.d)
+    Σ = Array{T}(gmm.n, gmm.d)
     for i=1:gmm.n
         Σ[i,:] = 1./abs2(diag(gmm.Σ[i]))
     end
