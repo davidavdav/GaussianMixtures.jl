@@ -33,7 +33,7 @@ History(s::AbstractString) = History(time(), s)
 `GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
 distributions
 """
-abstract GaussianMixture{T,CT}
+@compat abstract type GaussianMixture{T,CT}; end
 
 ## support for two kinds of covariance matrix
 ## Full covariance is represented by inverse cholesky of the covariance matrix,
@@ -41,8 +41,8 @@ abstract GaussianMixture{T,CT}
 typealias DiagCov{T} Matrix{T}
 typealias FullCov{T} Vector{UpperTriangular{T,Matrix{T}}}
 
-@compat typealias VecOrMat Union{Vector,Matrix}
-@compat typealias MatOrVecMat{T} Union{Matrix{T}, Vector{Matrix{T}}}
+typealias VecOrMat Union{Vector,Matrix}
+typealias MatOrVecMat{T} Union{Matrix{T}, Vector{Matrix{T}}}
 
 ## GMMs can be of type FLoat32 or Float64, and diagonal or full
 """
@@ -64,8 +64,8 @@ types are supported: full covarariance and diagonal covariance.
     hist::Vector{History}
     "number of points used to train the GMM"
     nx::Int
-    function GMM(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}},
-                 hist::Vector, nx::Int)
+    @compat function GMM{T,CT}(w::Vector{T}, μ::AbstractArray{T,2}, Σ::CT,
+                               hist::Vector, nx::Int) where{T, CT}
         n = length(w)
         isapprox(1, sum(w)) || error("weights do not sum to one")
         d = size(μ, 2)
@@ -111,7 +111,7 @@ end
 """
 `VGMM` is the type that is used to store a GMM in the Variational Bayes training.
 """
-type VGMM{T<:AbstractFloat} <: GaussianMixture{T}
+@compat type VGMM{T} <: GaussianMixture{T,Any}
     "number of Gaussians"
     n::Int
     "dimension of Gaussian"
@@ -148,7 +148,7 @@ type CSstats{T<:AbstractFloat}
     n::Vector{T}          # zero-order stats, ng
     "first order stats"
     f::Matrix{T}          # first-order stats, ng * d
-    function CSstats(n::Vector, f::Matrix)
+    @compat function CSstats{T}(n::Vector, f::Matrix) where{T}
         @assert size(n,1)==size(f, 1)
         new(n,f)
     end
@@ -168,7 +168,7 @@ type Cstats{T<:AbstractFloat, CT<:VecOrMat}
     F::Matrix{T}
     "second order stats"
     S::CT
-    function Cstats(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T})
+    @compat function Cstats{T,CT}(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T}) where{T, CT}
         size(n,1) == size(f,1) || error("Inconsistent size 0th and 1st order stats")
         if size(n) == size(s)   # full covariance stats
             all([size(f,2) == size(ss,1) == size(ss,2) for ss in s]) || error("inconsistent size 1st and 2nd order stats")           
@@ -192,10 +192,12 @@ Cstats(t::Tuple) = Cstats(t...)
 `Data` is a type for holding an array of feature vectors (i.e., matrices), or references to
 files on disk.  The data is automatically loaded when needed, e.g., by indexing.
 """
-@compat type Data{T,VT<:Union{Matrix,AbstractString}}
+type Data{T,VT<:Union{Matrix,AbstractString}}
     list::Vector{VT}
     API::Dict{Symbol,Function}
-    Data(list::Union{Vector{VT},Vector{Matrix{T}}}, API::Dict{Symbol,Function})=new(list,API)
+    @compat function Data{T,VT}(list::Union{Vector{VT},Vector{Matrix{T}}}, API::Dict{Symbol,Function}) where{T,VT}
+        return new(list,API)
+    end
 end
 Data{T}(list::Vector{Matrix{T}}) = Data{T, eltype(list)}(list, Dict{Symbol,Function}())
 Data{S<:AbstractString}(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) = Data{t, S}(list, API)

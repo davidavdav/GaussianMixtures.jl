@@ -333,7 +333,7 @@ function llpg{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
     for k=1:ng
         ## Δ = (x_i - μ_k)' Λ_κ (x_i - m_k)
         xμTΛxμ!(Δ, x, vec(gmm.μ[k,:]), gmm.Σ[k])
-        ll[:,k] = -0.5sumabs2(Δ,2) .- normalization[k]
+        ll[:,k] = -0.5 * sum(abs2,Δ,2) .- normalization[k]
     end
     return ll::Matrix{RT}
 end
