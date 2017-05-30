@@ -31,8 +31,12 @@ cholinv{T}(Σ::Matrix{T}) = chol(inv(cholfact(0.5(Σ+Σ'))))
 """
 `kind(::GMM)` returns the kind of GMM, either `:diag` or `:full`
 """
-kind{T}(g::GMM{T,DiagCov{T}}) = :diag
-kind{T}(g::GMM{T,FullCov{T}}) = :full
+@compat function kind(g::GMM{T, CT}) where {T, CT <: DiagCov}
+    return :diag
+end
+@compat function kind(g::GMM{T, CT}) where {T, CT <: FullCov}
+    return :full
+end
 
 ## This may clash with STatsBase
 """
