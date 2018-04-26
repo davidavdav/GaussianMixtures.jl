@@ -309,4 +309,4 @@ Furthermore, a Gaussian mixture model constructed using `MixtureModel` can be
 converted to GMM via a constructor call 
 ```julia
 gg = GMM(m)
-`
+```
