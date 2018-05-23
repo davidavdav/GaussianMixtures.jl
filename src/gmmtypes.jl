@@ -33,16 +33,16 @@ History(s::AbstractString) = History(time(), s)
 `GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
 distributions
 """
-abstract GaussianMixture{T,CT}
+abstract type GaussianMixture{T,CT} end
 
 ## support for two kinds of covariance matrix
 ## Full covariance is represented by inverse cholesky of the covariance matrix,
 ## i.e., Σ^-1 = ci * ci'
-typealias DiagCov{T} Matrix{T}
-typealias FullCov{T} Vector{UpperTriangular{T,Matrix{T}}}
+DiagCov{T} = Matrix{T}
+FullCov{T} = Vector{UpperTriangular{T,Matrix{T}}}
 
-@compat typealias VecOrMat Union{Vector,Matrix}
-@compat typealias MatOrVecMat{T} Union{Matrix{T}, Vector{Matrix{T}}}
+const VecOrMat = Union{Vector,Matrix}
+const MatOrVecMat{T} = Union{Matrix{T}, Vector{Matrix{T}}}
 
 ## GMMs can be of type FLoat32 or Float64, and diagonal or full
 """
@@ -171,7 +171,7 @@ type Cstats{T<:AbstractFloat, CT<:VecOrMat}
     function Cstats(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T})
         size(n,1) == size(f,1) || error("Inconsistent size 0th and 1st order stats")
         if size(n) == size(s)   # full covariance stats
-            all([size(f,2) == size(ss,1) == size(ss,2) for ss in s]) || error("inconsistent size 1st and 2nd order stats")           
+            all([size(f,2) == size(ss,1) == size(ss,2) for ss in s]) || error("inconsistent size 1st and 2nd order stats")
        else
             size(f) == size(s) || error("inconsistent size 1st and 2nd order stats")
         end
@@ -200,4 +200,4 @@ end
 Data{T}(list::Vector{Matrix{T}}) = Data{T, eltype(list)}(list, Dict{Symbol,Function}())
 Data{S<:AbstractString}(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) = Data{t, S}(list, API)
 
-@compat typealias DataOrMatrix{T} Union{Data{T}, Matrix{T}}
+DataOrMatrix{T} = Union{Data{T}, Matrix{T}}
