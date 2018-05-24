@@ -111,7 +111,7 @@ end
 """
 `VGMM` is the type that is used to store a GMM in the Variational Bayes training.
 """
-mutable struct VGMM{T<:Real,CT <:VecOrMat} <: GaussianMixture{T,CT}
+mutable struct VGMM{T<:Real,CT<:VecOrMat} <: GaussianMixture{T,CT}
     "number of Gaussians"
     n::Int
     "dimension of Gaussian"
@@ -130,8 +130,10 @@ mutable struct VGMM{T<:Real,CT <:VecOrMat} <: GaussianMixture{T,CT}
     W::FullCov{T}
     "history"
     hist::Vector{History}
+    function VGMM{T,CT}(n::Int, d::Int, π::GMMprior{T}, α::Vector{T}, β::Vector{T}, m::Matrix{T}, ν::Vector{T}, W::FullCov{T}) where {T,CT}
+        new(n, d, π, α, β, m, ν, W)
+    end
 end
-
 
 ## UBM-centered and scaled stats.
 ## This structure currently is useful for dotscoring, so we've limited the

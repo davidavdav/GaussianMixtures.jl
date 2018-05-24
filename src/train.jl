@@ -43,18 +43,18 @@ GMM{T<:AbstractFloat}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=5
 ## we sometimes end up with pathological gmms
 function sanitycheck!(gmm::GMM)
     pathological=NTuple{2}[]
-    for i in find(isnan(gmm.μ) | isinf(gmm.μ))
+    for i in find(isnan.(gmm.μ) .| isinf.(gmm.μ))
         gmm.μ[i] = 0
         push!(pathological, ind2sub(size(gmm.μ), i))
     end
     if kind(gmm) == :diag
-        for i in find(isnan(gmm.Σ) | isinf(gmm.Σ))
+        for i in find(isnan.(gmm.Σ) .| isinf(gmm.Σ))
             gmm.Σ[i] = 1
             push!(pathological, ind2sub(size(gmm.Σ), i))
         end
     else
         for (si,s) in enumerate(gmm.Σ)
-            for i in find(isnan(s) | isinf(s))
+            for i in find(isnan.(s) .| isinf.(s))
                 s[i] = 1
                 push!(pathological, (si,i))
             end
@@ -162,7 +162,7 @@ end
 
 ## weighted logsumexp
 function logsumexpw(x::Matrix, w::Vector)
-    y = x .+ log(w)'
+    y = x .+ log.(w)'
     logsumexp(y, 2)
 end
 
@@ -295,7 +295,7 @@ function llpg{GT,T<:AbstractFloat}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T})
     prec::Matrix{RT} = 1./gmm.Σ         # ng × d
     mp = gmm.μ .* prec                  # mean*precision, ng × d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    normalization = 0.5 * (d * log(2π) .+ sum(log(gmm.Σ),2)) # ng × 1
+    normalization = 0.5 * (d * log.(2π) .+ sum(log.(gmm.Σ),2)) # ng × 1
     sm2p = sum(mp .* gmm.μ, 2)   # sum over d mean^2*precision, ng × 1
     ## from here on data-dependent calculations
     xx = x.^2                           # nₓ × d
@@ -326,14 +326,14 @@ function llpg{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
     (nₓ, d) = size(x)
     ng = gmm.n
     d==gmm.d || error("Inconsistent size gmm and x")
-    ll = Array(RT, nₓ, ng)
-    Δ = Array(RT, nₓ, d)
+    ll = Array{RT}(nₓ, ng)
+    Δ = Array{RT}(nₓ, d)
     ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
-    normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[k])))) for k=1:ng]
+    normalization = [0.5d*log.(2π) - sum(log.(diag((gmm.Σ[k])))) for k=1:ng]
     for k=1:ng
         ## Δ = (x_i - μ_k)' Λ_κ (x_i - m_k)
         xμTΛxμ!(Δ, x, vec(gmm.μ[k,:]), gmm.Σ[k])
-        ll[:,k] = -0.5sumabs2(Δ,2) .- normalization[k]
+        ll[:,k] = -0.5sum(abs2,Δ,2) .- normalization[k]
     end
     return ll::Matrix{RT}
 end
@@ -360,8 +360,8 @@ function gmmposterior{GT,T<:AbstractFloat}(gmm::GMM{GT}, x::Matrix{T})      # n�
     ng = gmm.n
     d==gmm.d || error("Inconsistent size gmm and x")
     ll = llpg(gmm, x)
-    logp = ll .+ log(gmm.w')
+    logp = ll .+ log.(gmm.w')
     logsump = logsumexp(logp, 2)
     broadcast!(-, logp, logp, logsump)
-    exp(logp)::Matrix{RT}, ll::Matrix{RT}
+    exp.(logp)::Matrix{RT}, ll::Matrix{RT}
 end

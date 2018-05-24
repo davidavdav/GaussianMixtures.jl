@@ -1,45 +1,3 @@
-    α::Vector{T}
-    "scale of precision, size n"
-    β::Vector{T}
-    "means of means, size n * d"
-    m::Matrix{T}
-    "no. degrees of freedom, size n"
-    ν::Vector{T}
-    "scale matrix for precision? size n * (d * d)"
-    W::FullCov{T}
-    "history"
-    hist::Vector{History}
-end
-
-exit()
-
-
-
-
-"""
-`History`, a type to record the history of how a GMM is built.
-"""
-mutable struct History
-    """timestamp"""
-    t::Float64
-    """description"""
-    s::AbstractString
-end
-History(s::AbstractString) = History(time(), s)
-
-"""
-`GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
-distributions
-"""
-abstract type GaussianMixture{T,CT} end
-
-DiagCov{T} = Matrix{T}
-FullCov{T} = Vector{UpperTriangular{T,Matrix{T}}}
-
-const VecOrMat = Union{Vector,Matrix}
-const MatOrVecMat{T} = Union{Matrix{T}, Vector{Matrix{T}}}
-
-"""
 `GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance
 types are supported: full covarariance and diagonal covariance.
 """
@@ -497,4 +455,46 @@ exit()
 using GaussianMixtures
 Pkg.test("GaussianMixtures")
 using GaussianMixtures
+exit()
+exit()
+exit()
+exit()
+exit()
+exit()
+exit()
+Pkg.test("GaussianMixtures")
+exit()
+Pkg.test("GaussianMixtures")
+exit()
+Pkg.test("GaussianMixtures")
+Pkg.test("GaussianMixtures")
+exit()
+Pkg.test("GaussianMixtures")
+exit()
+Pkg.test("GaussianMixtures")
+Pkg.test("GaussianMixtures")
+Pkg.test("GaussianMixtures")
+Pkg.test("GaussianMixtures")
+exit()
+Pkg.test("GaussianMixtures")
+Float64 <: Real
+exit()
+Pkg.test("GaussianMixtures")
+exit()
+Pkg.test("GaussianMixtures")
+exit()
+Pkg.test("GaussianMixtures")
+exit()
+using GaussianMixtures
+Pkg.test("GaussianMixtures")
+exit()
+Pkg.test("GaussianMixtures")
+exit()
+Pkg.test("GaussianMixtures")
+Pkg.test("GaussianMixtures")
+Pkg.test("GaussianMixtures")
+exit()
+Pkg.test("GaussianMixtures")
+exit()
+Pkg.test("GaussianMixtures")
 exit()

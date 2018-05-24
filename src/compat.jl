@@ -5,7 +5,7 @@ UTriangular(a::Matrix) = UpperTriangular(a)
 ## NumericExtensions is no longer supported, underoptimized implementation:
 function logsumexp{T<:AbstractFloat}(x::AbstractVector{T})
     m = maximum(x)
-    log(sum(exp(x .- m))) + m
+    log.(sum(exp.(x .- m))) + m
 end
 logsumexp{T<:AbstractFloat}(x::Matrix{T}, dim::Integer) = mapslices(logsumexp, x, dim)
 

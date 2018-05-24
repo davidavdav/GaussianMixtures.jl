@@ -83,7 +83,7 @@ function stats{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Array{T,2}, ord
     gmm.d == d || error("dimension mismatch for data")
     1 ≤ order ≤ 2 || error("order out of range")
     γ, ll = gmmposterior(gmm, x) # nₓ × ng, both
-    llh = sum(logsumexp(ll .+ log(gmm.w)', 2))
+    llh = sum(logsumexp(ll .+ log.(gmm.w)', 2))
     ## zeroth order
     N = vec(sum(γ, 1))
     ## first order
@@ -93,7 +93,7 @@ function stats{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Array{T,2}, ord
     end
     ## S_k = Σ_i γ _ik x_i' * x
     S = Matrix{RT}[]
-    γx = Array(RT, nₓ, d)
+    γx = Array{RT}(nₓ, d)
     @inbounds for k=1:ng
         #broadcast!(*, γx, γ[:,k], x) # nₓ × d mults
         for j = 1:d for i=1:nₓ
