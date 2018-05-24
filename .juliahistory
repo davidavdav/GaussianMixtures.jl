@@ -1,0 +1,500 @@
+    α::Vector{T}
+    "scale of precision, size n"
+    β::Vector{T}
+    "means of means, size n * d"
+    m::Matrix{T}
+    "no. degrees of freedom, size n"
+    ν::Vector{T}
+    "scale matrix for precision? size n * (d * d)"
+    W::FullCov{T}
+    "history"
+    hist::Vector{History}
+end
+
+exit()
+
+
+
+
+"""
+`History`, a type to record the history of how a GMM is built.
+"""
+mutable struct History
+    """timestamp"""
+    t::Float64
+    """description"""
+    s::AbstractString
+end
+History(s::AbstractString) = History(time(), s)
+
+"""
+`GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
+distributions
+"""
+abstract type GaussianMixture{T,CT} end
+
+DiagCov{T} = Matrix{T}
+FullCov{T} = Vector{UpperTriangular{T,Matrix{T}}}
+
+const VecOrMat = Union{Vector,Matrix}
+const MatOrVecMat{T} = Union{Matrix{T}, Vector{Matrix{T}}}
+
+"""
+`GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance
+types are supported: full covarariance and diagonal covariance.
+"""
+mutable struct GMM{T<:AbstractFloat, CT<:VecOrMat} <: GaussianMixture{T,CT} where {T,CT}
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "weights (size n)"
+    w::Vector{T}
+    "means (size n x d)"
+    μ::Matrix{T}
+    "covariances (size n x d for diagonal, or n x (d^2) for full)"
+    Σ::CT
+    "history"
+    hist::Vector{History}
+    "number of points used to train the GMM"
+    nx::Int
+    function GMM{T,CT}(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}}, hist::Vector, nx::Int) where {T,CT}
+        n = length(w)
+        isapprox(1, sum(w)) || error("weights do not sum to one")
+        d = size(μ, 2)
+        n == size(μ, 1) || error("Inconsistent number of means")
+        if isa(Σ, Matrix)
+            (n,d) == size(Σ) || error("Inconsistent covar dimension")
+        else
+            n == length(Σ) || error("Inconsistent number of covars")
+            for (i,S) in enumerate(Σ)
+                (d,d) == size(S) || error(@sprintf("Inconsistent dimension for %d", i))
+            end
+        end
+        new(n, d, w, μ, Σ, hist, nx)
+    end
+end
+
+mutable struct GMM{T<:AbstractFloat, CT<:VecOrMat} <: GaussianMixture{T,CT} where {T,CT}
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "weights (size n)"
+    w::Vector{T}
+    "means (size n x d)"
+    μ::Matrix{T}
+    "covariances (size n x d for diagonal, or n x (d^2) for full)"
+    Σ::CT
+    "history"
+    hist::Vector{History}
+    "number of points used to train the GMM"
+    nx::Int
+    function GMM{T,CT}(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}}, hist::Vector, nx::Int)
+        n = length(w)
+        isapprox(1, sum(w)) || error("weights do not sum to one")
+        d = size(μ, 2)
+        n == size(μ, 1) || error("Inconsistent number of means")
+        if isa(Σ, Matrix)
+            (n,d) == size(Σ) || error("Inconsistent covar dimension")
+        else
+            n == length(Σ) || error("Inconsistent number of covars")
+            for (i,S) in enumerate(Σ)
+                (d,d) == size(S) || error(@sprintf("Inconsistent dimension for %d", i))
+            end
+        end
+        new(n, d, w, μ, Σ, hist, nx)
+    end
+end
+
+mutable struct GMM{T<:AbstractFloat, CT<:VecOrMat} <: GaussianMixture{T,CT} where {T,CT}
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "weights (size n)"
+    w::Vector{T}
+    "means (size n x d)"
+    μ::Matrix{T}
+    "covariances (size n x d for diagonal, or n x (d^2) for full)"
+    Σ::CT
+    "history"
+    hist::Vector{History}
+    "number of points used to train the GMM"
+    nx::Int
+    function GMM(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}}, hist::Vector, nx::Int) where {T,CT}
+        n = length(w)
+        isapprox(1, sum(w)) || error("weights do not sum to one")
+        d = size(μ, 2)
+        n == size(μ, 1) || error("Inconsistent number of means")
+        if isa(Σ, Matrix)
+            (n,d) == size(Σ) || error("Inconsistent covar dimension")
+        else
+            n == length(Σ) || error("Inconsistent number of covars")
+            for (i,S) in enumerate(Σ)
+                (d,d) == size(S) || error(@sprintf("Inconsistent dimension for %d", i))
+            end
+        end
+        new(n, d, w, μ, Σ, hist, nx)
+    end
+end
+
+exit()
+
+
+
+
+"""
+`History`, a type to record the history of how a GMM is built.
+"""
+mutable struct History
+    """timestamp"""
+    t::Float64
+    """description"""
+    s::AbstractString
+end
+History(s::AbstractString) = History(time(), s)
+
+"""
+`GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
+distributions
+"""
+abstract type GaussianMixture{T,CT} end
+
+DiagCov{T} = Matrix{T}
+FullCov{T} = Vector{UpperTriangular{T,Matrix{T}}}
+
+const VecOrMat = Union{Vector,Matrix}
+const MatOrVecMat{T} = Union{Matrix{T}, Vector{Matrix{T}}}
+
+"""
+`GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance
+types are supported: full covarariance and diagonal covariance.
+"""
+mutable struct GMM{T<:AbstractFloat, CT<:VecOrMat} <: GaussianMixture{T,CT} where {T,CT}
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "weights (size n)"
+    w::Vector{T}
+    "means (size n x d)"
+    μ::Matrix{T}
+    "covariances (size n x d for diagonal, or n x (d^2) for full)"
+    Σ::CT
+    "history"
+    hist::Vector{History}
+    "number of points used to train the GMM"
+    nx::Int
+end
+
+exit()
+
+
+
+
+"""
+`History`, a type to record the history of how a GMM is built.
+"""
+mutable struct History
+    """timestamp"""
+    t::Float64
+    """description"""
+    s::AbstractString
+end
+History(s::AbstractString) = History(time(), s)
+
+DiagCov{T} = Matrix{T}
+FullCov{T} = Vector{UpperTriangular{T,Matrix{T}}}
+const VecOrMat = Union{Vector,Matrix}
+const MatOrVecMat{T} = Union{Matrix{T}, Vector{Matrix{T}}}
+
+"""
+`GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
+distributions
+"""
+abstract type GaussianMixture{T<:AbstractFloat,CT<:VecOrMat} end
+
+"""
+`GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance
+types are supported: full covarariance and diagonal covariance.
+"""
+mutable struct GMM <: GaussianMixture
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "weights (size n)"
+    w::Vector{T}
+    "means (size n x d)"
+    μ::Matrix{T}
+    "covariances (size n x d for diagonal, or n x (d^2) for full)"
+    Σ::CT
+    "history"
+    hist::Vector{History}
+    "number of points used to train the GMM"
+    nx::Int
+end
+
+mutable struct GMM{T,CT} <: GaussianMixture{T,CT} where CT where T
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "weights (size n)"
+    w::Vector{T}
+    "means (size n x d)"
+    μ::Matrix{T}
+    "covariances (size n x d for diagonal, or n x (d^2) for full)"
+    Σ::CT
+    "history"
+    hist::Vector{History}
+    "number of points used to train the GMM"
+    nx::Int
+end
+
+exit()
+
+
+
+
+"""
+`History`, a type to record the history of how a GMM is built.
+"""
+mutable struct History
+    """timestamp"""
+    t::Float64
+    """description"""
+    s::AbstractString
+end
+History(s::AbstractString) = History(time(), s)
+
+DiagCov{T} = Matrix{T}
+FullCov{T} = Vector{UpperTriangular{T,Matrix{T}}}
+const VecOrMat = Union{Vector,Matrix}
+const MatOrVecMat{T} = Union{Matrix{T}, Vector{Matrix{T}}}
+
+"""
+`GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
+distributions
+"""
+abstract type GaussianMixture end
+
+"""
+`GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance
+types are supported: full covarariance and diagonal covariance.
+"""
+mutable struct GMM{T,CT} <: GaussianMixture{T,CT} where CT where T
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "weights (size n)"
+    w::Vector{T}
+    "means (size n x d)"
+    μ::Matrix{T}
+    "covariances (size n x d for diagonal, or n x (d^2) for full)"
+    Σ::CT
+    "history"
+    hist::Vector{History}
+    "number of points used to train the GMM"
+    nx::Int
+end
+
+exit()
+exit()
+
+
+
+
+"""
+`History`, a type to record the history of how a GMM is built.
+"""
+mutable struct History
+    """timestamp"""
+    t::Float64
+    """description"""
+    s::AbstractString
+end
+History(s::AbstractString) = History(time(), s)
+
+DiagCov{T} = Matrix{T}
+FullCov{T} = Vector{UpperTriangular{T,Matrix{T}}}
+const VecOrMat = Union{Vector,Matrix}
+const MatOrVecMat{T} = Union{Matrix{T}, Vector{Matrix{T}}}
+
+"""
+`GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
+distributions
+"""
+abstract type GaussianMixture{T<:Real,CT<:VecOrMat} end
+
+"""
+`GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance
+types are supported: full covarariance and diagonal covariance.
+"""
+mutable struct GMM{T,CT} <: GaussianMixture where CT where T
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "weights (size n)"
+    w::Vector{T}
+    "means (size n x d)"
+    μ::Matrix{T}
+    "covariances (size n x d for diagonal, or n x (d^2) for full)"
+    Σ::CT
+    "history"
+    hist::Vector{History}
+    "number of points used to train the GMM"
+    nx::Int
+end
+
+exit()
+end
+GaussianMixture
+exit()
+exit()
+using GaussianMixtures
+exit()
+using GaussianMixtures
+using GaussianMixtures
+using GaussianMixtures
+Real <: AbstractFloat
+Real :> AbstractFloat
+Abstr
+AbstractFloat <: Real
+exit()
+using GaussianMixtures
+exit()
+using GaussianMixtures
+using GaussianMixtures
+
+
+
+
+"""
+`History`, a type to record the history of how a GMM is built.
+"""
+mutable struct History
+    """timestamp"""
+    t::Float64
+    """description"""
+    s::AbstractString
+end
+History(s::AbstractString) = History(time(), s)
+
+DiagCov{T} = Matrix{T}
+FullCov{T} = Vector{UpperTriangular{T,Matrix{T}}}
+const VecOrMat = Union{Vector,Matrix}
+const MatOrVecMat{T} = Union{Matrix{T}, Vector{Matrix{T}}}
+
+"""
+`GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
+distributions
+"""
+abstract type GaussianMixture{T<:Real,CT<:VecOrMat} end
+
+"""
+`GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance
+types are supported: full covarariance and diagonal covariance.
+"""
+
+mutable struct GMM{T<:Real,CT<:VecOrMat} <: GaussianMixture{T,CT}
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "weights (size n)"
+    w::Vector{T}
+    "means (size n x d)"
+    μ::Matrix{T}
+    "covariances (size n x d for diagonal, or n x (d^2) for full)"
+    Σ::CT
+    "history"
+    hist::Vector{History}
+    "number of points used to train the GMM"
+    nx::Int
+    function GMM{T,CT}(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}}, hist::Vector, nx::Int) where {T,CT}
+        n = length(w)
+        isapprox(1, sum(w)) || error("weights do not sum to one")
+        d = size(μ, 2)
+        n == size(μ, 1) || error("Inconsistent number of means")
+        if isa(Σ, Matrix)
+            (n,d) == size(Σ) || error("Inconsistent covar dimension")
+        else
+            n == length(Σ) || error("Inconsistent number of covars")
+            for (i,S) in enumerate(Σ)
+                (d,d) == size(S) || error(@sprintf("Inconsistent dimension for %d", i))
+            end
+        end
+        new(n, d, w, μ, Σ, hist, nx)
+    end
+end
+
+GMM{T<:Real}(w::Vector{T}, μ::Matrix{T}, Σ::Union{DiagCov{T},FullCov{T}},
+                      hist::Vector, nx::Int) = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
+
+
+"""
+`GMMprior` is a type that holds the prior for training GMMs using Variational Bayes.
+"""
+type GMMprior{T<:Real}
+    "effective prior number of observations"
+    α₀::T
+    β₀::T
+    "prior on the mean μ"
+    m₀::Vector{T}
+    "scale of precision Λ"
+    ν₀::T
+    "prior of the precision Λ"
+    W₀::Matrix{T}
+end
+
+"""
+`VGMM` is the type that is used to store a GMM in the Variational Bayes training.
+"""
+mutable struct VGMM{T<:Real,CT <:VecOrMat} <: GaussianMixture{T,CT}
+    "number of Gaussians"
+    n::Int
+    "dimension of Gaussian"
+    d::Int
+    "The prior used in this VGMM"
+    π::GMMprior{T}
+    "Dirichlet, size n"
+    α::Vector{T}
+    "scale of precision, size n"
+    β::Vector{T}
+    "means of means, size n * d"
+    m::Matrix{T}
+    "no. degrees of freedom, size n"
+    ν::Vector{T}
+    "scale matrix for precision? size n * (d * d)"
+    W::FullCov{T}
+    "history"
+    hist::Vector{History}
+end
+
+
+
+"""
+`CSstats` a type holding centered and scaled zeroth and first order GMM statistics
+"""
+mutable struct CSstats{T<:Real}
+    "zeroth order stats"
+    n::Vector{T}          # zero-order stats, ng
+    "first order stats"
+    f::Matrix{T}          # first-order stats, ng * d
+    function CSstats{T}(n::Vector, f::Matrix) where T
+        @assert size(n,1)==size(f, 1)
+        new(n,f)
+    end
+end
+CSstats{T<:Real}(n::Vector{T}, f::Matrix{T}) = CSstats{T}(n, f)
+CSstats(t::Tuple) = CSstats(t[1], t[2])
+
+exit()
+using GaussianMixtures
+Pkg.test("GaussianMixtures")
+using GaussianMixtures
+exit()
