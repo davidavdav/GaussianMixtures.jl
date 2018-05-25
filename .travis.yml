@@ -1,9 +1,8 @@
 sudo: false
 language: julia
 julia:
- - 0.4
- - 0.5
+ - 0.6
 before_install:
  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
 script:
- - julia --check-bounds=yes -e 'versioninfo(); Pkg.init(); Pkg.clone(pwd()); Pkg.build("GaussianMixtures"); Pkg.test("GaussianMixtures", coverage=VERSION < v"0.4.0-dev")'
+ - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.build("GaussianMixtures"); Pkg.test("GaussianMixtures"; coverage=true)'
