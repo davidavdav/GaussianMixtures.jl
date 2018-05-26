@@ -1,4 +1,3 @@
-import Base.LinAlg.AbstractTriangular
 UTriangular(a::Matrix) = UpperTriangular(a)
 if VERSION < v"0.5.0-dev"
     Base.cholfact(s::Symmetric) = cholfact(full(s))
@@ -7,7 +6,7 @@ end
 ## NumericExtensions is no longer supported, underoptimized implementation:
 function logsumexp{T<:AbstractFloat}(x::AbstractVector{T})
     m = maximum(x)
-    log(sum(exp(x .- m))) + m
+    log(sum(exp.(x .- m))) + m
 end
 logsumexp{T<:AbstractFloat}(x::Matrix{T}, dim::Integer) = mapslices(logsumexp, x, dim)
 

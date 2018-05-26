@@ -144,7 +144,7 @@ function stats{T<:AbstractFloat}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
     end
     if kind == :diag
         if order == 2
-            return n, vec(sum(x, dim)), vec(sumabs2(x, dim))
+            return n, vec(sum(x, dim)), vec(sum(abs2, x, dim))
         elseif order == 1
             return n, vec(sum(x, dim))
         else

@@ -55,7 +55,7 @@ function Base.rand(gmm::GMM, n::Int)
         ind = find(index.==i)
         nₓ = length(ind)
         if gmmkind == :diag
-            x[ind,:] = (vec(gmm.μ[i,:]) .+ vec(√gmm.Σ[i,:]) .* randn(gmm.d, nₓ))' ## v0.5 arraymageddon
+            x[ind,:] = (vec(gmm.μ[i,:]) .+ vec(sqrt.(gmm.Σ[i,:])) .* randn(gmm.d, nₓ))' ## v0.5 arraymageddon
         elseif gmmkind == :full
             x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), forcesymmetric(covar(gmm.Σ[i]))), nₓ)'
         else

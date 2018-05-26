@@ -36,7 +36,7 @@ end
 ## this might turn out numerically less stable for Float32
 
 ## diagonal covariance
-function stats{GT,T<:AbstractFloat}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T}, order::Int)
+function stats(gmm::GMM{GT,DCT}, x::Matrix{T}, order::Int) where DCT <: DiagCov{GT} where {GT, T}
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n
@@ -45,7 +45,7 @@ function stats{GT,T<:AbstractFloat}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T}, orde
     prec::Matrix{RT} = 1./gmm.Σ             # ng × d
     mp::Matrix{RT} = gmm.μ .* prec          # mean*precision, ng × d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    a::Matrix{RT} = gmm.w ./ ((2π)^(d/2) * √ prod(gmm.Σ,2)) # ng × 1
+    a::Matrix{RT} = gmm.w ./ ((2π)^(d/2) * sqrt.(prod(gmm.Σ, 2))) # ng × 1
     sm2p::Matrix{RT} = dot(mp, gmm.μ, 2)    # sum over d mean^2*precision, ng × 1
     xx = x .* x                            # nₓ × d
 ##  γ = broadcast(*, a', exp(x * mp' .- 0.5xx * prec')) # nₓ × ng, Likelihood per frame per Gaussian
@@ -64,7 +64,7 @@ function stats{GT,T<:AbstractFloat}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T}, orde
     N = vec(sum(γ, 1))          # ng, vec()
     ## first order
     F =  γ' * x                           # ng × d, Julia has efficient a' * b
-    llh = sum(log(lpf))                   # total log likeliood
+    llh = sum(log.(lpf))                   # total log likeliood
     if order==1
         return (nₓ, llh, N, F)
     else
@@ -76,14 +76,14 @@ end
 
 ## Full covariance
 ## this is a `slow' implementation, based on posterior()
-function stats{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Array{T,2}, order::Int)
+function stats(gmm::GMM{GT,FCT}, x::Array{T,2}, order::Int) where FCT <: FullCov{GT} where {GT, T}
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n
     gmm.d == d || error("dimension mismatch for data")
     1 ≤ order ≤ 2 || error("order out of range")
     γ, ll = gmmposterior(gmm, x) # nₓ × ng, both
-    llh = sum(logsumexp(ll .+ log(gmm.w)', 2))
+    llh = sum(logsumexp(ll .+ log.(gmm.w)', 2))
     ## zeroth order
     N = vec(sum(γ, 1))
     ## first order
@@ -119,7 +119,7 @@ end
 ## split computation up in parts, either because of memory limitations
 ## or because of parallelization
 ## You dispatch this by only using 2 parameters
-function stats{T<:AbstractFloat}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false)
+function stats(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false) where T <: AbstractFloat
     parallel &= nworkers() > 1
     ng = gmm.n
     (nₓ, d) = size(x)
@@ -128,7 +128,7 @@ function stats{T<:AbstractFloat}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=
     elseif kind(gmm) == :full
         bytes = sizeof(T) * ((d + d^2 + 5nₓ + nₓ*d)ng + (2d + 2)nₓ)
     end
-    blocks = @compat ceil(Integer, bytes / (mem * (1<<30)))
+    blocks = ceil(Integer, bytes / (mem * (1<<30)))
     if parallel
         blocks= min(nₓ, max(blocks, nworkers()))
     end
@@ -146,7 +146,7 @@ function stats{T<:AbstractFloat}(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=
     end
 end
 ## the reduce above needs the following
-Base.zero{T}(x::Array{Matrix{T}}) = [zero(z) for z in x]
+Base.zero(x::Array{Matrix{T}}) where T = [zero(z) for z in x]
 
 ## This function calls stats() for the elements in d::Data, irrespective of the size, or type
 function stats(gmm::GMM, d::Data; order::Int=2, parallel=false)
@@ -163,7 +163,7 @@ end
 
 ## Same, but UBM centered+scaled stats
 ## f and s are ng * d
-function csstats{T<:AbstractFloat}(gmm::GMM, x::DataOrMatrix{T}, order::Int=2)
+function csstats(gmm::GMM, x::DataOrMatrix{T}, order::Int=2) where T<:AbstractFloat
     kind(gmm) == :diag || error("Can only do centered and scaled stats for diag covariance")
     if order==1
         nₓ, llh, N, F = stats(gmm, x, order)
@@ -186,7 +186,7 @@ CSstats(gmm::GMM, x::DataOrMatrix) = CSstats(csstats(gmm, x, 1))
 
 ## centered stats, but not scaled by UBM covariance
 ## check full covariance...
-function cstats{T<:AbstractFloat}(gmm::GMM, x::DataOrMatrix{T}, parallel=false)
+function cstats(gmm::GMM, x::DataOrMatrix{T}, parallel=false) where T <: AbstractFloat
     nₓ, llh, N, F, S = stats(gmm, x, order=2, parallel=parallel)
     Nμ =  N .* gmm.μ
     ## center the statistics
@@ -215,5 +215,5 @@ CSstats(gmm::GMM, cstats::Cstats) = CSstats(cstats.N, cstats.F ./ gmm.Σ)
 Base.eltype{T}(stats::Cstats{T}) = T
 Base.size(stats::Cstats) = size(stats.F)
 kind(stats::Cstats) = typeof(stats.S) <: Vector ? :full : :diag
-@compat Base.:+(a::Cstats, b::Cstats) = Cstats(a.N + b.N, a.F + b.F, a.S + b.S)
+Base.:+(a::Cstats, b::Cstats) = Cstats(a.N + b.N, a.F + b.F, a.S + b.S)
 Base.zero(x::Cstats) = Cstats(zero(x.N), zero(x.F), zero(x.S))

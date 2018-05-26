@@ -1,6 +1,8 @@
 ## gmms.jl  Some functions for a Gaussia Mixture Model
 ## (c) 2013--2014 David A. van Leeuwen
 
+import Base.LinAlg.AbstractTriangular
+
 ## uninitialized constructor, defaults to Float64
 """
 `GMM(n::Int, d::Int, kind::Symbol=:diag)` initializes a GMM with means 0 and Indentity covariances
@@ -11,7 +13,7 @@ function GMM(n::Int, d::Int; kind::Symbol=:diag)
     if kind == :diag
         Σ = ones(n, d)
     elseif kind == :full
-        Σ = UpperTriangular{Float64, Matrix{Float64}}[UTriangular(eye(d)) for i=1:n]
+        Σ = UpperTriangular{Float64, Matrix{Float64}}[UpperTriangular(eye(d)) for i=1:n]
     else
         error("Unknown kind")
     end
@@ -31,10 +33,10 @@ cholinv{T}(Σ::Matrix{T}) = chol(inv(cholfact(0.5(Σ+Σ'))))
 """
 `kind(::GMM)` returns the kind of GMM, either `:diag` or `:full`
 """
-@compat function kind(g::GMM{T, CT}) where {T, CT <: DiagCov}
+function kind(g::GMM{T, CT}) where {T, CT <: DiagCov}
     return :diag
 end
-@compat function kind(g::GMM{T, CT}) where {T, CT <: FullCov}
+function kind(g::GMM{T, CT}) where {T, CT <: FullCov}
     return :full
 end
 

@@ -1,7 +1,7 @@
 ## GaussianMixtures.jl  Some functions for potentially large Gaussian Mixture Models
 ## (c) 2013--2015 David A. van Leeuwen
 
-VERSION >= v"0.4.0-dev+6521" && __precompile__()
+__precompile__()
 
 module GaussianMixtures
 

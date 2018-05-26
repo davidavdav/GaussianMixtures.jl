@@ -33,23 +33,24 @@ History(s::AbstractString) = History(time(), s)
 `GaussianMixture`, an abstract type for a mixture of full-covariance or diagonal-covariance Gaussian
 distributions
 """
-@compat abstract type GaussianMixture{T,CT}; end
+abstract type GaussianMixture{T,CT}; end
 
 ## support for two kinds of covariance matrix
 ## Full covariance is represented by inverse cholesky of the covariance matrix,
 ## i.e., Σ^-1 = ci * ci'
-@compat typealias DiagCov{T} AbstractArray{T,2}
-@compat typealias FullCov{T} Vector{UpperTriangular{T,Matrix{T}}}
+DiagCov{T} = AbstractArray{T,2}
+FullCov{T} = Vector{UpperTriangular{T,Matrix{T}}}
+CovType{T} = Union{DiagCov{T}, FullCov{T}}
 
-@compat typealias VecOrMat{T} Union{Vector{T},AbstractArray{T,2}}
-@compat typealias MatOrVecMat{T} Union{AbstractArray{T,2}, Vector{AbstractArray{T,2}}}
+VecOrMat{T} = Union{Vector{T},AbstractArray{T,2}}
+MatOrVecMat{T} = Union{AbstractArray{T,2}, Vector{AbstractArray{T,2}}}
 
 ## GMMs can be of type FLoat32 or Float64, and diagonal or full
 """
 `GMM` is the type that stores information of a Guassian Mixture Model.  Currently two main covariance
 types are supported: full covarariance and diagonal covariance.
 """
-@compat type GMM{T<:AbstractFloat, CT<:VecOrMat} <: GaussianMixture{T,CT}
+mutable struct GMM{T<:AbstractFloat, CT<:CovType{T}} <: GaussianMixture{T,CT}
     "number of Gaussians"
     n::Int
     "dimension of Gaussian"
@@ -64,7 +65,7 @@ types are supported: full covarariance and diagonal covariance.
     hist::Vector{History}
     "number of points used to train the GMM"
     nx::Int
-    @compat function GMM{T,CT}(w::Vector{T}, μ::AbstractArray{T,2}, Σ::CT,
+    function GMM{T,CT}(w::Vector{T}, μ::AbstractArray{T,2}, Σ::CT,
                                hist::Vector, nx::Int) where{T, CT}
         n = length(w)
         isapprox(1, sum(w)) || error("weights do not sum to one")
@@ -82,7 +83,7 @@ types are supported: full covarariance and diagonal covariance.
         new(n, d, w, μ, Σ, hist, nx)
     end
 end
-@compat GMM{T<:AbstractFloat}(w::Vector{T}, μ::AbstractArray{T,2}, Σ::Union{DiagCov{T},FullCov{T}},
+GMM{T<:AbstractFloat}(w::Vector{T}, μ::AbstractArray{T,2}, Σ::Union{DiagCov{T},FullCov{T}},
                       hist::Vector, nx::Int) = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
 
 ## Variational Bayes GMM types.
@@ -111,7 +112,7 @@ end
 """
 `VGMM` is the type that is used to store a GMM in the Variational Bayes training.
 """
-@compat type VGMM{T} <: GaussianMixture{T,Any}
+type VGMM{T} <: GaussianMixture{T,Any}
     "number of Gaussians"
     n::Int
     "dimension of Gaussian"
@@ -148,7 +149,7 @@ type CSstats{T<:AbstractFloat}
     n::Vector{T}          # zero-order stats, ng
     "first order stats"
     f::Matrix{T}          # first-order stats, ng * d
-    @compat function CSstats{T}(n::Vector, f::Matrix) where{T}
+    function CSstats{T}(n::Vector, f::Matrix) where{T}
         @assert size(n,1)==size(f, 1)
         new(n,f)
     end
@@ -168,10 +169,10 @@ type Cstats{T<:AbstractFloat, CT<:VecOrMat}
     F::Matrix{T}
     "second order stats"
     S::CT
-    @compat function Cstats{T,CT}(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T}) where{T, CT}
+    function Cstats{T,CT}(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T}) where{T, CT}
         size(n,1) == size(f,1) || error("Inconsistent size 0th and 1st order stats")
         if size(n) == size(s)   # full covariance stats
-            all([size(f,2) == size(ss,1) == size(ss,2) for ss in s]) || error("inconsistent size 1st and 2nd order stats")           
+            all([size(f,2) == size(ss,1) == size(ss,2) for ss in s]) || error("inconsistent size 1st and 2nd order stats")
        else
             size(f) == size(s) || error("inconsistent size 1st and 2nd order stats")
         end
@@ -195,11 +196,11 @@ files on disk.  The data is automatically loaded when needed, e.g., by indexing.
 type Data{T,VT<:Union{Matrix,AbstractString}}
     list::Vector{VT}
     API::Dict{Symbol,Function}
-    @compat function Data{T,VT}(list::Union{Vector{VT},Vector{Matrix{T}}}, API::Dict{Symbol,Function}) where{T,VT}
+    function Data{T,VT}(list::Union{Vector{VT},Vector{Matrix{T}}}, API::Dict{Symbol,Function}) where{T,VT}
         return new(list,API)
     end
 end
 Data{T}(list::Vector{Matrix{T}}) = Data{T, eltype(list)}(list, Dict{Symbol,Function}())
 Data{S<:AbstractString}(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) = Data{t, S}(list, API)
 
-@compat typealias DataOrMatrix{T} Union{Data{T}, Matrix{T}}
+DataOrMatrix{T} = Union{Data{T}, Matrix{T}}
