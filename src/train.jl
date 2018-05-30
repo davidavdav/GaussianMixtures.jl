@@ -10,7 +10,7 @@ function GMM(x::DataOrMatrix{T}; kind=:diag) where T <: AbstractFloat
     μ = sx' ./ n                        # make this a row vector
     d = length(μ)
     if kind == :diag
-        Σ = (sxx' - n*μ.*μ) ./ (n-1)
+        Σ = collect((sxx' - n*μ.*μ) ./ (n-1))
     elseif kind == :full
         ci = cholinv((sxx - n*(μ'*μ)) / (n-1))
         Σ = typeof(ci)[ci]
@@ -25,9 +25,9 @@ end
 GMM(x::Vector{T}) where T <: AbstractFloat = GMM(reshape(x, length(x), 1))  # strange idiom...
 
 ## constructors based on data or matrix
-function GMM{T}(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
+function GMM(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
              nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) where T
-    if n<2
+    if n < 2
         GMM(x, kind=kind)
     elseif method==:split
         GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, sparse=sparse)
@@ -38,7 +38,7 @@ function GMM{T}(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
     end
 end
 ## a 1-dimensional Gaussian can be initialized with a vector, skip kind=
-GMM(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) where T = GMM(n, x''; method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
+GMM(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) where T = GMM(n, reshape(x, length(x), 1); method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
 
 ## we sometimes end up with pathological gmms
 function sanitycheck!(gmm::GMM)

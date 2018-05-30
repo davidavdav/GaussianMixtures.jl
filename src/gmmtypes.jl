@@ -74,7 +74,7 @@ mutable struct GMM{T<:AbstractFloat, CT<:CovType{T}} <: GaussianMixture{T,CT}
         if isa(Σ, Matrix)
             (n,d) == size(Σ) || error("Inconsistent covar dimension")
         else
-            n == length(Σ) || error("Inconsistent number of covars")
+            n == length(Σ) || error(@sprintf("Inconsistent number of covars %d != %d", n, length(Σ)))
             for (i,S) in enumerate(Σ)
                 (d,d) == size(S) || error(@sprintf("Inconsistent dimension for %d", i))
 ##                isposdef(S) || error(@sprintf("Covariance %d not positive definite", i))
