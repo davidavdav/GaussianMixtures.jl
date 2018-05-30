@@ -5,12 +5,12 @@ using StatsBase: sample
 import Logging
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-function GMM{T<:AbstractFloat}(x::DataOrMatrix{T}; kind=:diag)
+function GMM(x::DataOrMatrix{T}; kind=:diag) where T <: AbstractFloat
     n, sx, sxx = stats(x, kind=kind)
     μ = sx' ./ n                        # make this a row vector
     d = length(μ)
     if kind == :diag
-        Σ = (sxx' - n*μ.*μ) ./ (n-1)
+        Σ = collect((sxx' - n*μ.*μ) ./ (n-1))
     elseif kind == :full
         ci = cholinv((sxx - n*(μ'*μ)) / (n-1))
         Σ = typeof(ci)[ci]
@@ -22,12 +22,12 @@ function GMM{T<:AbstractFloat}(x::DataOrMatrix{T}; kind=:diag)
     GMM(ones(T,1), μ, Σ, [hist], n)
 end
 ## Also allow a Vector, :full makes no sense
-GMM{T<:AbstractFloat}(x::Vector{T}) = GMM(x'') # strange idiom...
+GMM(x::Vector{T}) where T <: AbstractFloat = GMM(reshape(x, length(x), 1))  # strange idiom...
 
 ## constructors based on data or matrix
-function GMM{T}(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
-             nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0)
-    if n<2
+function GMM(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
+             nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) where T
+    if n < 2
         GMM(x, kind=kind)
     elseif method==:split
         GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, sparse=sparse)
@@ -38,25 +38,25 @@ function GMM{T}(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
     end
 end
 ## a 1-dimensional Gaussian can be initialized with a vector, skip kind=
-GMM{T<:AbstractFloat}(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) = GMM(n, x''; method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
+GMM(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) where T = GMM(n, reshape(x, length(x), 1); method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
 
 ## we sometimes end up with pathological gmms
 function sanitycheck!(gmm::GMM)
     pathological=NTuple{2}[]
-    for i in find(isnan(gmm.μ) | isinf(gmm.μ))
+    for i in find(isnan.(gmm.μ) .| isinf.(gmm.μ))
         gmm.μ[i] = 0
         push!(pathological, ind2sub(size(gmm.μ), i))
     end
     if kind(gmm) == :diag
-        for i in find(isnan(gmm.Σ) | isinf(gmm.Σ))
+        for i in find(isnan.(gmm.Σ) .| isinf.(gmm.Σ))
             gmm.Σ[i] = 1
             push!(pathological, ind2sub(size(gmm.Σ), i))
         end
     else
-        for (si,s) in enumerate(gmm.Σ)
-            for i in find(isnan(s) | isinf(s))
+        for (si, s) in enumerate(gmm.Σ)
+            for i in find(isnan.(s) .| isinf.(s))
                 s[i] = 1
-                push!(pathological, (si,i))
+                push!(pathological, (si, i))
             end
         end
     end
@@ -70,7 +70,7 @@ end
 
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
-function GMMk{T}(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0)
+function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0) where T
     nₓ, d = size(x)
     hist = [History(@sprintf("Initializing GMM, %d Gaussians %s covariance %d dimensions using %d data points", n, diag, d, nₓ))]
     info(last(hist).s)
@@ -147,11 +147,11 @@ end
 function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, sparse=0)
     log2n = round(Int,log2(n))
     2^log2n == n || error("n must be power of 2")
-    gmm=GMM(x, kind=kind)
+    gmm = GMM(x, kind=kind)
     tll = [avll(gmm,x)]
     info("0: avll = ", tll[1])
     for i=1:log2n
-        gmm=gmmsplit(gmm)
+        gmm = gmmsplit(gmm)
         avll = em!(gmm, x; nIter=i==log2n ? nFinal : nIter, sparse=sparse)
         info(i, ": avll = ", avll)
         append!(tll, avll)
@@ -162,19 +162,19 @@ end
 
 ## weighted logsumexp
 function logsumexpw(x::Matrix, w::Vector)
-    y = x .+ log(w)'
+    y = x .+ log.(w)'
     logsumexp(y, 2)
 end
 
 ## split a mean according to the covariance matrix
-function gmmsplit{T}(μ::Vector{T}, Σ::Matrix{T}, sep=0.2)
+function gmmsplit(μ::Vector{T}, Σ::Matrix{T}, sep=0.2) where T
     tsep::T = sep
     d, v = eigs(Σ, nev=1)
     p1 = tsep * d[1] * v[:,1]                         # first principal component
     μ - p1, μ + p1
 end
 
-function gmmsplit{T}(μ::Vector{T}, Σ::Vector{T}, sep=0.2)
+function gmmsplit(μ::Vector{T}, Σ::Vector{T}, sep=0.2) where T
     tsep::T = sep
     maxi = indmax(Σ)
     p1 = zeros(length(μ))
@@ -183,7 +183,7 @@ function gmmsplit{T}(μ::Vector{T}, Σ::Vector{T}, sep=0.2)
 end
 
 ## Split a gmm in order to to double the amount of gaussians
-function gmmsplit{T}(gmm::GMM{T}; minweight=1e-5, sep=0.2)
+function gmmsplit(gmm::GMM{T}; minweight=1e-5, sep=0.2) where T
     tsep::T = sep
     ## In this function i, j, and k all index Gaussians
     maxi = reverse(sortperm(gmm.w))
@@ -288,14 +288,14 @@ end
 ## This is a fast implementation of llpg for diagonal covariance GMMs
 ## It relies on fast matrix multiplication, and takes up more memory
 ## TODO: do this the way we do in stats(), which is currently more memory-efficient
-function llpg{GT,T<:AbstractFloat}(gmm::GMM{GT,DiagCov{GT}}, x::Matrix{T})
+function llpg(gmm::GMM{GT,DCT}, x::Matrix{T}) where DCT <: DiagCov{GT} where {GT, T}
     RT = promote_type(GT,T)
     ## ng = gmm.n
     (nₓ, d) = size(x)
-    prec::Matrix{RT} = 1./gmm.Σ         # ng × d
+    prec::Matrix{RT} = 1 ./ gmm.Σ       # ng × d
     mp = gmm.μ .* prec                  # mean*precision, ng × d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    normalization = 0.5 * (d * log(2π) .+ sum(log(gmm.Σ),2)) # ng × 1
+    normalization = 0.5 * (d * log(2π) .+ sum(log.(gmm.Σ), 2)) # ng × 1
     sm2p = sum(mp .* gmm.μ, 2)   # sum over d mean^2*precision, ng × 1
     ## from here on data-dependent calculations
     xx = x.^2                           # nₓ × d
@@ -321,25 +321,25 @@ function xμTΛxμ!(Δ::Matrix, x::Matrix, μ::Vector, ciΣ::UpperTriangular)
 end
 
 ## full covariance version of llpg()
-function llpg{GT,T<:AbstractFloat}(gmm::GMM{GT,FullCov{GT}}, x::Matrix{T})
+function llpg(gmm::GMM{GT,FCT}, x::Matrix{T}) where FCT <: FullCov{GT} where {GT, T}
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n
     d==gmm.d || error("Inconsistent size gmm and x")
-    ll = Array(RT, nₓ, ng)
-    Δ = Array(RT, nₓ, d)
+    ll = Array{RT}(nₓ, ng)
+    Δ = Array{RT}(nₓ, d)
     ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
-    normalization = [0.5d*log(2π) - sum(log(diag((gmm.Σ[k])))) for k=1:ng]
+    normalization = [0.5d*log(2π) - sum(log.(diag((gmm.Σ[k])))) for k=1:ng]
     for k=1:ng
         ## Δ = (x_i - μ_k)' Λ_κ (x_i - m_k)
         xμTΛxμ!(Δ, x, vec(gmm.μ[k,:]), gmm.Σ[k])
-        ll[:,k] = -0.5sumabs2(Δ,2) .- normalization[k]
+        ll[:,k] = -0.5 * sum(abs2,Δ,2) .- normalization[k]
     end
     return ll::Matrix{RT}
 end
 
 ## Average log-likelihood per data point and per dimension for a given GMM
-function avll{T<:AbstractFloat}(gmm::GMM, x::Matrix{T})
+function avll(gmm::GMM, x::Matrix{T}) where T<:AbstractFloat
     gmm.d == size(x,2) || error("Inconsistent size gmm and x")
     mean(logsumexpw(llpg(gmm, x), gmm.w)) / gmm.d
 end
@@ -354,14 +354,14 @@ end
 ## this function returns the posterior for component j: p_ij = p(j | gmm, x_i)
 ## TODO: This is a slow and memory-intensive implementation.  It is better to
 ## use the approaches used in stats()
-function gmmposterior{GT,T<:AbstractFloat}(gmm::GMM{GT}, x::Matrix{T})      # nₓ × ng
+function gmmposterior(gmm::GMM{GT}, x::Matrix{T}) where {GT, T}     # nₓ × ng
     RT = promote_type(GT,T)
     (nₓ, d) = size(x)
     ng = gmm.n
-    d==gmm.d || error("Inconsistent size gmm and x")
+    d == gmm.d || error("Inconsistent size gmm and x")
     ll = llpg(gmm, x)
-    logp = ll .+ log(gmm.w')
+    logp = ll .+ log.(gmm.w')
     logsump = logsumexp(logp, 2)
     broadcast!(-, logp, logp, logsump)
-    exp(logp)::Matrix{RT}, ll::Matrix{RT}
+    exp.(logp)::Matrix{RT}, ll::Matrix{RT}
 end

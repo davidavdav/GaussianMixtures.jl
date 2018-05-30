@@ -12,6 +12,8 @@
 ## Latin v and a), and index "₀" and even superscript "⁻¹", which are both part of the identifiers
 ## e.g., W₀⁻¹ where others might write W0inv.
 
+using SpecialFunctions: digamma
+
 ## initialize a prior with minimal knowledge
 function GMMprior{T<:AbstractFloat}(d::Int, alpha::T, beta::T)
     m₀ = zeros(T, d)
@@ -41,7 +43,7 @@ Base.copy(vg::VGMM) = VGMM(vg.n, vg.d, copy(vg.π), copy(vg.α), copy(vg.β),
 
 ## W[k] really is chol(W_k, :U), use precision() to get it back
 precision(c::AbstractTriangular) = c' * c
-mylogdet(c::AbstractTriangular) = 2sum(log(diag(c)))
+mylogdet(c::AbstractTriangular) = 2sum(log.(diag(c)))
 mylogdet(m::Matrix) = logdet(m)
 
 ## sharpen VGMM to a GMM
@@ -65,7 +67,7 @@ function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
     ν = π.ν₀ + N + 1            # ng, 10.63
     β = π.β₀ + N                # ng, 10.60
     m = similar(mx)             # ng × d
-    W = Array(eltype(FullCov{T}), ng) # ng × (d*d)
+    W = Array{eltype(FullCov{T})}(ng) # ng × (d*d)
     d = size(mx,2)
     limit = √ eps(eltype(N))
     W₀⁻¹ = inv(π.W₀)
@@ -87,10 +89,10 @@ end
 ## this can be computed independently of the data
 function expectations(vg::VGMM)
     ng, d = vg.n, vg.d
-    Elogπ = digamma(vg.α) .- digamma(sum(vg.α)) # 10.66, size ng
+    Elogπ = digamma.(vg.α) .- digamma(sum(vg.α)) # 10.66, size ng
     ElogdetΛ = similar(Elogπ) # size ng
-    for k=1:ng
-        ElogdetΛ[k] = sum(digamma(0.5(vg.ν[k] .+ 1 - collect(1:d)))) + d*log(2) + mylogdet(vg.W[k]) # 10.65
+    for k in 1:ng
+        ElogdetΛ[k] = sum(digamma.(0.5(vg.ν[k] .+ 1 - collect(1:d)))) + d*log(2) + mylogdet(vg.W[k]) # 10.65
     end
     return Elogπ, ElogdetΛ
 end
@@ -108,11 +110,11 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
     ng = vg.n
     EμΛ = similar(x, nₓ, ng)    # nₓ × ng
     Δ = similar(x)              # nₓ × d
-    for k=1:ng
+    for k in 1:ng
         ### d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
         ## Δ = (x_i - m_k)' W_k (x_i = m_k)
         xμTΛxμ!(Δ, x, vec(vg.m[k,:]), vg.W[k])
-        EμΛ[:,k] = d/vg.β[k] .+ vg.ν[k] * sumabs2(Δ, 2)
+        EμΛ[:,k] = d/vg.β[k] .+ vg.ν[k] * sum(abs2, Δ, 2)
     end
     Elogπ, ElogdetΛ = ex
     (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))' .- 0.5EμΛ
@@ -157,7 +159,7 @@ function stats{T}(vg::VGMM, x::Matrix{T}, ex::Tuple)
     ## S_k = sum_i r_ik x_i x_i'
     ## Sm = x' * hcat([broadcast(*, r[:,k], x) for k=1:ng]...)
     SS = similar(x, nₓ, d*ng)   # nₓ*nd*ng mem, nₓ*nd*ng multiplications
-    for k=1:ng
+    for k in 1:ng
         for j=1:d for i=1:nₓ
             @inbounds SS[i,(k-1)*d+j] = r[i,k]*x[i,j]
         end end
@@ -203,7 +205,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     α, β, m, ν, W = vg.α, vg.β, vg.m, vg.ν, vg.W # VGMM vars
     gaussians = 1:ng
     ## B.79
-    logB(W,ν) = -0.5ν*(mylogdet(W) + d*log(2)) - d*(d-1)/4*log(π) - sum(lgamma(0.5(ν+1-collect(1:d))))
+    logB(W, ν) = -0.5ν * (mylogdet(W) + d*log(2)) - d*(d-1)/4*log(π) - sum(lgamma.(0.5(ν + 1 - collect(1:d))))
     ## E[log p(x|Ζ,μ,Λ)] 10.71
     Elogll = 0.
     for k in gaussians
@@ -214,7 +216,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     end                        # 10.71
     ## E[log p(Z|π)] from rnk() 10.72
     Elogpπ = lgamma(ng*α₀) - ng*lgamma(α₀) - (α₀-1)sum(Elogπ) # E[log p(π)] 10.73
-    ElogpμΛ = ng*logB(W₀,ν₀)   # E[log p(μ, Λ)] B.79
+    ElogpμΛ = ng*logB(W₀, ν₀)   # E[log p(μ, Λ)] B.79
     for k in gaussians
         Δ = vec(m[k,:]) - m₀        # d ## v0.5 arraymageddon
         Wk = precision(W[k])
@@ -222,7 +224,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
                        -β₀*ν[k] * Wk * Δ ⋅ Δ - ν[k]*trAB(W₀⁻¹, Wk))
     end                         # 10.74
     ## E[log q(Z)] from rnk() 10.75, combined with E[log p(Z|π)]
-    Elogqπ = sum((α.-1).*Elogπ) + lgamma(sum(α)) - sum(lgamma(α)) # E[log q(π)] 10.76
+    Elogqπ = sum((α.-1).*Elogπ) + lgamma(sum(α)) - sum(lgamma.(α)) # E[log q(π)] 10.76
     ## E[log q(μ,Λ)] 10.77
     ElogqμΛ = 0.
     for k in gaussians
@@ -234,7 +236,7 @@ end
 
 ## note: for matrix argument, Gaussian index must run down!
 rmdisfunct(v::Vector, keep) = v[keep]
-rmdisfunct(m::Matrix, keep) = m[keep,:]
+rmdisfunct(m::Matrix, keep) = m[keep, :]
 
 ## do exactly one update step for the VGMM, and return an estimate for the lower bound
 ## of the log marginal probability p(x)
@@ -268,11 +270,11 @@ end
 function em!(vg::VGMM, x; nIter=50)
     L = Float64[]
     nₓ = 0
-    for i=1:nIter
+    for i in 1:nIter
         lb, nₓ = emstep!(vg, x)
         push!(L, lb)
-        if i>1 && isapprox(L[i], L[i-1], rtol=0)
-            nIter=i
+        if i > 1 && isapprox(L[i], L[i-1], rtol=0)
+            nIter = i
             break
         end
         addhist!(vg, @sprintf("iteration %d, lowerbound %f", i, last(L)/nₓ/vg.d))

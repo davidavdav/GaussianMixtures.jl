@@ -1,6 +1,8 @@
 ## gmms.jl  Some functions for a Gaussia Mixture Model
 ## (c) 2013--2014 David A. van Leeuwen
 
+import Base.LinAlg.AbstractTriangular
+
 ## uninitialized constructor, defaults to Float64
 """
 `GMM(n::Int, d::Int, kind::Symbol=:diag)` initializes a GMM with means 0 and Indentity covariances
@@ -11,7 +13,7 @@ function GMM(n::Int, d::Int; kind::Symbol=:diag)
     if kind == :diag
         Σ = ones(n, d)
     elseif kind == :full
-        Σ = UpperTriangular{Float64, Matrix{Float64}}[UTriangular(eye(d)) for i=1:n]
+        Σ = UpperTriangular{Float64, Matrix{Float64}}[UpperTriangular(eye(d)) for i=1:n]
     else
         error("Unknown kind")
     end
@@ -31,8 +33,12 @@ cholinv{T}(Σ::Matrix{T}) = chol(inv(cholfact(0.5(Σ+Σ'))))
 """
 `kind(::GMM)` returns the kind of GMM, either `:diag` or `:full`
 """
-kind{T}(g::GMM{T,DiagCov{T}}) = :diag
-kind{T}(g::GMM{T,FullCov{T}}) = :full
+function kind(g::GMM{T, CT}) where {T, CT <: DiagCov}
+    return :diag
+end
+function kind(g::GMM{T, CT}) where {T, CT <: FullCov}
+    return :full
+end
 
 ## This may clash with STatsBase
 """
@@ -93,7 +99,7 @@ function Base.diag{T}(gmm::GMM{T})
     if kind(gmm) == :diag
         return gmm
     end
-    Σ = Array(T, gmm.n, gmm.d)
+    Σ = Array{T}(gmm.n, gmm.d)
     for i=1:gmm.n
         Σ[i,:] = 1./abs2(diag(gmm.Σ[i]))
     end

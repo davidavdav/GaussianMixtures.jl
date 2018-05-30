@@ -1,16 +1,4 @@
-## bugs in v0.3 and compatibility
-if VERSION < v"0.4.0-dev"
-    Base.copy{T,A,uplo}(t::Triangular{T,A,uplo}) = Triangular(copy(t.data), uplo)
-    typealias AbstractTriangular Triangular
-    typealias UpperTriangular{T,M} Triangular{T,M,:U,false}
-    ## julia-0.3 hack
-    UTriangular(a::Matrix) = Triangular(a, :U)
-    set_zero_subnormals(yes::Bool) = ccall(:jl_zero_subnormals, Bool, (Bool,), yes)
-    Base.chol(a::Array) = chol(a, :U)
-else
-    import Base.LinAlg.AbstractTriangular
-    UTriangular(a::Matrix) = UpperTriangular(a)
-end
+UTriangular(a::Matrix) = UpperTriangular(a)
 if VERSION < v"0.5.0-dev"
     Base.cholfact(s::Symmetric) = cholfact(full(s))
 end
@@ -18,7 +6,7 @@ end
 ## NumericExtensions is no longer supported, underoptimized implementation:
 function logsumexp{T<:AbstractFloat}(x::AbstractVector{T})
     m = maximum(x)
-    log(sum(exp(x .- m))) + m
+    log(sum(exp.(x .- m))) + m
 end
 logsumexp{T<:AbstractFloat}(x::Matrix{T}, dim::Integer) = mapslices(logsumexp, x, dim)
 
