@@ -27,9 +27,13 @@ include("recognizer.jl")
 include("distributions.jl")
 include("scikitlearn.jl")
 
+include("precompile.jl")
+
 export GMM, VGMM, GMMprior, CSstats, Cstats, History, Data, DataOrMatrix,
 gmmsplit, em!, maxapost, llpg, avll, gmmposterior, sanitycheck!,
 history, show, stats, nparams, means, covars, weights, setmem, vec, rand, kind, dmap
+
+_precompile_()
 
 ## some init code.  Turn off subnormal computation, as it is slow.  This is a global setting...
 set_zero_subnormals(true)
