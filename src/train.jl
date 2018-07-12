@@ -97,9 +97,9 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
             xx = vcat(yy...)
         end
     end
-    if Logging._root.level ≤ Logging.DEBUG
+    if Logging._root.level ≥ Logging.DEBUG
         loglevel = :iter
-    elseif Logging._root.level ≤ Logging.INFO
+    elseif Logging._root.level ≥ Logging.INFO
         loglevel = :final
     else
         loglevel = :none
