@@ -177,7 +177,7 @@ end
 
 function gmmsplit(μ::Vector{T}, Σ::Vector{T}, sep=0.2) where T
     tsep::T = sep
-    maxi = indmax(Σ)
+    maxi = argmax(Σ)
     p1 = zeros(length(μ))
     p1[maxi] = tsep * Σ[maxi]
     μ - p1, μ + p1
