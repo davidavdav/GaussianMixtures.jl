@@ -30,7 +30,7 @@ end
 
 function Base.copy!(gmm_dest::GMM, gmm_src::GMM)
     # shallow copy - used below
-    for f in fieldnames(gmm_dest)
+    for f in fieldnames(typeof(gmm_dest))
         setfield!(gmm_dest, f, getfield(gmm_src, f))
     end
 end
