@@ -114,7 +114,7 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
         ### d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
         ## Δ = (x_i - m_k)' W_k (x_i = m_k)
         xμTΛxμ!(Δ, x, vec(vg.m[k,:]), vg.W[k])
-        EμΛ[:,k] = d/vg.β[k] .+ vg.ν[k] * sum(abs2, Δ, 2)
+        EμΛ[:,k] = d/vg.β[k] .+ vg.ν[k] * sum(abs2, Δ, dims=2)
     end
     Elogπ, ElogdetΛ = ex
     (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))' .- 0.5EμΛ
@@ -154,8 +154,8 @@ function stats(vg::VGMM, x::Matrix{T}, ex::Tuple) where {T}
         return 0, zero(RT), zeros(RT, ng), zeros(RT, ng, d), [zeros(RT, d,d) for k=1:ng]
     end
     r, ElogpZπqZ = rnk(vg, x, ex) # nₓ × ng
-    N = vec(sum(r, 1))          # ng
-    F = r' * x                  # ng × d
+    N = vec(sum(r, dims=1))       # ng
+    F = r' * x                    # ng × d
     ## S_k = sum_i r_ik x_i x_i'
     ## Sm = x' * hcat([broadcast(*, r[:,k], x) for k=1:ng]...)
     SS = similar(x, nₓ, d*ng)   # nₓ*nd*ng mem, nₓ*nd*ng multiplications

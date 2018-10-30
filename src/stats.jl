@@ -45,7 +45,7 @@ function stats(gmm::GMM{GT,DCT}, x::Matrix{T}, order::Int) where DCT <: DiagCov{
     prec::Matrix{RT} = 1 ./ gmm.Σ             # ng × d
     mp::Matrix{RT} = gmm.μ .* prec          # mean*precision, ng × d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    a::Matrix{RT} = gmm.w ./ ((2π)^(d/2) * sqrt.(prod(gmm.Σ, 2))) # ng × 1
+    a::Matrix{RT} = gmm.w ./ ((2π)^(d/2) * sqrt.(prod(gmm.Σ, dims=2))) # ng × 1
     sm2p::Matrix{RT} = dot(mp, gmm.μ, 2)    # sum over d mean^2*precision, ng × 1
     xx = x .* x                            # nₓ × d
 ##  γ = broadcast(*, a', exp(x * mp' .- 0.5xx * prec')) # nₓ × ng, Likelihood per frame per Gaussian
@@ -58,10 +58,10 @@ function stats(gmm::GMM{GT,DCT}, x::Matrix{T}, order::Int) where DCT <: DiagCov{
         end
     end
     for i = 1:length(γ) @inbounds γ[i] = exp(γ[i]) end
-    lpf=sum(γ,2)                           # nₓ × 1, Likelihood per frame
+    lpf=sum(γ,dims=2)                           # nₓ × 1, Likelihood per frame
     broadcast!(/, γ, γ, lpf .+ (lpf .== 0)) # nₓ × ng, posterior per frame per gaussian
     ## zeroth order
-    N = vec(sum(γ, 1))          # ng, vec()
+    N = vec(sum(γ, dims=1))          # ng, vec()
     ## first order
     F =  γ' * x                           # ng × d, Julia has efficient a' * b
     llh = sum(log.(lpf))                   # total log likeliood
@@ -85,7 +85,7 @@ function stats(gmm::GMM{GT,FCT}, x::Array{T,2}, order::Int) where FCT <: FullCov
     γ, ll = gmmposterior(gmm, x) # nₓ × ng, both
     llh = sum(logsumexp(ll .+ log.(gmm.w)', 2))
     ## zeroth order
-    N = vec(sum(γ, 1))
+    N = vec(sum(γ, dims=1))
     ## first order
     F = γ' * x
     if order == 1

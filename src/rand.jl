@@ -49,7 +49,8 @@ forcesymmetric(c::Matrix) = full(Symmetric(c))
 function Base.rand(gmm::GMM, n::Int)
     x = Array{Float64}(undef, n, gmm.d)
     ## generate indices distriuted according to weights
-    index = mapslices(find, rand(Multinomial(1, gmm.w), n), 1)
+    index::Vector{Int} = mapslices(findall, rand(Multinomial(1, gmm.w), n).!=0,
+                                   dims=1)[:]
     gmmkind = kind(gmm)
     for i=1:gmm.n
         ind = findall(index.==i)

@@ -49,8 +49,7 @@ ScikitLearnBase.predict_log_proba(gmm::GMM, X) = log(gmmposterior(gmm, X)[1])
 ScikitLearnBase.predict_proba(gmm::GMM, X) = gmmposterior(gmm, X)[1]
 ScikitLearnBase.predict(gmm::GMM, X) =
     # This is just `argmax(axis=2)`. It's very verbose in Julia.
-    ind2sub(size(X),
-            vec(findmax(ScikitLearnBase.predict_proba(gmm, X), 2)[2]))[2]
+    CartesianIndices(size(X))[vec(findmax(ScikitLearnBase.predict_proba(gmm, X), dims=2)[2])][2]
 
 """ `density(gmm::GMM, X)` returns `log(P(X|μ, Σ))` """
 function density(gmm::GMM, X)

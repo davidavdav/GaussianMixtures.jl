@@ -8,7 +8,7 @@ function logsumexp(x::AbstractVector{T}) where {T<:AbstractFloat}
     m = maximum(x)
     log(sum(exp.(x .- m))) + m
 end
-logsumexp(x::Matrix{T}, dim::Integer) where {T<:AbstractFloat} = mapslices(logsumexp, x, dim)
+logsumexp(x::Matrix{T}, dim::Integer) where {T<:AbstractFloat} = mapslices(logsumexp, x, dims=dim)
 
 ## Also NumericExtensions' semantics of dot() is no longer supported.
 function LinearAlgebra.dot(x::Matrix{T}, y::Matrix{T}) where {T<:AbstractFloat}

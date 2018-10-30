@@ -113,7 +113,7 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
             if length(sel) < 2
                 return ones(1,d)
             else
-                return var(xx[sel,:],1)
+                return var(xx[sel,:],dims=1)
             end
         end
         Σ = convert(Matrix{T},vcat(map(variance, 1:n)...))
@@ -248,7 +248,7 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
         if gmmkind == :diag
             gmm.Σ = S ./ N - gmm.μ.^2
             ## var flooring
-            tooSmall = any(gmm.Σ .< varfloor, 2)
+            tooSmall = any(gmm.Σ .< varfloor, dims=2)
             if (any(tooSmall))
                 ind = findall(tooSmall)
                 @warn("Variances had to be floored ", join(ind, " "))
@@ -295,8 +295,8 @@ function llpg(gmm::GMM{GT,DCT}, x::Matrix{T}) where DCT <: DiagCov{GT} where {GT
     prec::Matrix{RT} = 1 ./ gmm.Σ       # ng × d
     mp = gmm.μ .* prec                  # mean*precision, ng × d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    normalization = 0.5 * (d * log(2π) .+ sum(log.(gmm.Σ), 2)) # ng × 1
-    sm2p = sum(mp .* gmm.μ, 2)   # sum over d mean^2*precision, ng × 1
+    normalization = 0.5 * (d * log(2π) .+ sum(log.(gmm.Σ), dims=2)) # ng × 1
+    sm2p = sum(mp .* gmm.μ, dims=2)   # sum over d mean^2*precision, ng × 1
     ## from here on data-dependent calculations
     xx = x.^2                           # nₓ × d
     pxx = sm2p' .+ xx * prec'           # nₓ × ng
@@ -333,7 +333,7 @@ function llpg(gmm::GMM{GT,FCT}, x::Matrix{T}) where FCT <: FullCov{GT} where {GT
     for k=1:ng
         ## Δ = (x_i - μ_k)' Λ_κ (x_i - m_k)
         xμTΛxμ!(Δ, x, vec(gmm.μ[k,:]), gmm.Σ[k])
-        ll[:,k] = -0.5 * sum(abs2,Δ,2) .- normalization[k]
+        ll[:,k] = -0.5 * sum(abs2,Δ,dims=2) .- normalization[k]
     end
     return ll::Matrix{RT}
 end

@@ -145,9 +145,9 @@ function stats(x::Matrix{T}, order::Int=2; kind=:diag, dim=1) where {T<:Abstract
     end
     if kind == :diag
         if order == 2
-            return n, vec(sum(x, dim)), vec(sum(abs2, x, dim))
+            return n, vec(sum(x, dims=dim)), vec(sum(abs2, x, dims=dim))
         elseif order == 1
-            return n, vec(sum(x, dim))
+            return n, vec(sum(x, dims=dim))
         else
             sx = zeros(T, order, d)
             for j=1:d
@@ -169,7 +169,7 @@ function stats(x::Matrix{T}, order::Int=2; kind=:diag, dim=1) where {T<:Abstract
     elseif kind == :full
         order == 2 || error("Can only do covar starts for order=2")
         ## lazy implementation
-        sx = vec(sum(x, dim))
+        sx = vec(sum(x, dims=dim))
         sxx = x' * x
         return n, sx, sxx
     else
