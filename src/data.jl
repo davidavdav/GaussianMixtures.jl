@@ -1,4 +1,5 @@
 ## data.jl Julia code to handle matrix-type data on disc
+using Statistics
 
 ## report the kind of Data structure from the type instance
 kind(d::Data{T,S}) where {T,S<:AbstractString} = :file
@@ -218,17 +219,17 @@ end
 
 Base.sum(d::Data, dim::Int) = retranspose(stats(d,1, dim=dim)[2], dim)
 
-function Base.mean(d::Data)
+function Statistics.mean(d::Data)
     n, sx = stats(d, 1)
     sum(sx) / (n*length(sx))
 end
 
- function Base.mean(d::Data, dim::Int)
+ function Statistics.mean(d::Data, dim::Int)
      n, sx = stats(d, 1, dim=dim)
      return retranspose(sx ./ n, dim)
 end
 
-function Base.var(d::Data)
+function Statistics.var(d::Data)
     n, sx, sxx = stats(d, 2)
     n *= length(sx)
     ssx = sum(sx)                       # keep type stability...
@@ -237,13 +238,13 @@ function Base.var(d::Data)
     return (ssxx - n*μ^2) / (n - 1)
 end
 
-function Base.var(d::Data, dim::Int)
+function Statistics.var(d::Data, dim::Int)
     n, sx, sxx = stats(d, 2, dim=dim)
     μ = sx ./ n
     return retranspose((sxx - n*μ.^2) ./ (n-1), dim)
 end
 
-function Base.cov(d::Data)
+function Statistics.cov(d::Data)
     n, sx, sxx = stats(d, 2, kind=:full)
     μ = sx ./ n
     (sxx - n*μ*μ') ./ (n-1)
