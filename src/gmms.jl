@@ -2,6 +2,7 @@
 ## (c) 2013--2014 David A. van Leeuwen
 
 import Base.LinAlg.AbstractTriangular
+using Logging
 
 ## uninitialized constructor, defaults to Float64
 """
@@ -67,7 +68,7 @@ end
 
 "`addhist!(::GMM, s)` adds a comment `s` to the GMMM"
 function addhist!(gmm::GaussianMixture, s::AbstractString)
-    info(s)
+    @info(s)
     push!(gmm.hist, History(s))
     gmm
 end

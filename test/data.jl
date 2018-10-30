@@ -1,7 +1,8 @@
 ## data.jl Test some functionality of the Data type
 ## (c) 2015 David A. van Leeuwen
+using Logging
 
-info("Testing Data")
+@info("Testing Data")
 
 using JLD
 for i = 1:10
