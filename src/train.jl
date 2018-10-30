@@ -3,6 +3,7 @@
 
 using StatsBase: sample
 using Logging
+using LinearAlgebra
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
 function GMM(x::DataOrMatrix{T}; kind=:diag) where T <: AbstractFloat
@@ -317,7 +318,9 @@ function xμTΛxμ!(Δ::Matrix, x::Matrix, μ::Vector, ciΣ::UpperTriangular)
             Δ[i,j] = x[i,j] - μj
         end
     end
-    A_mul_Bc!(Δ, ciΣ)             # size: nₓ × d, mult ops nₓ*d^2
+    tmp = Δ*ciΣ' # size: nₓ × d, mult ops nₓ*d^2
+
+    Δ[:,:] .= tmp[:,:]
 end
 
 ## full covariance version of llpg()

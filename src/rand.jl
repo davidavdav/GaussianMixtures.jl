@@ -43,7 +43,7 @@ function binsearch(x::T, a::Vector{T}) where {T}
     return mi
 end
 
-forcesymmetric(c::Matrix) = full(Symmetric(c))
+forcesymmetric(c::Matrix) = (Symmetric(c))
 
 ## This function samples n data points from a GMM.  This is pretty slow, probably due to the array assignments.
 function Base.rand(gmm::GMM, n::Int)

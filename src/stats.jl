@@ -50,7 +50,7 @@ function stats(gmm::GMM{GT,DCT}, x::Matrix{T}, order::Int) where DCT <: DiagCov{
     xx = x .* x                            # nₓ × d
 ##  γ = broadcast(*, a', exp(x * mp' .- 0.5xx * prec')) # nₓ × ng, Likelihood per frame per Gaussian
     γ = x * mp'                            # nₓ × ng, nₓ * d * ng multiplications
-    Base.BLAS.gemm!('N', 'T', -one(RT)/2, xx, prec, one(RT), γ)
+    LinearAlgebra.BLAS.gemm!('N', 'T', -one(RT)/2, xx, prec, one(RT), γ)
     for j = 1:ng
         la = log(a[j]) - 0.5sm2p[j]
         for i = 1:nₓ

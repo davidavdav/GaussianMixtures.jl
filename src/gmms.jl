@@ -1,7 +1,7 @@
 ## gmms.jl  Some functions for a Gaussia Mixture Model
 ## (c) 2013--2014 David A. van Leeuwen
 
-import Base.LinAlg.AbstractTriangular
+import LinearAlgebra.AbstractTriangular
 using Logging
 
 ## uninitialized constructor, defaults to Float64

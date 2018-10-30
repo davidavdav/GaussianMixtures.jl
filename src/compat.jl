@@ -1,3 +1,5 @@
+using LinearAlgebra
+
 UTriangular(a::Matrix) = UpperTriangular(a)
 
 ## NumericExtensions is no longer supported, underoptimized implementation:
@@ -6,6 +8,9 @@ function logsumexp(x::AbstractVector{T}) where {T<:AbstractFloat}
     log(sum(exp.(x .- m))) + m
 end
 logsumexp(x::Matrix{T}, dim::Integer) where {T<:AbstractFloat} = mapslices(logsumexp, x, dims=dim)
+
+eye(n::Int) = Matrix(1.0I,n,n)
+eye(::Type{Float64}, n::Int) = Matrix(1.0I,n,n)
 
 ## Also NumericExtensions' semantics of dot() is no longer supported.
 function LinearAlgebra.dot(x::Matrix{T}, y::Matrix{T}) where {T<:AbstractFloat}
