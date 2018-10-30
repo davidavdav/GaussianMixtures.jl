@@ -21,7 +21,7 @@
 """
 `History`, a type to record the history of how a GMM is built.
 """
-type History
+struct History
     """timestamp"""
     t::Float64
     """description"""
@@ -93,7 +93,7 @@ GMM(w::Vector{T}, μ::AbstractArray{T,2}, Σ::Union{DiagCov{T},FullCov{T}},
 """
 `GMMprior` is a type that holds the prior for training GMMs using Variational Bayes.
 """
-type GMMprior{T<:AbstractFloat}
+struct GMMprior{T<:AbstractFloat}
     "effective prior number of observations"
     α₀::T
     β₀::T
@@ -112,7 +112,7 @@ end
 """
 `VGMM` is the type that is used to store a GMM in the Variational Bayes training.
 """
-type VGMM{T} <: GaussianMixture{T,Any}
+mutable struct VGMM{T} <: GaussianMixture{T,Any}
     "number of Gaussians"
     n::Int
     "dimension of Gaussian"
@@ -144,7 +144,7 @@ end
 """
 `CSstats` a type holding centered and scaled zeroth and first order GMM statistics
 """
-type CSstats{T<:AbstractFloat}
+struct CSstats{T<:AbstractFloat}
     "zeroth order stats"
     n::Vector{T}          # zero-order stats, ng
     "first order stats"
@@ -162,7 +162,7 @@ CSstats(t::Tuple) = CSstats(t[1], t[2])
 """
 `Cstats`, a type holding centered zeroth, first and second order GMM statistics
 """
-type Cstats{T<:AbstractFloat, CT<:VecOrMat}
+struct Cstats{T<:AbstractFloat, CT<:VecOrMat}
     "zeroth order stats"
     N::Vector{T}
     "first order stats"
@@ -193,7 +193,7 @@ Cstats(t::Tuple) = Cstats(t...)
 `Data` is a type for holding an array of feature vectors (i.e., matrices), or references to
 files on disk.  The data is automatically loaded when needed, e.g., by indexing.
 """
-type Data{T,VT<:Union{Matrix,AbstractString}}
+struct Data{T,VT<:Union{Matrix,AbstractString}}
     list::Vector{VT}
     API::Dict{Symbol,Function}
     function Data{T,VT}(list::Union{Vector{VT},Vector{Matrix{T}}}, API::Dict{Symbol,Function}) where{T,VT}
