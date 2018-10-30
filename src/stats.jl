@@ -42,7 +42,7 @@ function stats(gmm::GMM{GT,DCT}, x::Matrix{T}, order::Int) where DCT <: DiagCov{
     ng = gmm.n
     gmm.d == d || error("dimension mismatch for data")
     1 ≤ order ≤ 2 || error("order out of range")
-    prec::Matrix{RT} = 1./gmm.Σ             # ng × d
+    prec::Matrix{RT} = 1 ./ gmm.Σ             # ng × d
     mp::Matrix{RT} = gmm.μ .* prec          # mean*precision, ng × d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
     a::Matrix{RT} = gmm.w ./ ((2π)^(d/2) * sqrt.(prod(gmm.Σ, 2))) # ng × 1

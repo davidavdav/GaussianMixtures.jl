@@ -89,7 +89,7 @@ function full(gmm::GMM{T}) where {T}
     if kind(gmm) == :full
         return gmm
     end
-    Σ = convert(FullCov{T}, [UpperTriangular(diagm(vec(1./√gmm.Σ[i,:]))) for i=1:gmm.n])
+    Σ = convert(FullCov{T}, [UpperTriangular(diagm(vec(1 ./√gmm.Σ[i,:]))) for i=1:gmm.n])
     new = GMM(copy(gmm.w), copy(gmm.μ), Σ, copy(gmm.hist), gmm.nx)
     addhist!(new, "Converted to full covariance")
 end
@@ -102,7 +102,7 @@ function LinearAlgebra.diag(gmm::GMM{T}) where {T}
     end
     Σ = Array{T}(gmm.n, gmm.d)
     for i=1:gmm.n
-        Σ[i,:] = 1./abs2(diag(gmm.Σ[i]))
+        Σ[i,:] = 1 ./ abs2(diag(gmm.Σ[i]))
     end
     new = GMM(copy(gmm.w), copy(gmm.μ), Σ, copy(gmm.hist), gmm.nx)
     addhist!(new, "Converted to diag covariance")
