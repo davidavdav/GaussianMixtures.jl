@@ -106,7 +106,7 @@ end
 function dmapreduce(f::Function, op::Function, x::Data)
     nₓ = length(x)
     nw = nworkers()
-    results = Array{Any}(nw) ## will contain pointers for parallel return value.
+    results = Array{Any}(undef, nw) ## will contain pointers for parallel return value.
     valid = Any[false for i=1:nw] # can't use bitarray as parallel return value, must be pointers
     id=0
     nextid() = (id += 1)

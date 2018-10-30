@@ -8,7 +8,7 @@ function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
     if kind==:diag
         Σ = hcat([rand(Chisq(1.0), ng) for i=1:d]...)
     elseif kind == :full
-        Σ = Array{eltype(FullCov{Float64})}(ng)
+        Σ = Array{eltype(FullCov{Float64})}(undef, ng)
         for i=1:ng
             T = randn(d,d)
             Σ[i] = cholinv(T' * T / d)
@@ -47,7 +47,7 @@ forcesymmetric(c::Matrix) = full(Symmetric(c))
 
 ## This function samples n data points from a GMM.  This is pretty slow, probably due to the array assignments.
 function Base.rand(gmm::GMM, n::Int)
-    x = Array{Float64}(n, gmm.d)
+    x = Array{Float64}(undef, n, gmm.d)
     ## generate indices distriuted according to weights
     index = mapslices(find, rand(Multinomial(1, gmm.w), n), 1)
     gmmkind = kind(gmm)

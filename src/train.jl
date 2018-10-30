@@ -326,8 +326,8 @@ function llpg(gmm::GMM{GT,FCT}, x::Matrix{T}) where FCT <: FullCov{GT} where {GT
     (nₓ, d) = size(x)
     ng = gmm.n
     d==gmm.d || error("Inconsistent size gmm and x")
-    ll = Array{RT}(nₓ, ng)
-    Δ = Array{RT}(nₓ, d)
+    ll = Array{RT}(undef, nₓ, ng)
+    Δ = Array{RT}(undef, nₓ, d)
     ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
     normalization = [0.5d*log(2π) - sum(log.(diag((gmm.Σ[k])))) for k=1:ng]
     for k=1:ng

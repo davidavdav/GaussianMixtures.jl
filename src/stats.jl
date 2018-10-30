@@ -93,7 +93,7 @@ function stats(gmm::GMM{GT,FCT}, x::Array{T,2}, order::Int) where FCT <: FullCov
     end
     ## S_k = Σ_i γ _ik x_i' * x
     S = Matrix{RT}[]
-    γx = Array{RT}(nₓ, d)
+    γx = Array{RT}(undef, nₓ, d)
     @inbounds for k=1:ng
         #broadcast!(*, γx, γ[:,k], x) # nₓ × d mults
         for j = 1:d for i=1:nₓ

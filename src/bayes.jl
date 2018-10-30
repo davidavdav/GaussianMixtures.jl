@@ -67,7 +67,7 @@ function mstep(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector) where {T}
     ν = π.ν₀ + N + 1            # ng, 10.63
     β = π.β₀ + N                # ng, 10.60
     m = similar(mx)             # ng × d
-    W = Array{eltype(FullCov{T})}(ng) # ng × (d*d)
+    W = Array{eltype(FullCov{T})}(undef, ng) # ng × (d*d)
     d = size(mx,2)
     limit = √ eps(eltype(N))
     W₀⁻¹ = inv(π.W₀)
