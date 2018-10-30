@@ -1,16 +1,16 @@
 ## data.jl Julia code to handle matrix-type data on disc
 
 ## report the kind of Data structure from the type instance
-kind{T,S<:AbstractString}(d::Data{T,S}) = :file
-kind{T}(d::Data{T,Matrix{T}}) = :matrix
-Base.eltype{T}(d::Data{T}) = T
+kind(d::Data{T,S}) where {T,S<:AbstractString} = :file
+kind(d::Data{T,Matrix{T}}) where {T} = :matrix
+Base.eltype(d::Data{T}) where {T} = T
 
 ## constructor for a plain matrix.  rowvectors: data points x represented as rowvectors
-Data{T}(x::Matrix{T}) = Data(Matrix{T}[x])
+Data(x::Matrix{T}) where {T} = Data(Matrix{T}[x])
 
 ## constructor for a vector of files
 ## Data([strings], type, loadfunction)
-function Data{S<:AbstractString}(files::Vector{S}, datatype::DataType, load::Function)
+function Data(files::Vector{S}, datatype::DataType, load::Function) where {S<:AbstractString}
     Data(files, datatype, @compat Dict(:load => load))
 end
 
@@ -32,7 +32,7 @@ function JLD.save(file::AbstractString, x::Matrix)
 end
 
 ## Data([strings], type; load=loadfunction, size=sizefunction)
-function Data{S<:AbstractString}(files::Vector{S}, datatype::DataType; kwargs...)
+function Data(files::Vector{S}, datatype::DataType; kwargs...) where {S<:AbstractString}
     all([isa((k,v), (Symbol,Function)) for (k,v) in kwargs]) || error("Wrong type of argument", args)
     d = Dict{Symbol,Function}([kwargs...])
     if !haskey(d, :load)
@@ -60,7 +60,7 @@ function Base.getindex(x::Data, i::Int)
 end
 
 ## A range as index (including [1:1]) returns a Data object, not the data.
-function Base.getindex{T,VT}(x::Data{T,VT}, r::Range)
+function Base.getindex(x::Data{T,VT}, r::UnitRange{Int}) where {T,VT}
     Data{T, VT}(x.list[r], x.API)
 end
 
@@ -136,7 +136,7 @@ function dmapreduce(f::Function, op::Function, x::Data)
 end
 
 ## stats: compute nth order stats for array (this belongs in stats.jl)
-function stats{T<:AbstractFloat}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
+function stats(x::Matrix{T}, order::Int=2; kind=:diag, dim=1) where {T<:AbstractFloat}
     if dim==1
         n, d = size(x)
     else
@@ -278,7 +278,7 @@ end
 
 Base.collect(d::Data) = vcat([x for x in d]...)
 
-function Base.convert{Td,Ts}(::Type{Data{Td}}, d::Data{Ts})
+function Base.convert(::Type{Data{Td}}, d::Data{Ts}) where {Td,Ts}
     Td == Ts && return d
     if kind(d) == :file
         api = copy(d.API)

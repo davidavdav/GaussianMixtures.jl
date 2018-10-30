@@ -21,14 +21,14 @@ function GMM(n::Int, d::Int; kind::Symbol=:diag)
     GMM(w, μ, Σ, hist, 0)
 end
 
-Base.eltype{T}(gmm::GMM{T}) = T
+Base.eltype(gmm::GMM{T}) where {T} = T
 
 ## switch between full covariance and inverse cholesky decomposition representations.
 """
 `covar(GMM.Σ)` extracts the covariances Σ (which may be encoded as chol(inv(Σ))
 """
-covar{T}(ci::AbstractTriangular{T}) = (c = inv(ci); c * c')
-cholinv{T}(Σ::Matrix{T}) = chol(inv(cholfact(0.5(Σ+Σ'))))
+covar(ci::AbstractTriangular{T}) where {T} = (c = inv(ci); c * c')
+cholinv(Σ::Matrix{T}) where {T} = cholesky(inv(cholesky(0.5(Σ+Σ')))).U
 
 """
 `kind(::GMM)` returns the kind of GMM, either `:diag` or `:full`
@@ -48,8 +48,8 @@ weights(gmm::GMM) = gmm.w
 "`means(::GMM)` returns the means `μ` of the Gaussians in the mixture"
 means(gmm::GMM) = gmm.μ
 "`covars(::GMM)` returns the covariance matrices Σ of the Gaussians in the mixture."
-covars{T}(gmm::GMM{T,DiagCov{T}}) = gmm.Σ
-covars{T}(gmm::GMM{T,FullCov{T}}) = [covar(ci) for ci in gmm.Σ]
+covars(gmm::GMM{T,DiagCov{T}}) where {T} = gmm.Σ
+covars(gmm::GMM{T,FullCov{T}}) where {T} = [covar(ci) for ci in gmm.Σ]
 
 "`nparams(::GMM)` returns the number of free parameters in the GMM"
 function nparams(gmm::GMM)
@@ -84,7 +84,7 @@ end
 
 ## create a full cov GMM from a diag cov GMM (for testing full covariance routines)
 "`full(::GMM)` turns a diagonal covariance GMM into a full-covariance GMMM"
-function Base.full{T}(gmm::GMM{T})
+function full(gmm::GMM{T}) where {T}
     if kind(gmm) == :full
         return gmm
     end
@@ -95,7 +95,7 @@ end
 
 """`diag(::GMM)` turns a full-covariance GMM into a diagonal-covariance GMM, by ignoring
 off-diagonal elements"""
-function Base.diag{T}(gmm::GMM{T})
+function LinearAlgebra.diag(gmm::GMM{T}) where {T}
     if kind(gmm) == :diag
         return gmm
     end
@@ -138,7 +138,7 @@ function compute_range(maxn, n)
 end
 
 ## we could improve this a lot
-function Base.show{T}(io::IO, mime::MIME"text/plain", gmm::GMM{T})
+function Base.show(io::IO, mime::MIME"text/plain", gmm::GMM{T}) where {T}
     println(io, @sprintf("GMM{%s} with %d components in %d dimensions and %s covariance", T, gmm.n, gmm.d, kind(gmm)))
     gmmkind = kind(gmm)
     if gmmkind == :diag
@@ -182,7 +182,7 @@ end
 
 ## some routines for conversion between float types
 #    @doc """`convert(GMM{::Type}, GMM)` convert the GMM to a different floating point type""" ->
-function Base.convert{Td,Ts}(::Type{GMM{Td}}, gmm::GMM{Ts})
+function Base.convert(::Type{GMM{Td}}, gmm::GMM{Ts}) where {Td,Ts}
     Ts == Td && return gmm
     h = vcat(gmm.hist, History(string("Converted to ", Td)))
     w = map(Td, gmm.w)
@@ -197,7 +197,7 @@ function Base.convert{Td,Ts}(::Type{GMM{Td}}, gmm::GMM{Ts})
     end
     GMM(w, μ, Σ, h, gmm.nx)
 end
-function Base.convert{Td,Ts}(::Type{VGMM{Td}}, vg::VGMM{Ts})
+function Base.convert(::Type{VGMM{Td}}, vg::VGMM{Ts}) where {Td,Ts}
     Ts == Td && return vg
     h = vcat(vg.hist, History(string("Converted to ", Td)))
     W = map(eltype(FullCov{Td}), vg.W)
@@ -205,7 +205,7 @@ function Base.convert{Td,Ts}(::Type{VGMM{Td}}, vg::VGMM{Ts})
     VGMM(vg.n, vg.d, π, map(Td,vg.α), map(Td, vg.β), map(Td,vg.m),
     map(Td, vg.ν), W, h)
 end
-function Base.convert{Td,Ts}(::Type{GMMprior{Td}}, p::GMMprior{Ts})
+function Base.convert(::Type{GMMprior{Td}}, p::GMMprior{Ts}) where {Td,Ts}
     Ts == Td && return p
     GMMprior(map(Td, p.α₀), map(Td, p.β₀), map(Td, p.m₀), map(Td, p.ν₀), map(Td, p.W₀))
 end

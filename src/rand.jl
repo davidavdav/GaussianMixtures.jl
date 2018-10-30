@@ -23,7 +23,7 @@ function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
 end
 
 ## local helper
-function binsearch{T}(x::T, a::Vector{T})
+function binsearch(x::T, a::Vector{T}) where {T}
     issorted(a) || error("Array needs to be sorted")
     mi = 1
     ma = length(a)

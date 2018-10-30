@@ -83,8 +83,8 @@ mutable struct GMM{T<:AbstractFloat, CT<:CovType{T}} <: GaussianMixture{T,CT}
         new(n, d, w, μ, Σ, hist, nx)
     end
 end
-GMM{T<:AbstractFloat}(w::Vector{T}, μ::AbstractArray{T,2}, Σ::Union{DiagCov{T},FullCov{T}},
-                      hist::Vector, nx::Int) = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
+GMM(w::Vector{T}, μ::AbstractArray{T,2}, Σ::Union{DiagCov{T},FullCov{T}},
+                      hist::Vector, nx::Int) where {T<:AbstractFloat} = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
 
 ## Variational Bayes GMM types.
 
@@ -154,7 +154,7 @@ type CSstats{T<:AbstractFloat}
         new(n,f)
     end
 end
-CSstats{T<:AbstractFloat}(n::Vector{T}, f::Matrix{T}) = CSstats{T}(n, f)
+CSstats(n::Vector{T}, f::Matrix{T}) where {T<:AbstractFloat} = CSstats{T}(n, f)
 ## special case for tuple (why would I need this?)
 CSstats(t::Tuple) = CSstats(t[1], t[2])
 
@@ -179,7 +179,7 @@ type Cstats{T<:AbstractFloat, CT<:VecOrMat}
         new(n, f, s)
     end
 end
-Cstats{T<:AbstractFloat}(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T}) = Cstats{T,typeof(s)}(n, f, s)
+Cstats(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T}) where {T<:AbstractFloat} = Cstats{T,typeof(s)}(n, f, s)
 Cstats(t::Tuple) = Cstats(t...)
 
 ## A data handle, either in memory or on disk, perhaps even mmapped but I haven't seen any
@@ -200,7 +200,7 @@ type Data{T,VT<:Union{Matrix,AbstractString}}
         return new(list,API)
     end
 end
-Data{T}(list::Vector{Matrix{T}}) = Data{T, eltype(list)}(list, Dict{Symbol,Function}())
-Data{S<:AbstractString}(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) = Data{t, S}(list, API)
+Data(list::Vector{Matrix{T}}) where {T} = Data{T, eltype(list)}(list, Dict{Symbol,Function}())
+Data(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) where {S<:AbstractString} = Data{t, S}(list, API)
 
 DataOrMatrix{T} = Union{Data{T}, Matrix{T}}

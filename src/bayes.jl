@@ -15,7 +15,7 @@
 using SpecialFunctions: digamma
 
 ## initialize a prior with minimal knowledge
-function GMMprior{T<:AbstractFloat}(d::Int, alpha::T, beta::T)
+function GMMprior(d::Int, alpha::T, beta::T) where {T<:AbstractFloat}
     m₀ = zeros(T, d)
     W₀ = eye(T, d)
     ν₀ = convert(T,d)
@@ -24,7 +24,7 @@ end
 Base.copy(p::GMMprior) = GMMprior(p.α₀, p.β₀, copy(p.m₀), p.ν₀, copy(p.W₀))
 
 ## initialize from a GMM and nₓ, the number of points used to train the GMM.
-function VGMM{T}(g::GMM{T}, π::GMMprior{T})
+function VGMM(g::GMM{T}, π::GMMprior{T}) where {T}
     nₓ = g.nx
     N = g.w * nₓ
     mx = g.μ
@@ -61,7 +61,7 @@ function GMM(vg::VGMM)
 end
 
 ## m-step given prior and stats
-function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
+function mstep(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector) where {T}
     ng = length(N)
     α = π.α₀ + N                # ng, 10.58
     ν = π.ν₀ + N + 1            # ng, 10.63
@@ -147,7 +147,7 @@ end
 ## Like for the GMM, we return nₓ, (some value), zeroth, first, second order stats
 ## All return values can be accumulated, except r, which we need for
 ## lowerbound ElogpZπ and ElogqZ
-function stats{T}(vg::VGMM, x::Matrix{T}, ex::Tuple)
+function stats(vg::VGMM, x::Matrix{T}, ex::Tuple) where {T}
     ng = vg.n
     (nₓ, d) = size(x)
     if nₓ == 0
@@ -183,7 +183,7 @@ function stats(vg::VGMM, d::Data, ex::Tuple; parallel=false)
 end
 
 ## trace(A*B) = sum(A' .* B)
-function trAB{T1,T2}(A::Matrix{T1}, B::Matrix{T2})
+function trAB(A::Matrix{T1}, B::Matrix{T2}) where {T1,T2}
     RT = promote_type(T1,T2)
     nr, nc = size(A)
     size(B) == (nc, nr) || error("Inconsistent matrix size")

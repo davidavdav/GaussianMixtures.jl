@@ -4,18 +4,18 @@ if VERSION < v"0.5.0-dev"
 end
 
 ## NumericExtensions is no longer supported, underoptimized implementation:
-function logsumexp{T<:AbstractFloat}(x::AbstractVector{T})
+function logsumexp(x::AbstractVector{T}) where {T<:AbstractFloat}
     m = maximum(x)
     log(sum(exp.(x .- m))) + m
 end
-logsumexp{T<:AbstractFloat}(x::Matrix{T}, dim::Integer) = mapslices(logsumexp, x, dim)
+logsumexp(x::Matrix{T}, dim::Integer) where {T<:AbstractFloat} = mapslices(logsumexp, x, dim)
 
 ## Also NumericExtensions' semantics of dot() is no longer supported.
-function Base.dot{T<:AbstractFloat}(x::Matrix{T}, y::Matrix{T})
+function LinearAlgebra.dot(x::Matrix{T}, y::Matrix{T}) where {T<:AbstractFloat}
     size(x) == size(y) || error("Matrix sizes must match")
     dot(vec(x), vec(y))
 end
-function Base.dot{T<:AbstractFloat}(x::Matrix{T}, y::Matrix{T}, dim::Integer)
+function LinearAlgebra.dot(x::Matrix{T}, y::Matrix{T}, dim::Integer) where {T<:AbstractFloat}
     size(x) == size(y) || error("Matrix sizes must match")
     if dim==1
         r = zeros(T, 1, size(x,2))
