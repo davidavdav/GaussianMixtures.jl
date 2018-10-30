@@ -1,5 +1,6 @@
 ## data.jl Julia code to handle matrix-type data on disc
 using Statistics
+using Distributed
 
 ## report the kind of Data structure from the type instance
 kind(d::Data{T,S}) where {T,S<:AbstractString} = :file

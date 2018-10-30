@@ -1,7 +1,4 @@
 UTriangular(a::Matrix) = UpperTriangular(a)
-if VERSION < v"0.5.0-dev"
-    Base.cholfact(s::Symmetric) = cholfact(full(s))
-end
 
 ## NumericExtensions is no longer supported, underoptimized implementation:
 function logsumexp(x::AbstractVector{T}) where {T<:AbstractFloat}
@@ -34,13 +31,3 @@ function LinearAlgebra.dot(x::Matrix{T}, y::Matrix{T}, dim::Integer) where {T<:A
     end
     r
 end
-
-if VERSION < v"0.5.0-dev+2023"
-    displaysize(io::IO) = Base.tty_size()
-end
-
-## this we need for xμTΛxμ!
-#Base.A_mul_Bc!(A::StridedMatrix{Float64}, B::AbstractTriangular{Float32}) = A_mul_Bc!(A, convert(AbstractMatrix{Float64}, B))
-#Base.A_mul_Bc!(A::Matrix{Float32}, B::AbstractTriangular{Float64}) = A_mul_Bc!(A, convert(AbstractMatrix{Float32}, B))
-## this for diagstats
-#Base.BLAS.gemm!(a::Char, b::Char, alpha::Float64, A::Matrix{Float32}, B::Matrix{Float64}, beta::Float64, C::Matrix{Float64}) = Base.BLAS.gemm!(a, b, alpha, float64(A), B, beta, C)

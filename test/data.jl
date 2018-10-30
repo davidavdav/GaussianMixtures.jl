@@ -1,6 +1,7 @@
 ## data.jl Test some functionality of the Data type
 ## (c) 2015 David A. van Leeuwen
 using Logging
+using Distributed
 
 @info("Testing Data")
 
@@ -11,17 +12,13 @@ end
 x = Matrix{Float64}[load("$i.jld", "data") for i=1:10]
 
 using GaussianMixtures
-if nprocs()==1 && VERSION < v"0.5.0-dev"
-    addprocs(2)
-end
-@everywhere using GaussianMixtures
 
 g = rand(GMM, 2, 3)
 d = Data(x)
 dd = Data(["$i.jld" for i=1:10], Float64)
 
 f1(gmm, data) = GaussianMixtures.dmapreduce(x->stats(gmm, x), +, data)
-f2(gmm, data) = reduce(+, pmap(x->stats(gmm, x), data))
+f2(gmm, data) = reduce(+, map(x->stats(gmm, x), data))
 
 sleep(1)
 println(f2(g,dd))
