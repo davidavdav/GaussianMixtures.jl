@@ -64,9 +64,9 @@ end
 ## m-step given prior and stats
 function mstep(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector) where {T}
     ng = length(N)
-    α = π.α₀ + N                # ng, 10.58
-    ν = π.ν₀ + N + 1            # ng, 10.63
-    β = π.β₀ + N                # ng, 10.60
+    α = π.α₀ .+ N               # ng, 10.58
+    ν = π.ν₀ .+ N .+ 1          # ng, 10.63
+    β = π.β₀ .+ N               # ng, 10.60
     m = similar(mx)             # ng × d
     W = Array{eltype(FullCov{T})}(undef, ng) # ng × (d*d)
     d = size(mx,2)
@@ -94,7 +94,7 @@ function expectations(vg::VGMM)
     Elogπ = digamma.(vg.α) .- digamma(sum(vg.α)) # 10.66, size ng
     ElogdetΛ = similar(Elogπ) # size ng
     for k in 1:ng
-        ElogdetΛ[k] = sum(digamma.(0.5(vg.ν[k] .+ 1 - collect(1:d)))) + d*log(2) + mylogdet(vg.W[k]) # 10.65
+        ElogdetΛ[k] = sum(digamma.(0.5(vg.ν[k] .+ 1 .- collect(1:d)))) + d*log(2) + mylogdet(vg.W[k]) # 10.65
     end
     return Elogπ, ElogdetΛ
 end
@@ -207,7 +207,8 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     α, β, m, ν, W = vg.α, vg.β, vg.m, vg.ν, vg.W # VGMM vars
     gaussians = 1:ng
     ## B.79
-    logB(W, ν) = -0.5ν * (mylogdet(W) + d*log(2)) - d*(d-1)/4*log(π) - sum(lgamma.(0.5(ν + 1 - collect(1:d))))
+    logB(W, ν) = -0.5ν * (mylogdet(W) + d*log(2)) .- d*(d-1)/4*log(π) -
+    sum(lgamma.(0.5(ν + 1 .- collect(1:d))))
     ## E[log p(x|Ζ,μ,Λ)] 10.71
     Elogll = 0.
     for k in gaussians
@@ -217,7 +218,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
                              - ν[k] * (trAB(S[k], Wk) + Wk * Δ ⋅ Δ)) # check chol efficiency
     end                        # 10.71
     ## E[log p(Z|π)] from rnk() 10.72
-    Elogpπ = lgamma(ng*α₀) - ng*lgamma(α₀) - (α₀-1)sum(Elogπ) # E[log p(π)] 10.73
+    Elogpπ = lgamma(ng*α₀) .- ng*lgamma(α₀) .- (α₀-1)sum(Elogπ) # E[log p(π)] 10.73
     ElogpμΛ = ng*logB(W₀, ν₀)   # E[log p(μ, Λ)] B.79
     for k in gaussians
         Δ = vec(m[k,:]) - m₀        # d ## v0.5 arraymageddon

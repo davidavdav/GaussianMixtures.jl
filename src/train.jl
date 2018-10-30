@@ -209,7 +209,7 @@ function gmmsplit(gmm::GMM{T}; minweight=1e-5, sep=0.2) where T
     end
     for oi=1:n
         ni = 2oi-1 : 2oi
-        w[ni] = gmm.w[oi]/2
+        w[ni] .= gmm.w[oi]/2
         if gmmkind == :diag
             μ[ni,:] = hcat(gmmsplit(vec(gmm.μ[oi,:]), vec(gmm.Σ[oi,:]), tsep)...)'
             for k=ni
