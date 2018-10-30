@@ -138,7 +138,7 @@ function stats(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false) where T <: 
         r = pmap(x->stats(gmm, x, order), xx)
         reduce(+, r)                # get +() from BigData.jl
     else
-        r = stats(gmm, shift!(xx), order)
+        r = stats(gmm, popfirst!(xx), order)
         for x in xx
             r += stats(gmm, x, order)
         end
