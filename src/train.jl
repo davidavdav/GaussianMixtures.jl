@@ -43,18 +43,18 @@ GMM(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, 
 ## we sometimes end up with pathological gmms
 function sanitycheck!(gmm::GMM)
     pathological=NTuple{2}[]
-    for i in find(isnan.(gmm.μ) .| isinf.(gmm.μ))
+    for i in findall(isnan.(gmm.μ) .| isinf.(gmm.μ))
         gmm.μ[i] = 0
         push!(pathological, ind2sub(size(gmm.μ), i))
     end
     if kind(gmm) == :diag
-        for i in find(isnan.(gmm.Σ) .| isinf.(gmm.Σ))
+        for i in findall(isnan.(gmm.Σ) .| isinf.(gmm.Σ))
             gmm.Σ[i] = 1
             push!(pathological, ind2sub(size(gmm.Σ), i))
         end
     else
         for (si, s) in enumerate(gmm.Σ)
-            for i in find(isnan.(s) .| isinf.(s))
+            for i in findall(isnan.(s) .| isinf.(s))
                 s[i] = 1
                 push!(pathological, (si, i))
             end
@@ -187,7 +187,7 @@ function gmmsplit(gmm::GMM{T}; minweight=1e-5, sep=0.2) where T
     tsep::T = sep
     ## In this function i, j, and k all index Gaussians
     maxi = reverse(sortperm(gmm.w))
-    offInd = find(gmm.w .< minweight)
+    offInd = findall(gmm.w .< minweight)
     if (length(offInd)>0)
         @info("Removing Gaussians with no data");
     end
@@ -250,7 +250,7 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
             ## var flooring
             tooSmall = any(gmm.Σ .< varfloor, 2)
             if (any(tooSmall))
-                ind = find(tooSmall)
+                ind = findall(tooSmall)
                 @warn("Variances had to be floored ", join(ind, " "))
                 gmm.Σ[ind,:] = initc[ind,:]
             end

@@ -52,7 +52,7 @@ function Base.rand(gmm::GMM, n::Int)
     index = mapslices(find, rand(Multinomial(1, gmm.w), n), 1)
     gmmkind = kind(gmm)
     for i=1:gmm.n
-        ind = find(index.==i)
+        ind = findall(index.==i)
         nₓ = length(ind)
         if gmmkind == :diag
             x[ind,:] = (vec(gmm.μ[i,:]) .+ vec(sqrt.(gmm.Σ[i,:])) .* randn(gmm.d, nₓ))' ## v0.5 arraymageddon

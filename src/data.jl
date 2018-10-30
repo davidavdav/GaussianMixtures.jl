@@ -133,7 +133,7 @@ function dmapreduce(f::Function, op::Function, x::Data)
             end
         end
     end
-    reduce(op, results[find(valid)])
+    reduce(op, results[findall(valid)])
 end
 
 ## stats: compute nth order stats for array (this belongs in stats.jl)
