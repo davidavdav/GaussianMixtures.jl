@@ -68,9 +68,15 @@ end
 
 ## define an iterator for Data
 Base.length(x::Data) = length(x.list)
-Base.start(x::Data) = 0
-Base.next(x::Data, state::Int) = x[state+1], state+1
-Base.done(x::Data, state::Int) = state == length(x)
+function Base.iterate(x::Data, state=1)
+    count = state
+
+    if(count > length(x.list))
+        return nothing
+    else
+        return (x[count], count+1)
+    end
+end
 
 ## This function is like pmap(), but executes each element of Data on a predestined
 ## worker, so that file caching at the local machine is beneficial.
