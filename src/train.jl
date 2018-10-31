@@ -249,10 +249,10 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
         if gmmkind == :diag
             gmm.Σ = S ./ N - gmm.μ.^2
             ## var flooring
-            tooSmall = any(gmm.Σ .< varfloor, dims=2)
+            tooSmall = any(gmm.Σ .< varfloor, dims=2)[:]
             if (any(tooSmall))
                 ind = findall(tooSmall)
-                @warn("Variances had to be floored ", join(ind, " "))
+                @warn("Variances had to be floored ", ind)
                 gmm.Σ[ind,:] = initc[ind,:]
             end
         elseif gmmkind == :full
