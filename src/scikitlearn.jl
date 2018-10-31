@@ -48,7 +48,6 @@ end
 ScikitLearnBase.predict_log_proba(gmm::GMM, X) = log(gmmposterior(gmm, X)[1])
 ScikitLearnBase.predict_proba(gmm::GMM, X) = gmmposterior(gmm, X)[1]
 ScikitLearnBase.predict(gmm::GMM, X) =
-    # This is just `argmax(axis=2)`. It's very verbose in Julia.
     getindex.(argmax(ScikitLearnBase.predict_proba(gmm, X), dims=2), 2)
 
 """ `density(gmm::GMM, X)` returns `log(P(X|μ, Σ))` """
