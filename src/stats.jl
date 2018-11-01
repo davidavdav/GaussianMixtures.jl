@@ -42,15 +42,15 @@ function stats(gmm::GMM{GT,DCT}, x::Matrix{T}, order::Int) where DCT <: DiagCov{
     ng = gmm.n
     gmm.d == d || error("dimension mismatch for data")
     1 ≤ order ≤ 2 || error("order out of range")
-    prec::Matrix{RT} = 1./gmm.Σ             # ng × d
+    prec::Matrix{RT} = 1 ./ gmm.Σ             # ng × d
     mp::Matrix{RT} = gmm.μ .* prec          # mean*precision, ng × d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    a::Matrix{RT} = gmm.w ./ ((2π)^(d/2) * sqrt.(prod(gmm.Σ, 2))) # ng × 1
+    a::Matrix{RT} = gmm.w ./ ((2π)^(d/2) * sqrt.(prod(gmm.Σ, dims=2))) # ng × 1
     sm2p::Matrix{RT} = dot(mp, gmm.μ, 2)    # sum over d mean^2*precision, ng × 1
     xx = x .* x                            # nₓ × d
 ##  γ = broadcast(*, a', exp(x * mp' .- 0.5xx * prec')) # nₓ × ng, Likelihood per frame per Gaussian
     γ = x * mp'                            # nₓ × ng, nₓ * d * ng multiplications
-    Base.BLAS.gemm!('N', 'T', -one(RT)/2, xx, prec, one(RT), γ)
+    LinearAlgebra.BLAS.gemm!('N', 'T', -one(RT)/2, xx, prec, one(RT), γ)
     for j = 1:ng
         la = log(a[j]) - 0.5sm2p[j]
         for i = 1:nₓ
@@ -58,10 +58,10 @@ function stats(gmm::GMM{GT,DCT}, x::Matrix{T}, order::Int) where DCT <: DiagCov{
         end
     end
     for i = 1:length(γ) @inbounds γ[i] = exp(γ[i]) end
-    lpf=sum(γ,2)                           # nₓ × 1, Likelihood per frame
+    lpf=sum(γ,dims=2)                           # nₓ × 1, Likelihood per frame
     broadcast!(/, γ, γ, lpf .+ (lpf .== 0)) # nₓ × ng, posterior per frame per gaussian
     ## zeroth order
-    N = vec(sum(γ, 1))          # ng, vec()
+    N = vec(sum(γ, dims=1))          # ng, vec()
     ## first order
     F =  γ' * x                           # ng × d, Julia has efficient a' * b
     llh = sum(log.(lpf))                   # total log likeliood
@@ -85,7 +85,7 @@ function stats(gmm::GMM{GT,FCT}, x::Array{T,2}, order::Int) where FCT <: FullCov
     γ, ll = gmmposterior(gmm, x) # nₓ × ng, both
     llh = sum(logsumexp(ll .+ log.(gmm.w)', 2))
     ## zeroth order
-    N = vec(sum(γ, 1))
+    N = vec(sum(γ, dims=1))
     ## first order
     F = γ' * x
     if order == 1
@@ -93,7 +93,7 @@ function stats(gmm::GMM{GT,FCT}, x::Array{T,2}, order::Int) where FCT <: FullCov
     end
     ## S_k = Σ_i γ _ik x_i' * x
     S = Matrix{RT}[]
-    γx = Array{RT}(nₓ, d)
+    γx = Array{RT}(undef, nₓ, d)
     @inbounds for k=1:ng
         #broadcast!(*, γx, γ[:,k], x) # nₓ × d mults
         for j = 1:d for i=1:nₓ
@@ -138,7 +138,7 @@ function stats(gmm::GMM, x::Matrix{T}; order::Int=2, parallel=false) where T <: 
         r = pmap(x->stats(gmm, x, order), xx)
         reduce(+, r)                # get +() from BigData.jl
     else
-        r = stats(gmm, shift!(xx), order)
+        r = stats(gmm, popfirst!(xx), order)
         for x in xx
             r += stats(gmm, x, order)
         end
@@ -212,7 +212,7 @@ Cstats(gmm::GMM, x::DataOrMatrix, parallel=false) = Cstats(cstats(gmm, x, parall
 CSstats(gmm::GMM, cstats::Cstats) = CSstats(cstats.N, cstats.F ./ gmm.Σ)
 
 ## some convenience functions
-Base.eltype{T}(stats::Cstats{T}) = T
+Base.eltype(stats::Cstats{T}) where {T} = T
 Base.size(stats::Cstats) = size(stats.F)
 kind(stats::Cstats) = typeof(stats.S) <: Vector ? :full : :diag
 Base.:+(a::Cstats, b::Cstats) = Cstats(a.N + b.N, a.F + b.F, a.S + b.S)

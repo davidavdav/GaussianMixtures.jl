@@ -30,7 +30,7 @@ end
 
 function Base.copy!(gmm_dest::GMM, gmm_src::GMM)
     # shallow copy - used below
-    for f in fieldnames(gmm_dest)
+    for f in fieldnames(typeof(gmm_dest))
         setfield!(gmm_dest, f, getfield(gmm_src, f))
     end
 end
@@ -48,9 +48,7 @@ end
 ScikitLearnBase.predict_log_proba(gmm::GMM, X) = log(gmmposterior(gmm, X)[1])
 ScikitLearnBase.predict_proba(gmm::GMM, X) = gmmposterior(gmm, X)[1]
 ScikitLearnBase.predict(gmm::GMM, X) =
-    # This is just `argmax(axis=2)`. It's very verbose in Julia.
-    ind2sub(size(X),
-            vec(findmax(ScikitLearnBase.predict_proba(gmm, X), 2)[2]))[2]
+    getindex.(argmax(ScikitLearnBase.predict_proba(gmm, X), dims=2), 2)
 
 """ `density(gmm::GMM, X)` returns `log(P(X|μ, Σ))` """
 function density(gmm::GMM, X)

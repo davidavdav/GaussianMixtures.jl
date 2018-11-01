@@ -1,4 +1,5 @@
 using ScikitLearnBase
+using Random
 
 ## 1. Generate synthetic data from two distinct Gaussians: n_samples_A and
 ##    n_samples_B data points
@@ -10,7 +11,7 @@ n_samples_A = 300
 n_samples_B = 600
 
 # generate spherical data centered on (20, 20)
-srand(42)
+Random.seed!(42)
 shifted_gaussian = randn(n_samples_A, 2) .+ [20, 20]'
 
 # generate twice as many points from zero centered stretched Gaussian data

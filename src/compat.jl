@@ -1,21 +1,23 @@
+using LinearAlgebra
+
 UTriangular(a::Matrix) = UpperTriangular(a)
-if VERSION < v"0.5.0-dev"
-    Base.cholfact(s::Symmetric) = cholfact(full(s))
-end
 
 ## NumericExtensions is no longer supported, underoptimized implementation:
-function logsumexp{T<:AbstractFloat}(x::AbstractVector{T})
+function logsumexp(x::AbstractVector{T}) where {T<:AbstractFloat}
     m = maximum(x)
     log(sum(exp.(x .- m))) + m
 end
-logsumexp{T<:AbstractFloat}(x::Matrix{T}, dim::Integer) = mapslices(logsumexp, x, dim)
+logsumexp(x::Matrix{T}, dim::Integer) where {T<:AbstractFloat} = mapslices(logsumexp, x, dims=dim)
+
+eye(n::Int) = Matrix(1.0I,n,n)
+eye(::Type{Float64}, n::Int) = Matrix(1.0I,n,n)
 
 ## Also NumericExtensions' semantics of dot() is no longer supported.
-function Base.dot{T<:AbstractFloat}(x::Matrix{T}, y::Matrix{T})
+function LinearAlgebra.dot(x::Matrix{T}, y::Matrix{T}) where {T<:AbstractFloat}
     size(x) == size(y) || error("Matrix sizes must match")
     dot(vec(x), vec(y))
 end
-function Base.dot{T<:AbstractFloat}(x::Matrix{T}, y::Matrix{T}, dim::Integer)
+function LinearAlgebra.dot(x::Matrix{T}, y::Matrix{T}, dim::Integer) where {T<:AbstractFloat}
     size(x) == size(y) || error("Matrix sizes must match")
     if dim==1
         r = zeros(T, 1, size(x,2))
@@ -34,13 +36,3 @@ function Base.dot{T<:AbstractFloat}(x::Matrix{T}, y::Matrix{T}, dim::Integer)
     end
     r
 end
-
-if VERSION < v"0.5.0-dev+2023"
-    displaysize(io::IO) = Base.tty_size()
-end
-
-## this we need for xμTΛxμ!
-#Base.A_mul_Bc!(A::StridedMatrix{Float64}, B::AbstractTriangular{Float32}) = A_mul_Bc!(A, convert(AbstractMatrix{Float64}, B))
-#Base.A_mul_Bc!(A::Matrix{Float32}, B::AbstractTriangular{Float64}) = A_mul_Bc!(A, convert(AbstractMatrix{Float32}, B))
-## this for diagstats
-#Base.BLAS.gemm!(a::Char, b::Char, alpha::Float64, A::Matrix{Float32}, B::Matrix{Float64}, beta::Float64, C::Matrix{Float64}) = Base.BLAS.gemm!(a, b, alpha, float64(A), B, beta, C)

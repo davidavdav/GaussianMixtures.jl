@@ -1,5 +1,6 @@
+using Random
 reload("nomodule.jl")
-srand(1)
+Random.seed!(1)
 xx = readdlm("test/faithful.txt")
 gg = GMM(8, xx, nIter=0, kind=:full)
 pp = GMMprior(gg.d, 0.1, 1.0)

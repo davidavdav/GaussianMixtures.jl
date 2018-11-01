@@ -1,16 +1,18 @@
 ## data.jl Julia code to handle matrix-type data on disc
+using Statistics
+using Distributed
 
 ## report the kind of Data structure from the type instance
-kind{T,S<:AbstractString}(d::Data{T,S}) = :file
-kind{T}(d::Data{T,Matrix{T}}) = :matrix
-Base.eltype{T}(d::Data{T}) = T
+kind(d::Data{T,S}) where {T,S<:AbstractString} = :file
+kind(d::Data{T,Matrix{T}}) where {T} = :matrix
+Base.eltype(d::Data{T}) where {T} = T
 
 ## constructor for a plain matrix.  rowvectors: data points x represented as rowvectors
-Data{T}(x::Matrix{T}) = Data(Matrix{T}[x])
+Data(x::Matrix{T}) where {T} = Data(Matrix{T}[x])
 
 ## constructor for a vector of files
 ## Data([strings], type, loadfunction)
-function Data{S<:AbstractString}(files::Vector{S}, datatype::DataType, load::Function)
+function Data(files::Vector{S}, datatype::DataType, load::Function) where {S<:AbstractString}
     Data(files, datatype, @compat Dict(:load => load))
 end
 
@@ -32,7 +34,7 @@ function JLD.save(file::AbstractString, x::Matrix)
 end
 
 ## Data([strings], type; load=loadfunction, size=sizefunction)
-function Data{S<:AbstractString}(files::Vector{S}, datatype::DataType; kwargs...)
+function Data(files::Vector{S}, datatype::DataType; kwargs...) where {S<:AbstractString}
     all([isa((k,v), (Symbol,Function)) for (k,v) in kwargs]) || error("Wrong type of argument", args)
     d = Dict{Symbol,Function}([kwargs...])
     if !haskey(d, :load)
@@ -60,15 +62,21 @@ function Base.getindex(x::Data, i::Int)
 end
 
 ## A range as index (including [1:1]) returns a Data object, not the data.
-function Base.getindex{T,VT}(x::Data{T,VT}, r::Range)
+function Base.getindex(x::Data{T,VT}, r::UnitRange{Int}) where {T,VT}
     Data{T, VT}(x.list[r], x.API)
 end
 
 ## define an iterator for Data
 Base.length(x::Data) = length(x.list)
-Base.start(x::Data) = 0
-Base.next(x::Data, state::Int) = x[state+1], state+1
-Base.done(x::Data, state::Int) = state == length(x)
+function Base.iterate(x::Data, state=1)
+    count = state
+
+    if(count > length(x.list))
+        return nothing
+    else
+        return (x[count], count+1)
+    end
+end
 
 ## This function is like pmap(), but executes each element of Data on a predestined
 ## worker, so that file caching at the local machine is beneficial.
@@ -105,7 +113,7 @@ end
 function dmapreduce(f::Function, op::Function, x::Data)
     nₓ = length(x)
     nw = nworkers()
-    results = Array{Any}(nw) ## will contain pointers for parallel return value.
+    results = Array{Any}(undef, nw) ## will contain pointers for parallel return value.
     valid = Any[false for i=1:nw] # can't use bitarray as parallel return value, must be pointers
     id=0
     nextid() = (id += 1)
@@ -132,11 +140,11 @@ function dmapreduce(f::Function, op::Function, x::Data)
             end
         end
     end
-    reduce(op, results[find(valid)])
+    reduce(op, results[findall(valid)])
 end
 
 ## stats: compute nth order stats for array (this belongs in stats.jl)
-function stats{T<:AbstractFloat}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
+function stats(x::Matrix{T}, order::Int=2; kind=:diag, dim=1) where {T<:AbstractFloat}
     if dim==1
         n, d = size(x)
     else
@@ -144,9 +152,9 @@ function stats{T<:AbstractFloat}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
     end
     if kind == :diag
         if order == 2
-            return n, vec(sum(x, dim)), vec(sum(abs2, x, dim))
+            return n, vec(sum(x, dims=dim)), vec(sum(abs2, x, dims=dim))
         elseif order == 1
-            return n, vec(sum(x, dim))
+            return n, vec(sum(x, dims=dim))
         else
             sx = zeros(T, order, d)
             for j=1:d
@@ -168,7 +176,7 @@ function stats{T<:AbstractFloat}(x::Matrix{T}, order::Int=2; kind=:diag, dim=1)
     elseif kind == :full
         order == 2 || error("Can only do covar starts for order=2")
         ## lazy implementation
-        sx = vec(sum(x, dim))
+        sx = vec(sum(x, dims=dim))
         sxx = x' * x
         return n, sx, sxx
     else
@@ -218,17 +226,17 @@ end
 
 Base.sum(d::Data, dim::Int) = retranspose(stats(d,1, dim=dim)[2], dim)
 
-function Base.mean(d::Data)
+function Statistics.mean(d::Data)
     n, sx = stats(d, 1)
     sum(sx) / (n*length(sx))
 end
 
- function Base.mean(d::Data, dim::Int)
+ function Statistics.mean(d::Data, dim::Int)
      n, sx = stats(d, 1, dim=dim)
      return retranspose(sx ./ n, dim)
 end
 
-function Base.var(d::Data)
+function Statistics.var(d::Data)
     n, sx, sxx = stats(d, 2)
     n *= length(sx)
     ssx = sum(sx)                       # keep type stability...
@@ -237,13 +245,13 @@ function Base.var(d::Data)
     return (ssxx - n*μ^2) / (n - 1)
 end
 
-function Base.var(d::Data, dim::Int)
+function Statistics.var(d::Data, dim::Int)
     n, sx, sxx = stats(d, 2, dim=dim)
     μ = sx ./ n
     return retranspose((sxx - n*μ.^2) ./ (n-1), dim)
 end
 
-function Base.cov(d::Data)
+function Statistics.cov(d::Data)
     n, sx, sxx = stats(d, 2, kind=:full)
     μ = sx ./ n
     (sxx - n*μ*μ') ./ (n-1)
@@ -278,7 +286,7 @@ end
 
 Base.collect(d::Data) = vcat([x for x in d]...)
 
-function Base.convert{Td,Ts}(::Type{Data{Td}}, d::Data{Ts})
+function Base.convert(::Type{Data{Td}}, d::Data{Ts}) where {Td,Ts}
     Td == Ts && return d
     if kind(d) == :file
         api = copy(d.API)

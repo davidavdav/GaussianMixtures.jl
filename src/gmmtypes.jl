@@ -18,10 +18,12 @@
 
 ## force Emacs utf-8: αβγδεζηθικλμνξοπρστυφχψω
 
+using Printf
+
 """
 `History`, a type to record the history of how a GMM is built.
 """
-type History
+struct History
     """timestamp"""
     t::Float64
     """description"""
@@ -83,8 +85,8 @@ mutable struct GMM{T<:AbstractFloat, CT<:CovType{T}} <: GaussianMixture{T,CT}
         new(n, d, w, μ, Σ, hist, nx)
     end
 end
-GMM{T<:AbstractFloat}(w::Vector{T}, μ::AbstractArray{T,2}, Σ::Union{DiagCov{T},FullCov{T}},
-                      hist::Vector, nx::Int) = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
+GMM(w::Vector{T}, μ::AbstractArray{T,2}, Σ::Union{DiagCov{T},FullCov{T}},
+                      hist::Vector, nx::Int) where {T<:AbstractFloat} = GMM{T, typeof(Σ)}(w, μ, Σ, hist, nx)
 
 ## Variational Bayes GMM types.
 
@@ -93,7 +95,7 @@ GMM{T<:AbstractFloat}(w::Vector{T}, μ::AbstractArray{T,2}, Σ::Union{DiagCov{T}
 """
 `GMMprior` is a type that holds the prior for training GMMs using Variational Bayes.
 """
-type GMMprior{T<:AbstractFloat}
+struct GMMprior{T<:AbstractFloat}
     "effective prior number of observations"
     α₀::T
     β₀::T
@@ -112,7 +114,7 @@ end
 """
 `VGMM` is the type that is used to store a GMM in the Variational Bayes training.
 """
-type VGMM{T} <: GaussianMixture{T,Any}
+mutable struct VGMM{T} <: GaussianMixture{T,Any}
     "number of Gaussians"
     n::Int
     "dimension of Gaussian"
@@ -144,7 +146,7 @@ end
 """
 `CSstats` a type holding centered and scaled zeroth and first order GMM statistics
 """
-type CSstats{T<:AbstractFloat}
+struct CSstats{T<:AbstractFloat}
     "zeroth order stats"
     n::Vector{T}          # zero-order stats, ng
     "first order stats"
@@ -154,7 +156,7 @@ type CSstats{T<:AbstractFloat}
         new(n,f)
     end
 end
-CSstats{T<:AbstractFloat}(n::Vector{T}, f::Matrix{T}) = CSstats{T}(n, f)
+CSstats(n::Vector{T}, f::Matrix{T}) where {T<:AbstractFloat} = CSstats{T}(n, f)
 ## special case for tuple (why would I need this?)
 CSstats(t::Tuple) = CSstats(t[1], t[2])
 
@@ -162,7 +164,7 @@ CSstats(t::Tuple) = CSstats(t[1], t[2])
 """
 `Cstats`, a type holding centered zeroth, first and second order GMM statistics
 """
-type Cstats{T<:AbstractFloat, CT<:VecOrMat}
+struct Cstats{T<:AbstractFloat, CT<:VecOrMat}
     "zeroth order stats"
     N::Vector{T}
     "first order stats"
@@ -179,7 +181,7 @@ type Cstats{T<:AbstractFloat, CT<:VecOrMat}
         new(n, f, s)
     end
 end
-Cstats{T<:AbstractFloat}(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T}) = Cstats{T,typeof(s)}(n, f, s)
+Cstats(n::Vector{T}, f::Matrix{T}, s::MatOrVecMat{T}) where {T<:AbstractFloat} = Cstats{T,typeof(s)}(n, f, s)
 Cstats(t::Tuple) = Cstats(t...)
 
 ## A data handle, either in memory or on disk, perhaps even mmapped but I haven't seen any
@@ -193,14 +195,14 @@ Cstats(t::Tuple) = Cstats(t...)
 `Data` is a type for holding an array of feature vectors (i.e., matrices), or references to
 files on disk.  The data is automatically loaded when needed, e.g., by indexing.
 """
-type Data{T,VT<:Union{Matrix,AbstractString}}
+struct Data{T,VT<:Union{Matrix,AbstractString}}
     list::Vector{VT}
     API::Dict{Symbol,Function}
     function Data{T,VT}(list::Union{Vector{VT},Vector{Matrix{T}}}, API::Dict{Symbol,Function}) where{T,VT}
         return new(list,API)
     end
 end
-Data{T}(list::Vector{Matrix{T}}) = Data{T, eltype(list)}(list, Dict{Symbol,Function}())
-Data{S<:AbstractString}(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) = Data{t, S}(list, API)
+Data(list::Vector{Matrix{T}}) where {T} = Data{T, eltype(list)}(list, Dict{Symbol,Function}())
+Data(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) where {S<:AbstractString} = Data{t, S}(list, API)
 
 DataOrMatrix{T} = Union{Data{T}, Matrix{T}}

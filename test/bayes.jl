@@ -1,3 +1,4 @@
+using DelimitedFiles
 ## test VB GMM for the standard example data
 x = readdlm("faithful.txt")
 ## only do k-means

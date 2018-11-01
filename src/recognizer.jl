@@ -8,18 +8,19 @@ function dotscore(x::CSstats, y::CSstats, r::Real=1.)
     sum(broadcast(/, x.f, x.n + r) .* y.f)
 end
 ## or directly from the UBM and the data x and y
-dotscore{T<:Real}(gmm::GMM, x::Matrix{T}, y::Matrix{T}, r::Real=1.) =
+dotscore(gmm::GMM, x::Matrix{T}, y::Matrix{T}, r::Real=1.) where {T<:Real} =
     dotscore(CSstats(gmm, x), CSstats(gmm, y), r)
 
 ## or produce a score matrix
-function dotscore{T}(x::Vector{CSstats{T}}, y::Vector{CSstats{T}}, r::Real=1.)
+function dotscore(x::Vector{CSstats{T}}, y::Vector{CSstats{T}}, r::Real=1.) where {T}
     xx = hcat([vec(x.f ./ (x.n+r)) for x in x]...)
     yy = hcat([vec(y.f) for y in y]...)
     return xx' * yy
 end
 
 ## Maximum A Posteriori adapt a gmm
-function maxapost{T<:AbstractFloat}(gmm::GMM, x::Matrix{T}, r::Real=16.; means::Bool=true, weights::Bool=false, covars::Bool=false)
+function maxapost(gmm::GMM, x::Matrix{T}, r::Real=16.; means::Bool=true,
+                  weights::Bool=false, covars::Bool=false) where {T<:AbstractFloat}
     nₓ, ll, N, F, S = stats(gmm, x)
     α = N ./ (N+r)
     if weights

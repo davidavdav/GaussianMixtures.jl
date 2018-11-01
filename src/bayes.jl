@@ -13,9 +13,10 @@
 ## e.g., W₀⁻¹ where others might write W0inv.
 
 using SpecialFunctions: digamma
+using SpecialFunctions: lgamma
 
 ## initialize a prior with minimal knowledge
-function GMMprior{T<:AbstractFloat}(d::Int, alpha::T, beta::T)
+function GMMprior(d::Int, alpha::T, beta::T) where {T<:AbstractFloat}
     m₀ = zeros(T, d)
     W₀ = eye(T, d)
     ν₀ = convert(T,d)
@@ -24,7 +25,7 @@ end
 Base.copy(p::GMMprior) = GMMprior(p.α₀, p.β₀, copy(p.m₀), p.ν₀, copy(p.W₀))
 
 ## initialize from a GMM and nₓ, the number of points used to train the GMM.
-function VGMM{T}(g::GMM{T}, π::GMMprior{T})
+function VGMM(g::GMM{T}, π::GMMprior{T}) where {T}
     nₓ = g.nx
     N = g.w * nₓ
     mx = g.μ
@@ -61,13 +62,13 @@ function GMM(vg::VGMM)
 end
 
 ## m-step given prior and stats
-function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
+function mstep(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector) where {T}
     ng = length(N)
-    α = π.α₀ + N                # ng, 10.58
-    ν = π.ν₀ + N + 1            # ng, 10.63
-    β = π.β₀ + N                # ng, 10.60
+    α = π.α₀ .+ N               # ng, 10.58
+    ν = π.ν₀ .+ N .+ 1          # ng, 10.63
+    β = π.β₀ .+ N               # ng, 10.60
     m = similar(mx)             # ng × d
-    W = Array{eltype(FullCov{T})}(ng) # ng × (d*d)
+    W = Array{eltype(FullCov{T})}(undef, ng) # ng × (d*d)
     d = size(mx,2)
     limit = √ eps(eltype(N))
     W₀⁻¹ = inv(π.W₀)
@@ -77,10 +78,11 @@ function mstep{T}(π::GMMprior, N::Vector{T}, mx::Matrix{T}, S::Vector)
             Δ = vec(mx[k,:]) - π.m₀ ## v0.5 arraymageddon
             ## do some effort to keep the matrix positive definite
             third = π.β₀ * N[k] / (π.β₀ + N[k]) * (Δ * Δ') # guarantee symmety in Δ Δ'
-            W[k] = chol(inv(cholfact(Symmetric(W₀⁻¹ + N[k]*S[k] + third)))) # 10.62
+            W[k] = cholesky(inv(cholesky(Symmetric(W₀⁻¹ + N[k]*S[k] +
+                                                   third)))).U # 10.62
         else
             m[k,:] = zeros(d)
-            W[k] = chol(eye(d))
+            W[k] = cholesky(eye(d))
         end
     end
     return α, β, m, ν, W
@@ -92,7 +94,7 @@ function expectations(vg::VGMM)
     Elogπ = digamma.(vg.α) .- digamma(sum(vg.α)) # 10.66, size ng
     ElogdetΛ = similar(Elogπ) # size ng
     for k in 1:ng
-        ElogdetΛ[k] = sum(digamma.(0.5(vg.ν[k] .+ 1 - collect(1:d)))) + d*log(2) + mylogdet(vg.W[k]) # 10.65
+        ElogdetΛ[k] = sum(digamma.(0.5(vg.ν[k] .+ 1 .- collect(1:d)))) + d*log(2) + mylogdet(vg.W[k]) # 10.65
     end
     return Elogπ, ElogdetΛ
 end
@@ -114,7 +116,7 @@ function logρ(vg::VGMM, x::Matrix, ex::Tuple)
         ### d/vg.β[k] + vg.ν[k] * (x_i - m_k)' W_k (x_i = m_k) forall i
         ## Δ = (x_i - m_k)' W_k (x_i = m_k)
         xμTΛxμ!(Δ, x, vec(vg.m[k,:]), vg.W[k])
-        EμΛ[:,k] = d/vg.β[k] .+ vg.ν[k] * sum(abs2, Δ, 2)
+        EμΛ[:,k] = d/vg.β[k] .+ vg.ν[k] * sum(abs2, Δ, dims=2)
     end
     Elogπ, ElogdetΛ = ex
     (Elogπ + 0.5ElogdetΛ .- 0.5d*log(2π))' .- 0.5EμΛ
@@ -147,15 +149,15 @@ end
 ## Like for the GMM, we return nₓ, (some value), zeroth, first, second order stats
 ## All return values can be accumulated, except r, which we need for
 ## lowerbound ElogpZπ and ElogqZ
-function stats{T}(vg::VGMM, x::Matrix{T}, ex::Tuple)
+function stats(vg::VGMM, x::Matrix{T}, ex::Tuple) where {T}
     ng = vg.n
     (nₓ, d) = size(x)
     if nₓ == 0
         return 0, zero(RT), zeros(RT, ng), zeros(RT, ng, d), [zeros(RT, d,d) for k=1:ng]
     end
     r, ElogpZπqZ = rnk(vg, x, ex) # nₓ × ng
-    N = vec(sum(r, 1))          # ng
-    F = r' * x                  # ng × d
+    N = vec(sum(r, dims=1))       # ng
+    F = r' * x                    # ng × d
     ## S_k = sum_i r_ik x_i x_i'
     ## Sm = x' * hcat([broadcast(*, r[:,k], x) for k=1:ng]...)
     SS = similar(x, nₓ, d*ng)   # nₓ*nd*ng mem, nₓ*nd*ng multiplications
@@ -183,7 +185,7 @@ function stats(vg::VGMM, d::Data, ex::Tuple; parallel=false)
 end
 
 ## trace(A*B) = sum(A' .* B)
-function trAB{T1,T2}(A::Matrix{T1}, B::Matrix{T2})
+function trAB(A::Matrix{T1}, B::Matrix{T2}) where {T1,T2}
     RT = promote_type(T1,T2)
     nr, nc = size(A)
     size(B) == (nc, nr) || error("Inconsistent matrix size")
@@ -205,7 +207,8 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
     α, β, m, ν, W = vg.α, vg.β, vg.m, vg.ν, vg.W # VGMM vars
     gaussians = 1:ng
     ## B.79
-    logB(W, ν) = -0.5ν * (mylogdet(W) + d*log(2)) - d*(d-1)/4*log(π) - sum(lgamma.(0.5(ν + 1 - collect(1:d))))
+    logB(W, ν) = -0.5ν * (mylogdet(W) + d*log(2)) .- d*(d-1)/4*log(π) -
+    sum(lgamma.(0.5(ν + 1 .- collect(1:d))))
     ## E[log p(x|Ζ,μ,Λ)] 10.71
     Elogll = 0.
     for k in gaussians
@@ -215,7 +218,7 @@ function lowerbound(vg::VGMM, N::Vector, mx::Matrix, S::Vector,
                              - ν[k] * (trAB(S[k], Wk) + Wk * Δ ⋅ Δ)) # check chol efficiency
     end                        # 10.71
     ## E[log p(Z|π)] from rnk() 10.72
-    Elogpπ = lgamma(ng*α₀) - ng*lgamma(α₀) - (α₀-1)sum(Elogπ) # E[log p(π)] 10.73
+    Elogpπ = lgamma(ng*α₀) .- ng*lgamma(α₀) .- (α₀-1)sum(Elogπ) # E[log p(π)] 10.73
     ElogpμΛ = ng*logB(W₀, ν₀)   # E[log p(μ, Λ)] B.79
     for k in gaussians
         Δ = vec(m[k,:]) - m₀        # d ## v0.5 arraymageddon

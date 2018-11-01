@@ -2,7 +2,8 @@
 ## (c) 2013--2014 David A. van Leeuwen
 
 using StatsBase: sample
-import Logging
+using Logging
+using LinearAlgebra
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
 function GMM(x::DataOrMatrix{T}; kind=:diag) where T <: AbstractFloat
@@ -43,18 +44,18 @@ GMM(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, 
 ## we sometimes end up with pathological gmms
 function sanitycheck!(gmm::GMM)
     pathological=NTuple{2}[]
-    for i in find(isnan.(gmm.μ) .| isinf.(gmm.μ))
+    for i in findall(isnan.(gmm.μ) .| isinf.(gmm.μ))
         gmm.μ[i] = 0
         push!(pathological, ind2sub(size(gmm.μ), i))
     end
     if kind(gmm) == :diag
-        for i in find(isnan.(gmm.Σ) .| isinf.(gmm.Σ))
+        for i in findall(isnan.(gmm.Σ) .| isinf.(gmm.Σ))
             gmm.Σ[i] = 1
             push!(pathological, ind2sub(size(gmm.Σ), i))
         end
     else
         for (si, s) in enumerate(gmm.Σ)
-            for i in find(isnan.(s) .| isinf.(s))
+            for i in findall(isnan.(s) .| isinf.(s))
                 s[i] = 1
                 push!(pathological, (si, i))
             end
@@ -63,7 +64,7 @@ function sanitycheck!(gmm::GMM)
     if (np=length(pathological)) > 0
         mesg = string(np, " pathological elements normalized")
         addhist!(gmm, mesg)
-        warn(mesg)
+        @warn(mesg)
     end
     pathological
 end
@@ -73,7 +74,7 @@ end
 function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0) where T
     nₓ, d = size(x)
     hist = [History(@sprintf("Initializing GMM, %d Gaussians %s covariance %d dimensions using %d data points", n, diag, d, nₓ))]
-    info(last(hist).s)
+    @info(last(hist).s)
     ## subsample x to max 1000 points per mean
     nneeded = 1000*n
     if nₓ < nneeded
@@ -97,14 +98,14 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
             xx = vcat(yy...)
         end
     end
-    if Logging._root.level ≤ Logging.DEBUG
+    #if Logging._root.level ≤ Logging.DEBUG
         loglevel = :iter
-    elseif Logging._root.level ≤ Logging.INFO
-        loglevel = :final
-    else
-        loglevel = :none
-    end
-    km = Clustering.kmeans(xx', n, maxiter=nInit, display = loglevel)
+    #elseif Logging._root.level ≤ Logging.INFO
+    #    loglevel = :final
+    #else
+    #    loglevel = :none
+    #end
+    km = Clustering.kmeans(xx'[:,:], n, maxiter=nInit, display = loglevel)
     μ::Matrix{T} = km.centers'
     if kind == :diag
         ## helper that deals with centers with singleton datapoints.
@@ -113,7 +114,7 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
             if length(sel) < 2
                 return ones(1,d)
             else
-                return var(xx[sel,:],1)
+                return var(xx[sel,:],dims=1)
             end
         end
         Σ = convert(Matrix{T},vcat(map(variance, 1:n)...))
@@ -134,7 +135,7 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
     nxx = size(xx,1)
     ng = length(w)
     push!(hist, History(string("K-means with ", nxx, " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter",nxx/((d+1)ng)))))
-    info(last(hist).s)
+    @info(last(hist).s)
     gmm = GMM(w, μ, Σ, hist, nxx)
     sanitycheck!(gmm)
     em!(gmm, x; nIter=nIter, sparse=sparse)
@@ -149,14 +150,14 @@ function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nI
     2^log2n == n || error("n must be power of 2")
     gmm = GMM(x, kind=kind)
     tll = [avll(gmm,x)]
-    info("0: avll = ", tll[1])
+    @info("0: avll = ", tll[1])
     for i=1:log2n
         gmm = gmmsplit(gmm)
         avll = em!(gmm, x; nIter=i==log2n ? nFinal : nIter, sparse=sparse)
-        info(i, ": avll = ", avll)
+        @info(i, ": avll = ", avll)
         append!(tll, avll)
     end
-    info("Total log likelihood: ", tll)
+    @info("Total log likelihood: ", tll)
     gmm
 end
 
@@ -176,7 +177,7 @@ end
 
 function gmmsplit(μ::Vector{T}, Σ::Vector{T}, sep=0.2) where T
     tsep::T = sep
-    maxi = indmax(Σ)
+    maxi = argmax(Σ)
     p1 = zeros(length(μ))
     p1[maxi] = tsep * Σ[maxi]
     μ - p1, μ + p1
@@ -187,9 +188,9 @@ function gmmsplit(gmm::GMM{T}; minweight=1e-5, sep=0.2) where T
     tsep::T = sep
     ## In this function i, j, and k all index Gaussians
     maxi = reverse(sortperm(gmm.w))
-    offInd = find(gmm.w .< minweight)
+    offInd = findall(gmm.w .< minweight)
     if (length(offInd)>0)
-        info("Removing Gaussians with no data");
+        @info("Removing Gaussians with no data");
     end
     for i=1:length(offInd)
         gmm.w[maxi[i]] = gmm.w[offInd[i]] = gmm.w[maxi[i]]/2;
@@ -208,7 +209,7 @@ function gmmsplit(gmm::GMM{T}; minweight=1e-5, sep=0.2) where T
     end
     for oi=1:n
         ni = 2oi-1 : 2oi
-        w[ni] = gmm.w[oi]/2
+        w[ni] .= gmm.w[oi]/2
         if gmmkind == :diag
             μ[ni,:] = hcat(gmmsplit(vec(gmm.μ[oi,:]), vec(gmm.Σ[oi,:]), tsep)...)'
             for k=ni
@@ -238,7 +239,7 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
     initc = gmm.Σ
     ll = zeros(nIter)
     gmmkind = kind(gmm)
-    info(string("Running ", nIter, " iterations EM on ", gmmkind, " cov GMM with ", ng, " Gaussians in ", d, " dimensions"))
+    @info(string("Running ", nIter, " iterations EM on ", gmmkind, " cov GMM with ", ng, " Gaussians in ", d, " dimensions"))
     for i=1:nIter
         ## E-step
         nₓ, ll[i], N, F, S = stats(gmm, x, parallel=true)
@@ -248,16 +249,16 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
         if gmmkind == :diag
             gmm.Σ = S ./ N - gmm.μ.^2
             ## var flooring
-            tooSmall = any(gmm.Σ .< varfloor, 2)
+            tooSmall = any(gmm.Σ .< varfloor, dims=2)[:]
             if (any(tooSmall))
-                ind = find(tooSmall)
-                warn("Variances had to be floored ", join(ind, " "))
+                ind = findall(tooSmall)
+                @warn("Variances had to be floored ", ind)
                 gmm.Σ[ind,:] = initc[ind,:]
             end
         elseif gmmkind == :full
             for k=1:ng
                 if N[k] < d
-                    warn(@sprintf("Too low occupancy count %3.1f for Gausian %d", N[k], k))
+                    @warn(@sprintf("Too low occupancy count %3.1f for Gausian %d", N[k], k))
                 else
                     μk = vec(gmm.μ[k,:]) ## v0.5 arraymageddon
                     gmm.Σ[k] = cholinv(S[k] / N[k] - μk * μk')
@@ -295,8 +296,8 @@ function llpg(gmm::GMM{GT,DCT}, x::Matrix{T}) where DCT <: DiagCov{GT} where {GT
     prec::Matrix{RT} = 1 ./ gmm.Σ       # ng × d
     mp = gmm.μ .* prec                  # mean*precision, ng × d
     ## note that we add exp(-sm2p/2) later to pxx for numerical stability
-    normalization = 0.5 * (d * log(2π) .+ sum(log.(gmm.Σ), 2)) # ng × 1
-    sm2p = sum(mp .* gmm.μ, 2)   # sum over d mean^2*precision, ng × 1
+    normalization = 0.5 * (d * log(2π) .+ sum(log.(gmm.Σ), dims=2)) # ng × 1
+    sm2p = sum(mp .* gmm.μ, dims=2)   # sum over d mean^2*precision, ng × 1
     ## from here on data-dependent calculations
     xx = x.^2                           # nₓ × d
     pxx = sm2p' .+ xx * prec'           # nₓ × ng
@@ -317,7 +318,9 @@ function xμTΛxμ!(Δ::Matrix, x::Matrix, μ::Vector, ciΣ::UpperTriangular)
             Δ[i,j] = x[i,j] - μj
         end
     end
-    A_mul_Bc!(Δ, ciΣ)             # size: nₓ × d, mult ops nₓ*d^2
+    tmp = Δ*ciΣ' # size: nₓ × d, mult ops nₓ*d^2
+
+    Δ[:,:] .= tmp[:,:]
 end
 
 ## full covariance version of llpg()
@@ -326,14 +329,14 @@ function llpg(gmm::GMM{GT,FCT}, x::Matrix{T}) where FCT <: FullCov{GT} where {GT
     (nₓ, d) = size(x)
     ng = gmm.n
     d==gmm.d || error("Inconsistent size gmm and x")
-    ll = Array{RT}(nₓ, ng)
-    Δ = Array{RT}(nₓ, d)
+    ll = Array{RT}(undef, nₓ, ng)
+    Δ = Array{RT}(undef, nₓ, d)
     ## Σ's now are inverse choleski's, so logdet becomes -2sum(log(diag))
     normalization = [0.5d*log(2π) - sum(log.(diag((gmm.Σ[k])))) for k=1:ng]
     for k=1:ng
         ## Δ = (x_i - μ_k)' Λ_κ (x_i - m_k)
         xμTΛxμ!(Δ, x, vec(gmm.μ[k,:]), gmm.Σ[k])
-        ll[:,k] = -0.5 * sum(abs2,Δ,2) .- normalization[k]
+        ll[:,k] = -0.5 * sum(abs2,Δ,dims=2) .- normalization[k]
     end
     return ll::Matrix{RT}
 end

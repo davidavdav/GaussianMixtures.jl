@@ -20,7 +20,7 @@ function GMM(m::MixtureModel{Multivariate,Continuous,DiagNormal})
 end
 
 ## conversion to MixtureModel
-function Distributions.MixtureModel{T<:AbstractFloat}(gmm::GMM{T})
+function Distributions.MixtureModel(gmm::GMM{T}) where {T<:AbstractFloat}
     if gmm.d == 1
         mixtures = [Normal(gmm.μ[i,1], gmm.Σ[i,1]) for i=1:gmm.n]
     elseif kind(gmm) == :full

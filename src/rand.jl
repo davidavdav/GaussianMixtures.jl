@@ -8,7 +8,7 @@ function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
     if kind==:diag
         Σ = hcat([rand(Chisq(1.0), ng) for i=1:d]...)
     elseif kind == :full
-        Σ = Array{eltype(FullCov{Float64})}(ng)
+        Σ = Array{eltype(FullCov{Float64})}(undef, ng)
         for i=1:ng
             T = randn(d,d)
             Σ[i] = cholinv(T' * T / d)
@@ -23,7 +23,7 @@ function Base.rand(::Type{GMM}, ng::Int, d::Int; sep=2.0, kind=:full)
 end
 
 ## local helper
-function binsearch{T}(x::T, a::Vector{T})
+function binsearch(x::T, a::Vector{T}) where {T}
     issorted(a) || error("Array needs to be sorted")
     mi = 1
     ma = length(a)
@@ -43,21 +43,22 @@ function binsearch{T}(x::T, a::Vector{T})
     return mi
 end
 
-forcesymmetric(c::Matrix) = full(Symmetric(c))
+forcesymmetric(c::Matrix) = (Symmetric(c))
 
 ## This function samples n data points from a GMM.  This is pretty slow, probably due to the array assignments.
 function Base.rand(gmm::GMM, n::Int)
-    x = Array{Float64}(n, gmm.d)
+    x = Array{Float64}(undef, n, gmm.d)
     ## generate indices distriuted according to weights
-    index = mapslices(find, rand(Multinomial(1, gmm.w), n), 1)
+    index::Vector{Int} = mapslices(findall, rand(Multinomial(1, gmm.w), n).!=0,
+                                   dims=1)[:]
     gmmkind = kind(gmm)
     for i=1:gmm.n
-        ind = find(index.==i)
+        ind = findall(index.==i)
         nₓ = length(ind)
         if gmmkind == :diag
-            x[ind,:] = (vec(gmm.μ[i,:]) .+ vec(sqrt.(gmm.Σ[i,:])) .* randn(gmm.d, nₓ))' ## v0.5 arraymageddon
+            x[ind,:] .= (vec(gmm.μ[i,:]) .+ vec(sqrt.(gmm.Σ[i,:])) .* randn(gmm.d, nₓ))' ## v0.5 arraymageddon
         elseif gmmkind == :full
-            x[ind,:] = rand(MvNormal(vec(gmm.μ[i,:]), forcesymmetric(covar(gmm.Σ[i]))), nₓ)'
+            x[ind,:] .= rand(MvNormal(vec(gmm.μ[i,:]), forcesymmetric(covar(gmm.Σ[i]))), nₓ)'
         else
             error("Unknown kind")
         end

@@ -1,7 +1,9 @@
 sudo: false
 language: julia
 julia:
- - 0.6
+ - 0.7
+ - 1.0
+ - nightly
 before_install:
  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
 addons:
@@ -9,4 +11,4 @@ addons:
     packages:
       - hdf5-tools
 script:
- - julia --check-bounds=yes -e 'versioninfo(); Pkg.init(); Pkg.clone(pwd()); Pkg.build("GaussianMixtures"); Pkg.test("GaussianMixtures", coverage=VERSION < v"0.4.0-dev")'
+ - julia --check-bounds=yes -e 'using Pkg; Pkg.clone(pwd()); Pkg.build("GaussianMixtures"); Pkg.test("GaussianMixtures", coverage=true)'
