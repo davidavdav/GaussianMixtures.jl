@@ -46,12 +46,12 @@ function sanitycheck!(gmm::GMM)
     pathological=NTuple{2}[]
     for i in findall(isnan.(gmm.μ) .| isinf.(gmm.μ))
         gmm.μ[i] = 0
-        push!(pathological, ind2sub(size(gmm.μ), i))
+        push!(pathological, CartesianIndices(gmm.μ)[i])
     end
     if kind(gmm) == :diag
         for i in findall(isnan.(gmm.Σ) .| isinf.(gmm.Σ))
             gmm.Σ[i] = 1
-            push!(pathological, ind2sub(size(gmm.Σ), i))
+            push!(pathological, CartesianIndices(gmm.Σ)[i])
         end
     else
         for (si, s) in enumerate(gmm.Σ)
