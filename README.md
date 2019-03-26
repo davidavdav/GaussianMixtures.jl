@@ -240,6 +240,14 @@ This saves a GMM of an array of GMMs under the name `name` in a file `filename`.
 gmm = load(filename, name)
 ```
 
+In case of using `kind=:full` covariance matrices make sure you have also loaded `LinearAlgebra` module into the current session. Without it JLD is unable to reconstruct `LinearAlgebra.UpperTriangular` type and gmm object won't be created
+```julia
+using JLD
+using GaussianMixtures
+using LinearAlgebra
+gmm = load(filename, name)
+```
+
 Support for large amounts of training data
 ------
 In many of the functions defined above, a `Data` type is accepted in the place where the data matrix `x` is indicated.  An object of type `Data` is basically a list of either matrices of filenames, see  [BigData](https://github.com/davidavdav/BigData.jl).
