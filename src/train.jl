@@ -4,6 +4,7 @@
 using StatsBase: sample
 using Logging
 using LinearAlgebra
+using Arpack
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
 function GMM(x::DataOrMatrix{T}; kind=:diag) where T <: AbstractFloat
