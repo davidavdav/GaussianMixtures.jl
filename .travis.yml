@@ -1,14 +1,9 @@
-sudo: false
 language: julia
+
 julia:
  - 1.0
  - 1.1
  - nightly
-before_install:
- - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-addons:
-  apt:
-    packages:
-      - hdf5-tools
-script:
- - julia --check-bounds=yes -e 'using Pkg; Pkg.clone(pwd()); Pkg.build("GaussianMixtures"); Pkg.test("GaussianMixtures", coverage=true)'
+
+after_success:
+  - julia -e 'if VERSION >= v"0.7.0-" using Pkg end; cd(Pkg.dir("GaussianMixtures")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())';
