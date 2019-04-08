@@ -22,12 +22,12 @@ end
 for gmmkind in [:diag, :full]
     ## what is the point of displaying?
     gmm = rand(GMM, 32, 26, sep=0.1, kind=gmmkind)
-    display(means(gmm))
+    ## display(means(gmm))
     x = rand(gmm, 100000)
     for method in [:split, :kmeans]
         println("kind $gmmkind, method $method")
-        g2 = GMM(32, x, nIter=50, method=method)
-        display(means(g2))
+        g2 = GMM(32, x, nIter=50, kind=gmmkind, method=method)
+        ## display(means(g2))
         ## do another iteration of em!
         em!(g2, x)
     end
