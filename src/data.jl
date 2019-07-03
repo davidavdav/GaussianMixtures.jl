@@ -18,18 +18,18 @@ end
 
 ## default load function
 function _load(file::AbstractString)
-    load(file, "data")
+    FileIO.load(file, "data")
 end
 
 ## default size function
 function _size(file::AbstractString)
-    jldopen(file) do fd
+    jldopen(file, "r") do fd
         size(fd["data"])
     end
 end
 
 ## courtesy compatible save for a matrix
-function JLD.save(file::AbstractString, x::Matrix)
+function JLD2.save(file::AbstractString, x::Matrix)
     save(file,"data", x)
 end
 

@@ -8,7 +8,8 @@ module GaussianMixtures
 using Distributions
 using PDMats
 using Clustering
-using JLD
+using JLD2
+using FileIO
 using Compat
 
 include("compat.jl")

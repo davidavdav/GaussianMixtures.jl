@@ -21,30 +21,6 @@ git-tree-sha1 = "8153fd64131cd00a79544bb23788877741f627bb"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
 version = "0.5.5"
 
-[[Blosc]]
-deps = ["BinaryProvider", "CMakeWrapper", "Compat", "Libdl"]
-git-tree-sha1 = "71fb23581e1f0b0ae7be8ccf0ebfb3600e23ca41"
-uuid = "a74b3585-a348-5f62-a45c-50e91977d574"
-version = "0.5.1"
-
-[[BufferedStreams]]
-deps = ["Compat", "Test"]
-git-tree-sha1 = "5d55b9486590fdda5905c275bb21ce1f0754020f"
-uuid = "e1450e63-4bb3-523b-b2a4-4ffa8c0fd77d"
-version = "1.0.0"
-
-[[CMake]]
-deps = ["BinDeps"]
-git-tree-sha1 = "c67a8689dc5444adc5eb2be7d837100340ecba11"
-uuid = "631607c0-34d2-5d66-819e-eb0f9aa2061a"
-version = "1.1.2"
-
-[[CMakeWrapper]]
-deps = ["BinDeps", "CMake", "Libdl", "Parameters", "Test"]
-git-tree-sha1 = "16d4acb3d37dc05b714977ffefa8890843dc8985"
-uuid = "d5fb7624-851a-54ee-a528-d3f3bac0b4a0"
-version = "0.2.3"
-
 [[CSV]]
 deps = ["CategoricalArrays", "DataFrames", "Dates", "Mmap", "Parsers", "PooledArrays", "Profile", "Tables", "Unicode", "WeakRefStrings"]
 git-tree-sha1 = "078801ccf5a644df31cef99c9add46107b94aba5"
@@ -132,24 +108,6 @@ version = "1.0.7"
 deps = ["Random"]
 uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
-[[HDF5]]
-deps = ["BinDeps", "Blosc", "Homebrew", "Libdl", "Mmap", "WinRPM"]
-git-tree-sha1 = "e6f0c154d01faef0d0831d075aa8f279f95946da"
-uuid = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
-version = "0.11.1"
-
-[[HTTPClient]]
-deps = ["Compat", "LibCURL"]
-git-tree-sha1 = "161d5776ae8e585ac0b8c20fb81f17ab755b3671"
-uuid = "0862f596-cf2d-50af-8ef4-f2be67dfa83f"
-version = "0.2.1"
-
-[[Homebrew]]
-deps = ["BinDeps", "InteractiveUtils", "JSON", "Libdl", "Test", "Unicode"]
-git-tree-sha1 = "f01fb2f34675f9839d55ba7238bab63ebd2e531e"
-uuid = "d9be37ee-ecc9-5288-90f1-b9ca67657a75"
-version = "0.7.1"
-
 [[InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -159,11 +117,11 @@ git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
 uuid = "82899510-4779-5014-852e-03e436cf321d"
 version = "1.0.0"
 
-[[JLD]]
-deps = ["Compat", "FileIO", "HDF5", "LegacyStrings", "Profile", "Random"]
-git-tree-sha1 = "95fd5d7f129918a75d0535aaaf5b8e235e6e0b0b"
-uuid = "4138dd39-2aa7-5051-a626-17a0bb65d9c8"
-version = "0.9.1"
+[[JLD2]]
+deps = ["CodecZlib", "DataStructures", "FileIO", "LinearAlgebra", "Mmap", "Printf", "Random", "Test"]
+git-tree-sha1 = "3ba90ff93e1d5b9b2103588051c2d349fae54dac"
+uuid = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+version = "0.1.2"
 
 [[JSON]]
 deps = ["Dates", "Distributed", "Mmap", "Sockets", "Test", "Unicode"]
@@ -171,35 +129,11 @@ git-tree-sha1 = "1f7a25b53ec67f5e9422f1f551ee216503f4a0fa"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.20.0"
 
-[[LegacyStrings]]
-deps = ["Compat"]
-git-tree-sha1 = "d4b9bde2694c552fe579cc4462733f1ce08733fe"
-uuid = "1b4a561d-cfcb-5daf-8433-43fcf8b4bea3"
-version = "0.4.1"
-
-[[LibCURL]]
-deps = ["BinaryProvider", "Libdl"]
-git-tree-sha1 = "fd5fc15f2a04608fe1435a769dbbfc7959ff1daa"
-uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
-version = "0.5.2"
-
-[[LibExpat]]
-deps = ["Compat"]
-git-tree-sha1 = "fde352ec13479e2f90e57939da2440fb78c5e388"
-uuid = "522f3ed2-3f36-55e3-b6df-e94fee9b0c07"
-version = "0.5.0"
-
 [[LibGit2]]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 
 [[Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
-
-[[Libz]]
-deps = ["BufferedStreams", "Random", "Test"]
-git-tree-sha1 = "d405194ffc0293c3519d4f7251ce51baac9cc871"
-uuid = "2ec943e9-cfe8-584d-b93d-64dcb6d567b7"
-version = "1.0.0"
 
 [[LinearAlgebra]]
 deps = ["Libdl"]
@@ -244,12 +178,6 @@ deps = ["Arpack", "LinearAlgebra", "SparseArrays", "SuiteSparse", "Test"]
 git-tree-sha1 = "8b68513175b2dc4023a564cb0e917ce90e74fd69"
 uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
 version = "0.9.7"
-
-[[Parameters]]
-deps = ["Markdown", "OrderedCollections", "REPL", "Test"]
-git-tree-sha1 = "70bdbfb2bceabb15345c0b54be4544813b3444e4"
-uuid = "d96e819e-fc66-5662-9728-84c9c7592b0a"
-version = "0.10.3"
 
 [[Parsers]]
 deps = ["Dates", "Test"]
@@ -425,9 +353,3 @@ deps = ["Random", "Test"]
 git-tree-sha1 = "9a0bb82eede528debe631b642eeb48a631a69bc2"
 uuid = "ea10d353-3f73-51f8-a26c-33c1cb351aa5"
 version = "0.6.1"
-
-[[WinRPM]]
-deps = ["BinDeps", "Compat", "HTTPClient", "LibExpat", "Libdl", "Libz", "URIParser"]
-git-tree-sha1 = "2a889d320f3b77d17c037f295859fe570133cfbf"
-uuid = "c17dfb99-b4f7-5aad-8812-456da1ad7187"
-version = "0.4.2"
