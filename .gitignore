@@ -1,6 +1,7 @@
 test/vinit.mat
 *~
 *.jld
+*.jld2
 *.fea
 *.gmm
 .ipynb_checkpoints/Untitled0-checkpoint.ipynb
