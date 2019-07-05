@@ -240,7 +240,9 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
     initc = gmm.Σ
     ll = zeros(nIter)
     gmmkind = kind(gmm)
-    @info(string("Running ", nIter, " iterations EM on ", gmmkind, " cov GMM with ", ng, " Gaussians in ", d, " dimensions"))
+
+    @logmsg moreInfo "Running $nIter iterations EM on $gmmkind cov GMM with $ng Gaussians in $d dimensions"
+    
     for i=1:nIter
         ## E-step
         nₓ, ll[i], N, F, S = stats(gmm, x, parallel=true)
