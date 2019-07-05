@@ -68,7 +68,7 @@ end
 
 "`addhist!(::GMM, s)` adds a comment `s` to the GMMM"
 function addhist!(gmm::GaussianMixture, s::AbstractString)
-    @info(s)
+    @logmsg moreInfo s
     push!(gmm.hist, History(s))
     gmm
 end
