@@ -54,9 +54,9 @@ ScikitLearnBase.predict(gmm::GMM, X) =
 function density(gmm::GMM, X)
     # Let mᵢ be "X came from mixture #i"
     # P(X|μ, Σ) = P(X|m₁, μ, Σ) * P(mᵢ) + P(X|m₂, μ, Σ) * P(m₂) + ...
-    logPrior = reshape(log(gmm.w), 1, length(gmm.w))
+    logPrior = reshape(log.(gmm.w), 1, length(gmm.w))
     PX = logsumexp(broadcast(+, llpg(gmm, X), logPrior), 2)
-    return squeeze(PX, 2)::Vector
+    return dropdims(PX, dims=2)::Vector
 end
 
 # score_samples is underspecified by the scikit-learn API, so we're more or
