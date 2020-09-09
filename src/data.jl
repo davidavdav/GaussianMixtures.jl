@@ -29,7 +29,7 @@ function _size(file::AbstractString)
 end
 
 ## courtesy compatible save for a matrix
-function JLD2.save(file::AbstractString, x::Matrix)
+function FileIO.save(file::AbstractString, x::Matrix)
     save(file,"data", x)
 end
 
