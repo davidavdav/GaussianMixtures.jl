@@ -58,7 +58,7 @@ function GMM(vg::VGMM)
     end
     hist = copy(vg.hist)
     push!(hist, History("Variational GMM converted to GMM"))
-    GMM(w, μ, Σ, hist, iround(sum(vg.α - vg.π.α₀)))
+    GMM(w, μ, Σ, hist, Int(round(sum(vg.α .- vg.π.α₀))))
 end
 
 ## m-step given prior and stats
