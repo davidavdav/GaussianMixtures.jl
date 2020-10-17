@@ -134,7 +134,7 @@ Other functions
  - `split(gmm; minweight=1e-5, covfactor=0.2)`: Doubles the number of Gaussians by splitting each Gaussian into two Gaussians.  `minweight` is used for pruning Gaussians with too little weight, these are replaced by an extra split of the Gaussian with the highest weight.  `covfactor` controls how far apart the means of the split Gaussian are positioned. 
  - `kind(gmm)`: returns `:diag` or `:full`, depending on the type of covariance matrix
  - `eltype(gmm)`: returns the datatype of `w`, `μ` and `Σ` in the GMM
- - `weights{gmm)`: returns the weights vector `w`
+ - `weights(gmm)`: returns the weights vector `w`
  - `means(gmm)`: returns the means `μ` as an `n` by `d` matrix
  - `covars(gmm)`: returns the covariances `Σ`
  - `copy(gmm)`: returns a deep copy of the GMM
