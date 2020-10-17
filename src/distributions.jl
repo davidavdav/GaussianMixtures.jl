@@ -26,7 +26,7 @@ function Distributions.MixtureModel(gmm::GMM{T}) where {T<:AbstractFloat}
     elseif kind(gmm) == :full
         mixtures = [MvNormal(vec(gmm.μ[i,:]), covar(gmm.Σ[i])) for i=1:gmm.n]
     else
-        mixtures = [MvNormal(vec(gmm.μ[i,:]), sqrt(vec(gmm.Σ[i,:]))) for i=1:gmm.n]
+        mixtures = [MvNormal(vec(gmm.μ[i,:]), sqrt.(vec(gmm.Σ[i,:]))) for i=1:gmm.n]
     end
     MixtureModel(mixtures, gmm.w)
 end
