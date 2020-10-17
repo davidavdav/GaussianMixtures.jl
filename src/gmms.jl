@@ -49,7 +49,7 @@ weights(gmm::GMM) = gmm.w
 "`means(::GMM)` returns the means `μ` of the Gaussians in the mixture"
 means(gmm::GMM) = gmm.μ
 "`covars(::GMM)` returns the covariance matrices Σ of the Gaussians in the mixture."
-covars(gmm::GMM{T,DiagCov{T}}) where {T} = gmm.Σ
+covars(gmm::GMM{T,<:DiagCov{T}}) where {T} = gmm.Σ
 covars(gmm::GMM{T,FullCov{T}}) where {T} = [covar(ci) for ci in gmm.Σ]
 
 "`nparams(::GMM)` returns the number of free parameters in the GMM"
