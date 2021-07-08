@@ -13,7 +13,7 @@
 	@test all( isapprox.(sqrt.(g.Σ[grps]), [5.867; 5.871],atol=0.01) )
 
 	## only do k-means
-	x = convert(Matrix,x)
+	x = Matrix(x)
 	g = GMM(8, x, kind=:full, nIter=0)
 	p = GMMprior(g.d, 1.0, 1.0)
 	v = VGMM(g, p)
