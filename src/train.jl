@@ -100,9 +100,11 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
             xx = vcat(yy...)
         end
     end
-    if Logging.global_logger().min_level ≤ Logging.Debug
+    
+    min_level = Logging.min_enabled_level(global_logger())
+    if min_level ≤ Logging.Debug
         loglevel = :iter
-    elseif Logging.global_logger().min_level ≤ Logging.Info
+    elseif min_level ≤ Logging.Info
         loglevel = :final
     else
         loglevel = :none
