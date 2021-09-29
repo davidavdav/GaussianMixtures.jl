@@ -1,0 +1,67 @@
+name: Unit test
+
+on:
+  create:
+    tags:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.6'
+          - 'nightly'
+        os:
+          - ubuntu-latest
+        arch:
+          - x64
+        include:
+          - os: macOS-latest
+            version: '1'
+            arch: x64
+
+    steps:
+      - uses: actions/checkout@v2
+        continue-on-error: ${{ matrix.julia-version == 'nightly' }}
+
+      - name: "Set up Julia"
+        uses: julia-actions/setup-julia@v1
+        continue-on-error: ${{ matrix.julia-version == 'nightly' }}
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+
+      - name: "Cache artifacts"
+        uses: actions/cache@v1
+        continue-on-error: ${{ matrix.julia-version == 'nightly' }}
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
+
+      - name: "Build packages"
+        uses: julia-actions/julia-buildpkg@v1
+        continue-on-error: ${{ matrix.julia-version == 'nightly' }}
+
+      - name: "Unit Test"
+        uses: julia-actions/julia-runtest@v1
+        continue-on-error: ${{ matrix.julia-version == 'nightly' }}
+
+      - uses: julia-actions/julia-processcoverage@v1
+
+      - name: "Code coverage"
+        uses: codecov/codecov-action@v1
+        with:
+          file: lcov.info
