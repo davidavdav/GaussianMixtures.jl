@@ -1,6 +1,6 @@
 name = "GaussianMixtures"
 uuid = "cc18c42c-b769-54ff-9e2a-b28141a64aae"
-version = "0.3.7"
+version = "0.3.8"
 
 [deps]
 Arpack = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
