@@ -25,7 +25,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
 Arpack = "0.3 - 0.5"
-Clustering = "0.14"
+Clustering = "0.15"
 Compat = "3.6, 4"
 Distributions = "0.23 - 0.25"
 FileIO = "1.2"
