@@ -1,4 +1,5 @@
 ## data.jl Julia code to handle matrix-type data on disc
+
 using Statistics
 using Distributed
 
@@ -26,11 +27,6 @@ function _size(file::AbstractString)
     jldopen(file, "r") do fd
         size(fd["data"])
     end
-end
-
-## courtesy compatible save for a matrix
-function FileIO.save(file::AbstractString, x::Matrix)
-    save(file,"data", x)
 end
 
 ## Data([strings], type; load=loadfunction, size=sizefunction)
