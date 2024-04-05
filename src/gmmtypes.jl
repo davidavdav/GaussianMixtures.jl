@@ -206,3 +206,12 @@ Data(list::Vector{Matrix{T}}) where {T} = Data{T, eltype(list)}(list, Dict{Symbo
 Data(list::Vector{S}, t::DataType, API::Dict{Symbol,Function}) where {S<:AbstractString} = Data{t, S}(list, API)
 
 DataOrMatrix{T} = Union{Data{T}, Matrix{T}}
+
+struct RINAO_Cluster_Params
+    Oa :: Int64             # Beta(Oa,Ob) for μ prior basic Observation
+    Ob :: Int64
+    OPa :: Int64            # Beta(OPa,Ob) for μ prior priority Observation
+    Pa :: Float64           # U[Pa, 1] for prioritized static feature
+    OSet :: Matrix{Int64} # Observation Matrix if index == 1 then it is an observation
+    PSet :: Matrix{Int64} # Priority Matrix if index == 1 then it is a priority
+end

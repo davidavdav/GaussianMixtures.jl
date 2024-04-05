@@ -3,7 +3,7 @@
 
 __precompile__()
 
-module GaussianMixtures
+module GaussianMixturesFancy
 
 using Distributions
 using PDMats

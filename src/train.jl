@@ -5,6 +5,7 @@ using StatsBase: sample
 using Logging
 using LinearAlgebra
 using Arpack
+using Optim
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
 function GMM(x::DataOrMatrix{T}; kind=:diag) where T <: AbstractFloat
@@ -26,21 +27,37 @@ end
 ## Also allow a Vector, :full makes no sense
 GMM(x::Vector{T}) where T <: AbstractFloat = GMM(reshape(x, length(x), 1))  # strange idiom...
 
+# ## constructors based on data or matrix
+# function GMM(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
+#              nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) where T <: AbstractFloat
+#     println("GMM Processing")
+#     if n < 2
+#         return GMM(x, kind=kind)
+#     elseif method == :split
+#         return GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, sparse=sparse)
+#     elseif method == :kmeans
+#         return GMMk(n, x, kind=kind, nInit=nInit, nIter=nIter, sparse=sparse)
+#     else
+#         error("Unknown method ", method)
+#     end
+# end
+## a 1-dimensional Gaussian can be initialized with a vector, skip kind=
+GMM(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) where T <: AbstractFloat = GMM(n, reshape(x, length(x), 1); method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
+
 ## constructors based on data or matrix
 function GMM(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
-             nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) where T <: AbstractFloat
+    nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0, params = []) where T <: AbstractFloat
+    println("GMM Processing")
     if n < 2
         return GMM(x, kind=kind)
     elseif method == :split
-        return GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, sparse=sparse)
+        return GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, sparse=sparse, params = params)
     elseif method == :kmeans
-        return GMMk(n, x, kind=kind, nInit=nInit, nIter=nIter, sparse=sparse)
+        return GMMk(n, x, kind=kind, nInit=nInit, nIter=nIter, sparse=sparse, params = params)
     else
-        error("Unknown method ", method)
+    error("Unknown method ", method)
     end
 end
-## a 1-dimensional Gaussian can be initialized with a vector, skip kind=
-GMM(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0) where T <: AbstractFloat = GMM(n, reshape(x, length(x), 1); method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse)
 
 ## we sometimes end up with pathological gmms
 function sanitycheck!(gmm::GMM)
@@ -73,7 +90,7 @@ end
 
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
-function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0) where T <: AbstractFloat
+function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0, params = []) where T <: AbstractFloat
     nₓ, d = size(x)
     hist = [History(@sprintf("Initializing GMM, %d Gaussians %s covariance %d dimensions using %d data points", n, diag, d, nₓ))]
     @info(last(hist).s)
@@ -141,14 +158,15 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
     @info(last(hist).s)
     gmm = GMM(w, μ, Σ, hist, nxx)
     sanitycheck!(gmm)
-    em!(gmm, x; nIter=nIter, sparse=sparse)
+    @show gmm
+    em!(gmm, x; nIter=nIter, sparse=sparse, params = params)
     return gmm
 end
 
 ## Train a GMM by consecutively splitting all means.  n most be a power of 2
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.
-function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, sparse=0)
+function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, sparse=0, params = [])
     log2n = round(Int,log2(n))
     2^log2n == n || error("n must be power of 2")
     gmm = GMM(x, kind=kind)
@@ -156,7 +174,7 @@ function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nI
     @info("0: avll = ", tll[1])
     for i in 1:log2n
         gmm = gmmsplit(gmm)
-        avll = em!(gmm, x; nIter=(i==log2n ? nFinal : nIter), sparse=sparse)
+        avll = em!(gmm, x; nIter=(i==log2n ? nFinal : nIter), sparse=sparse, params)
         @info(i, avll)
         append!(tll, avll)
     end
@@ -231,11 +249,49 @@ function gmmsplit(gmm::GMM{T}; minweight=1e-5, sep=0.2) where T
     return GMM(w, μ, Σ, hist, gmm.nx)
 end
 
+function FancyPrior(μ, Fm, Nm, Σ, vals)
+    Oa, Ob, OPa, Pa, OSet, PSet = vals.Oa, vals.Ob, vals.OPa, vals.OPa, vals.OSet, vals.PSet
+   (k, d) = size(μ)
+    # p(x|μ, π, Σ)
+    @show Nm, Fm, μ
+    @show f = Nm .* μ - Fm 
+    prec = 1.0 ./ Σ       # ng × d
+    for k in 1:k
+        for i in 1:d
+            if OSet[i] == 1
+                if PSet[i] == 1   # Priority, observation
+                    f[k,i] += -prec[k,i]*((OPa-1)/μ[k,i] + (Ob-1)/μ[k,i])
+                else           # No priority, observation
+                    f[k,i] += -prec[k,i]*((Oa-1)/μ[k,i] + (Ob-1)/μ[k,i])
+                end
+            else
+                if PSet[i] == 1 # Priority, no observation
+                    if Pa<μ[k,i]<1.0
+                        f[k,i] += -prec[k,i]*(1/(1-Pa))
+                    # else 
+                        # f[i] = -1*(F*sigmaInv-N*sigmaInv)
+                    end
+                else # No priority, no observation
+                    if 0.0<μ[k,i]<1.0
+                        f[k,i] += -prec[k,i]
+                    # else 
+                        # f[i] = -1*(F*sigmaInv-N*sigmaInv)
+                    end
+                end
+            end
+        end
+        @show f
+        @show prec
+        f[k,:] = prec.*f[k,:]
+    end
+   return f 
+end
+
 # This function runs the Expectation Maximization algorithm on the GMM, and returns
 # the log-likelihood history, per data frame per dimension
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
 ## of the data and stores this in the history.
-function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3, sparse=0, debug=1)
+function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3, sparse=0, debug=1, params = [])
     size(x,2)==gmm.d || error("Inconsistent size gmm and x")
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
@@ -248,9 +304,22 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
     for i in 1:nIter
         ## E-step
         nₓ, ll[i], N, F, S = stats(gmm, x, parallel=true)
+        @show F, N
         ## M-step
         gmm.w = N / nₓ
-        gmm.μ = F ./ N
+
+        # Update μ while accounting for the more unique prior
+        ## Find θ0 using optimization
+        if typeof(params) == Vector{Any}
+            gmm.μ = F ./ N
+        else
+            loglikelihood = optimize(μ -> FancyPrior(μ, F, N, gmm.Σ, params), gmm.μ,BFGS())
+            gmm.μ = Optim.minimizer(loglikelihood)
+            println(gmm.μ)
+        end
+        # @show F
+        # @show N
+        # @show gmm.μ = F ./ N
         if gmmkind == :diag
             gmm.Σ = S ./ N - gmm.μ.^2
             ## var flooring

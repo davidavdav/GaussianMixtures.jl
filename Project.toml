@@ -1,4 +1,4 @@
-name = "GaussianMixtures"
+name = "GaussianMixturesFancy"
 uuid = "cc18c42c-b769-54ff-9e2a-b28141a64aae"
 version = "0.3.9"
 
@@ -13,6 +13,7 @@ FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 PDMats = "90014a1f-27ba-587c-ab20-58faa44d9150"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -40,4 +41,4 @@ RDatasets = "ce6b1742-4840-55fa-b093-852dadbb1d8b"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = [ "RDatasets", "Test" ]
+test = ["RDatasets", "Test"]
