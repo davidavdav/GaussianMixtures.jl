@@ -8,22 +8,63 @@ using Arpack
 using Optim
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-function GMM(x::DataOrMatrix{T}; kind=:diag) where T <: AbstractFloat
+function GMM(x::DataOrMatrix{T}; kind=:diag, priors = []) where T <: AbstractFloat
     n, sx, sxx = stats(x, kind=kind)
-    μ = sx' ./ n                        # make this a row vector
-    d = length(μ)
-    if kind == :diag
-        Σ = collect((sxx' - n*μ.*μ) ./ (n-1))
-    elseif kind == :full
-        ci = cholinv((sxx - n*(μ'*μ)) / (n-1))
-        Σ = typeof(ci)[ci]
+    if typeof(priors) == Vector{Any}
+        μ = sx' ./ n                        # make this a row vector
+        d = length(μ)
+        if kind == :diag
+            Σ = collect((sxx' - n*μ.*μ) ./ (n-1))
+        elseif kind == :full
+            ci = cholinv((sxx - n*(μ'*μ)) / (n-1))
+            Σ = typeof(ci)[ci]
+        else
+            error("Unknown kind")
+        end
     else
-        error("Unknown kind")
+        μ = sx' ./ n                        # make this a row vector
+        for i in 1:length(μ)
+            if priors.OSet[i] == 1
+                if priors.PSet[i] == 1
+                    μ[i] = 0.8
+                else
+                    μ[i] = 0.6
+                end
+            end
+            # else
+            #     mean = sx[i] ./ n
+            # end
+            # loglikelihood = optimize(v -> FancyPrior(v, mean, n, 1.0, priors, i), [μ[i]], BFGS())
+            # @show μ[i] = first(Optim.minimizer(loglikelihood))
+        end
+        d = length(μ)
+        if kind == :diag
+            Σ = collect((sxx' - n*μ.*μ) ./ (n-1))
+            for i in 1:length(μ)
+                if priors.OSet[i] == 1
+                    if priors.PSet[i] == 1
+                        Σ[i] = 0.05
+                    else
+                        Σ[i] = 0.1
+                    end
+                end
+            end
+        elseif kind == :full
+            ci = cholinv((sxx - n*(μ'*μ)) / (n-1))
+            Σ = typeof(ci)[ci]
+        else
+            error("Unknown kind")
+        end
+        @show μ
     end
-    hist = History(@sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points",
+    
+    hist = History(@sprintf("Initialized single Gaussian d=%d kind=%s with %d data points",
                             d, kind, n))
+    @show Σ
     return GMM(ones(T,1), μ, Σ, [hist], n)
 end
+
+
 ## Also allow a Vector, :full makes no sense
 GMM(x::Vector{T}) where T <: AbstractFloat = GMM(reshape(x, length(x), 1))  # strange idiom...
 
@@ -169,7 +210,7 @@ end
 function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, sparse=0, params = [])
     log2n = round(Int,log2(n))
     2^log2n == n || error("n must be power of 2")
-    gmm = GMM(x, kind=kind)
+    gmm = GMM(x, kind=kind, priors = params)
     tll = [avll(gmm, x)]
     @info("0: avll = ", tll[1])
     for i in 1:log2n
@@ -249,41 +290,36 @@ function gmmsplit(gmm::GMM{T}; minweight=1e-5, sep=0.2) where T
     return GMM(w, μ, Σ, hist, gmm.nx)
 end
 
-function FancyPrior(μ, Fm, Nm, Σ, vals)
+function FancyPrior(μ_in, Fm, Nm, Σ, vals, i)
     Oa, Ob, OPa, Pa, OSet, PSet = vals.Oa, vals.Ob, vals.OPa, vals.OPa, vals.OSet, vals.PSet
-   (k, d) = size(μ)
     # p(x|μ, π, Σ)
-    @show Nm, Fm, μ
-    @show f = Nm .* μ - Fm 
+    μ = first(μ_in)
+    # @show Nm, Fm, μ
+    f = Nm * μ - Fm 
     prec = 1.0 ./ Σ       # ng × d
-    for k in 1:k
-        for i in 1:d
-            if OSet[i] == 1
-                if PSet[i] == 1   # Priority, observation
-                    f[k,i] += -prec[k,i]*((OPa-1)/μ[k,i] + (Ob-1)/μ[k,i])
-                else           # No priority, observation
-                    f[k,i] += -prec[k,i]*((Oa-1)/μ[k,i] + (Ob-1)/μ[k,i])
-                end
-            else
-                if PSet[i] == 1 # Priority, no observation
-                    if Pa<μ[k,i]<1.0
-                        f[k,i] += -prec[k,i]*(1/(1-Pa))
-                    # else 
-                        # f[i] = -1*(F*sigmaInv-N*sigmaInv)
-                    end
-                else # No priority, no observation
-                    if 0.0<μ[k,i]<1.0
-                        f[k,i] += -prec[k,i]
-                    # else 
-                        # f[i] = -1*(F*sigmaInv-N*sigmaInv)
-                    end
-                end
+    if OSet[i] == 1
+        if PSet[i] == 1   # Priority, observation
+            f += -prec*((OPa-1)/μ + (Ob-1)/(μ-1))
+        else           # No priority, observation
+            f += -prec*((Oa-1)/μ + (Ob-1)/(μ-1))
+        end
+    else
+        if PSet[i] == 1 # Priority, no observation
+            if Pa<μ<1.0
+                f += -prec*(1/(1-Pa))
+            # else 
+                # f[i] = -1*(F*sigmaInv-N*sigmaInv)
+            end
+        else # No priority, no observation
+            if 0.0<μ<1.0
+                f += -prec
+            # else 
+                # f[i] = -1*(F*sigmaInv-N*sigmaInv)
             end
         end
-        @show f
-        @show prec
-        f[k,:] = prec.*f[k,:]
     end
+        # @show prec
+        # f[k,:] = prec.*f[k,:]
    return f 
 end
 
@@ -304,7 +340,6 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
     for i in 1:nIter
         ## E-step
         nₓ, ll[i], N, F, S = stats(gmm, x, parallel=true)
-        @show F, N
         ## M-step
         gmm.w = N / nₓ
 
@@ -313,8 +348,14 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
         if typeof(params) == Vector{Any}
             gmm.μ = F ./ N
         else
-            loglikelihood = optimize(μ -> FancyPrior(μ, F, N, gmm.Σ, params), gmm.μ,BFGS())
-            gmm.μ = Optim.minimizer(loglikelihood)
+            # @show F, N
+            for k in 1:ng
+                for i in 1:d
+                    loglikelihood = optimize(v -> FancyPrior(v, F[k,i], N[k], gmm.Σ[k,i], params, i), [gmm.μ[k,i]], BFGS())
+                    @show k, i
+                    @show gmm.μ[k,i] = first(Optim.minimizer(loglikelihood))
+                end
+            end
             println(gmm.μ)
         end
         # @show F
