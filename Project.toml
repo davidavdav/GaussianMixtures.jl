@@ -32,7 +32,7 @@ PDMats = "0.10 - 0.11"
 RDatasets = "0.6, 0.7"
 ScikitLearnBase = "0.5"
 SpecialFunctions = "1, 2"
-StatsBase = "0.33"
+StatsBase = "0.33, 0.34"
 julia = "1"
 
 [extras]
