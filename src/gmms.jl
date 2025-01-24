@@ -183,20 +183,13 @@ end
 
 ## some routines for conversion between float types
 #    @doc """`convert(GMM{::Type}, GMM)` convert the GMM to a different floating point type""" ->
-function Base.convert(::Type{GMM{Td}}, gmm::GMM{Ts}) where {Td,Ts}
-    Ts == Td && return gmm
+function Base.convert(::Type{GMM{Td, Cd}}, gmm::GMM{Ts, Cs}) where {Td,Cd,Ts,Cs}
+    (Ts == Td) && (Cs == Cd) && return gmm
     h = vcat(gmm.hist, History(string("Converted to ", Td)))
     w = map(Td, gmm.w)
     μ = map(Td, gmm.μ)
-    gmmkind = kind(gmm)
-    if gmmkind == :full
-        Σ = map(eltype(FullCov{Td}),  gmm.Σ)
-    elseif gmmkind == :diag
-        Σ = map(Td, gmm.Σ)
-    else
-        error("Unknown kind")
-    end
-    GMM(w, μ, Σ, h, gmm.nx)
+    Σ = map(eltype(Cd),  gmm.Σ)
+    return GMM{Td,Cd}(w, μ, Σ, h, gmm.nx)
 end
 function Base.convert(::Type{VGMM{Td}}, vg::VGMM{Ts}) where {Td,Ts}
     Ts == Td && return vg
