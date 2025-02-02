@@ -100,14 +100,20 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
             xx = vcat(yy...)
         end
     end
-    min_level = Logging.min_enabled_level(global_logger())
-    if min_level ≤ Logging.Debug
-        loglevel = :iter
+
+    # Query info about the `current_logger` (not the global one),
+    # so that the user could choose a different logger:
+    #
+    # my_gmm = Logging.with_logger(Logging.NullLogger()) do GMM(...) end
+    min_level = Logging.min_enabled_level(Logging.current_logger())
+    loglevel = if min_level ≤ Logging.Debug
+        :iter
     elseif min_level ≤ Logging.Info
-        loglevel = :final
+        :final
     else
-        loglevel = :none
+        :none
     end
+
     km = Clustering.kmeans(xx'[:,:], n, maxiter=nInit, display = loglevel)
     μ::Matrix{T} = km.centers'
     if kind == :diag
