@@ -33,7 +33,7 @@ jobs:
         continue-on-error: ${{ matrix.julia-version == 'nightly' }}
 
       - name: "Set up Julia"
-        uses: julia-actions/setup-julia@v1
+        uses: julia-actions/setup-julia@v4
         continue-on-error: ${{ matrix.julia-version == 'nightly' }}
         with:
           version: ${{ matrix.version }}
