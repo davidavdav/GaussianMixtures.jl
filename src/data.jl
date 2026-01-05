@@ -17,32 +17,10 @@ function Data(files::Vector{S}, datatype::DataType, load::Function) where {S<:Ab
     Data(files, datatype, @compat Dict(:load => load))
 end
 
-## default load function
-function _load(file::AbstractString)
-    FileIO.load(file, "data")
-end
 
-## default size function
-function _size(file::AbstractString)
-    jldopen(file, "r") do fd
-        size(fd["data"])
-    end
-end
-
-## Data([strings], type; load=loadfunction, size=sizefunction)
-function Data(files::Vector{S}, datatype::DataType; kwargs...) where {S<:AbstractString}
-    all([isa((k,v), (Symbol,Function)) for (k,v) in kwargs]) || error("Wrong type of argument", args)
-    d = Dict{Symbol,Function}([kwargs...])
-    if !haskey(d, :load)
-        d[:load] = _load
-        d[:size] = _size
-    end
-    Data(files, datatype, d)
-end
 
 ## constructor for a plain file.
-Data(file::AbstractString, datatype::DataType, load::Function) = Data([file], datatype, load)
-Data(file::AbstractString, datatype::DataType; kwargs...) = Data([file], datatype; kwargs...)
+
 
 ## is this really a shortcut?
 API(d::Data, f::Symbol) = d.API[f]
@@ -59,7 +37,7 @@ end
 
 ## A range as index (including [1:1]) returns a Data object, not the data.
 function Base.getindex(x::Data{T,VT}, r::UnitRange{Int}) where {T,VT}
-    Data{T, VT}(x.list[r], x.API)
+    Data{T,VT}(x.list[r], x.API)
 end
 
 ## define an iterator for Data
@@ -67,10 +45,10 @@ Base.length(x::Data) = length(x.list)
 function Base.iterate(x::Data, state=1)
     count = state
 
-    if(count > length(x.list))
+    if (count > length(x.list))
         return nothing
     else
-        return (x[count], count+1)
+        return (x[count], count + 1)
     end
 end
 
@@ -82,7 +60,7 @@ function dmap(f::Function, x::Data)
         nₓ = length(x)
         w = workers()
         nw = length(w)
-        worker(i) = w[1 .+ ((i-1) % nw)]
+        worker(i) = w[1 .+ ((i-1)%nw)]
         results = cell(nₓ)
         getnext(i) = x.list[i]
         load = x.API[:load]
@@ -90,7 +68,7 @@ function dmap(f::Function, x::Data)
             for i = 1:nₓ
                 @async begin
                     next = getnext(i)
-                    results[i] = remotecall_fetch(worker(i), s->f(load(s)), next)
+                    results[i] = remotecall_fetch(worker(i), s -> f(load(s)), next)
                 end
             end
         end
@@ -110,11 +88,11 @@ function dmapreduce(f::Function, op::Function, x::Data)
     nₓ = length(x)
     nw = nworkers()
     results = Array{Any}(undef, nw) ## will contain pointers for parallel return value.
-    valid = Any[false for i=1:nw] # can't use bitarray as parallel return value, must be pointers
-    id=0
+    valid = Any[false for i = 1:nw] # can't use bitarray as parallel return value, must be pointers
+    id = 0
     nextid() = (id += 1)
     @sync begin
-        for (wi,wid) in enumerate(workers())
+        for (wi, wid) in enumerate(workers())
             @async begin
                 while true
                     i = nextid()
@@ -124,7 +102,7 @@ function dmapreduce(f::Function, op::Function, x::Data)
                     if kind(x) == :matrix
                         r = remotecall_fetch(f, wid, x[i])
                     else
-                        r = remotecall_fetch(s->f(x.API[:load](s)), wid, x.list[i])
+                        r = remotecall_fetch(s -> f(x.API[:load](s)), wid, x.list[i])
                     end
                     if valid[wi]
                         results[wi] = op(results[wi], r)
@@ -141,7 +119,7 @@ end
 
 ## stats: compute nth order stats for array (this belongs in stats.jl)
 function stats(x::Matrix{T}, order::Int=2; kind=:diag, dim=1) where {T<:AbstractFloat}
-    if dim==1
+    if dim == 1
         n, d = size(x)
     else
         d, n = size(x)
@@ -153,21 +131,21 @@ function stats(x::Matrix{T}, order::Int=2; kind=:diag, dim=1) where {T<:Abstract
             return n, vec(sum(x, dims=dim))
         else
             sx = zeros(T, order, d)
-            for j=1:d
-                for i=1:n
-                    if dim==1
-                        xi = xp = x[i,j]
+            for j = 1:d
+                for i = 1:n
+                    if dim == 1
+                        xi = xp = x[i, j]
                     else
-                        xi = xp = x[j,i]
+                        xi = xp = x[j, i]
                     end
-                    sx[1,j] += xp
-                    for o=2:order
+                    sx[1, j] += xp
+                    for o = 2:order
                         xp *= xi
-                        sx[o,j] += xp
+                        sx[o, j] += xp
                     end
                 end
             end
-            return tuple([n, map(i->vec(sx[i,:]), 1:order)...]...)
+            return tuple([n, map(i -> vec(sx[i, :]), 1:order)...]...)
         end
     elseif kind == :full
         order == 2 || error("Can only do covar starts for order=2")
@@ -185,26 +163,26 @@ end
 import Base: +
 function +(a::Tuple, b::Tuple)
     length(a) == length(b) || error("Tuples must be of same length in addition")
-    tuple(map(sum, zip(a,b))...)
+    tuple(map(sum, zip(a, b))...)
 end
 Base.zero(t::Tuple) = map(zero, t)
 
 ## this function calls dmap as an option for parallelism
 function stats(d::Data, order::Int=2; kind=:diag, dim=1)
-    s = dmap(x->stats(x, order, kind=kind, dim=dim), d)
-    if dim==1
+    s = dmap(x -> stats(x, order, kind=kind, dim=dim), d)
+    if dim == 1
         return reduce(+, s)
     else
         ## this is admittedly hairy: vertically concatenate each element of stats
         n = s[1][1]
-        st = map(i->reduce(vcat, [x[i] for x in s]), 1+(1:order))
+        st = map(i -> reduce(vcat, [x[i] for x in s]), 1 + (1:order))
         return tuple(n, st...)
     end
 end
 
 ## helper function to get summary statistics in traditional shape
 function retranspose(x::Array, dim::Int)
-    if dim==1
+    if dim == 1
         return x'
     else
         return x
@@ -220,16 +198,16 @@ function Base.sum(d::Data)
     return s
 end
 
-Base.sum(d::Data, dim::Int) = retranspose(stats(d,1, dim=dim)[2], dim)
+Base.sum(d::Data, dim::Int) = retranspose(stats(d, 1, dim=dim)[2], dim)
 
 function Statistics.mean(d::Data)
     n, sx = stats(d, 1)
-    sum(sx) / (n*length(sx))
+    sum(sx) / (n * length(sx))
 end
 
- function Statistics.mean(d::Data, dim::Int)
-     n, sx = stats(d, 1, dim=dim)
-     return retranspose(sx ./ n, dim)
+function Statistics.mean(d::Data, dim::Int)
+    n, sx = stats(d, 1, dim=dim)
+    return retranspose(sx ./ n, dim)
 end
 
 function Statistics.var(d::Data)
@@ -238,19 +216,19 @@ function Statistics.var(d::Data)
     ssx = sum(sx)                       # keep type stability...
     ssxx = sum(sxx)
     μ = ssx / n
-    return (ssxx - n*μ^2) / (n - 1)
+    return (ssxx - n * μ^2) / (n - 1)
 end
 
 function Statistics.var(d::Data, dim::Int)
     n, sx, sxx = stats(d, 2, dim=dim)
     μ = sx ./ n
-    return retranspose((sxx - n*μ.^2) ./ (n-1), dim)
+    return retranspose((sxx - n * μ .^ 2) ./ (n - 1), dim)
 end
 
 function Statistics.cov(d::Data)
     n, sx, sxx = stats(d, 2, kind=:full)
     μ = sx ./ n
-    (sxx - n*μ*μ') ./ (n-1)
+    (sxx - n * μ * μ') ./ (n - 1)
 end
 
 ## this is potentially very slow because it reads all file just to find out the size
@@ -273,8 +251,8 @@ function Base.size(d::Data)
 end
 
 function Base.size(d::Data, dim::Int)
-    if dim==2
-        size(d[1],dim)
+    if dim == 2
+        size(d[1], dim)
     else
         size(d)[dim]
     end
