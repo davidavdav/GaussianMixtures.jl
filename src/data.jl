@@ -17,11 +17,6 @@ function Data(files::Vector{S}, datatype::DataType, load::Function) where {S<:Ab
     Data(files, datatype, @compat Dict(:load => load))
 end
 
-
-
-## constructor for a plain file.
-
-
 ## is this really a shortcut?
 API(d::Data, f::Symbol) = d.API[f]
 
