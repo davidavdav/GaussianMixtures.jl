@@ -60,7 +60,7 @@ function dmap(f::Function, x::Data)
         nₓ = length(x)
         w = workers()
         nw = length(w)
-        worker(i) = w[1 .+ ((i-1)%nw)]
+        worker(i) = w[1 .+ ((i-1) % nw)]
         results = cell(nₓ)
         getnext(i) = x.list[i]
         load = x.API[:load]
