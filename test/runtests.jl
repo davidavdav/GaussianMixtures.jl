@@ -1,4 +1,5 @@
 using FileIO
+using JLD2
 using GaussianMixtures
 using Distributed
 using DelimitedFiles
@@ -8,7 +9,7 @@ using ScikitLearnBase
 using Random
 
 import Base.isapprox
-isapprox(a::Tuple, b::Tuple) = all(Bool[isapprox(x,y) for (x,y) in zip(a,b)])
+isapprox(a::Tuple, b::Tuple) = all(Bool[isapprox(x, y) for (x, y) in zip(a, b)])
 
 GM = GaussianMixtures  # alias
 
