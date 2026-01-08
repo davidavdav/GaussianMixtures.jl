@@ -179,6 +179,20 @@ At the heart of EM training, and to many other operations with GMMs, lies the co
 
  - `stats(gmm::GMM, x::Matrix; order=2, parallel=true)` Computes the Baum-Welch statistics up to order `order` for the alignment of the data `x` to the Universal Background GMM `gmm`.  The 1st and 2nd order statistics are retuned as an `n` x `d` matrix, so for obtaining statistics in supervector format, flattening needs to be carried out in the right direction.  Theses statistics are _uncentered_. 
 
+Weighted GMMs
+-------------
+
+You can train a GMM with weighted data points by passing a `weights` vector to the constructor or `em!`. 
+
+```julia
+# Create some data
+x = randn(1000, 2)
+w = rand(1000)
+
+# Initialize and train a weighted GMM
+gmm = GMM(3, x, weights=w)
+```
+
 Random GMMs
 -----------
 Sometimes is it insteresting to generate random GMMs, and use these to genrate random points. 
