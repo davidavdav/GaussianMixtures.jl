@@ -235,7 +235,7 @@ end
 # the log-likelihood history, per data frame per dimension
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
 ## of the data and stores this in the history.
-function em!(gmm::GMM, x::DataOrMatrix; nIter::Int=10, varfloor::Float64=1e-3, sparse=0, parallel::Bool=true, debug=1)
+function em!(gmm::GMM, x::DataOrMatrix; nIter::Int=10, varfloor::Float64=1e-3, sparse=0, parallel::Bool=true, debug=1, weights::Union{Vector,Nothing}=nothing)
     size(x, 2) == gmm.d || error("Inconsistent size gmm and x")
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
@@ -247,9 +247,17 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int=10, varfloor::Float64=1e-3, s
 
     for i in 1:nIter
         ## E-step
-        nₓ, ll[i], N, F, S = stats(gmm, x, parallel=parallel)
+        if weights !== nothing
+            nₓ, ll[i], N, F, S = stats(gmm, x, parallel=parallel, weights=weights)
+        else
+            nₓ, ll[i], N, F, S = stats(gmm, x, parallel=parallel)
+        end
         ## M-step
-        gmm.w = N / nₓ
+        if weights !== nothing
+            gmm.w = N / sum(weights)
+        else
+            gmm.w = N / nₓ
+        end
         gmm.μ = F ./ N
         if gmmkind == :diag
             gmm.Σ = S ./ N - gmm.μ.^2
@@ -272,19 +280,28 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int=10, varfloor::Float64=1e-3, s
         else
             error("Unknown kind")
         end
-        sanitycheck!(gmm)
-        loginfo = @sprintf("iteration %d, average log likelihood %f", i, ll[i] / (nₓ * d))
+        if weights !== nothing
+            sanitycheck!(gmm)
+            loginfo = @sprintf("iteration %d, average log likelihood %f", i, ll[i] / (sum(weights) * d))
+        else
+            sanitycheck!(gmm)
+            loginfo = @sprintf("iteration %d, average log likelihood %f", i, ll[i] / (nₓ * d))
+        end
         addhist!(gmm, loginfo)
     end
     if nIter > 0
-        ll /= nₓ * d
+        if weights !== nothing
+            ll /= sum(weights) * d
+        else
+            ll /= nₓ * d
+        end
         finalll = ll[nIter]
     else
-        finalll = avll(gmm, x)
+        finalll = avll(gmm, x; weights=weights)
         nₓ = size(x, 1)
     end
     gmm.nx = nₓ
-    addhist!(gmm, @sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nₓ,nIter,finalll,nₓ/nparams(gmm)))
+    addhist!(gmm, @sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter", nₓ, nIter, finalll, nₓ / nparams(gmm)))
     return ll
 end
 
@@ -346,9 +363,13 @@ function llpg(gmm::GMM{GT,FCT}, x::Matrix{T}) where FCT <: FullCov{GT} where {GT
 end
 
 ## Average log-likelihood per data point and per dimension for a given GMM
-function avll(gmm::GMM, x::Matrix{T}) where T<:AbstractFloat
-    gmm.d == size(x,2) || error("Inconsistent size gmm and x")
-    return mean(logsumexpw(llpg(gmm, x), gmm.w)) / gmm.d
+function avll(gmm::GMM, x::Matrix{T}; weights::Union{Vector{T},Nothing}=nothing) where T<:AbstractFloat
+    gmm.d == size(x, 2) || error("Inconsistent size gmm and x")
+    if weights !== nothing
+        return sum(logsumexpw(llpg(gmm, x), gmm.w) .* weights) / sum(weights) / gmm.d
+    else
+        return mean(logsumexpw(llpg(gmm, x), gmm.w)) / gmm.d
+    end
 end
 
 ## Data version
