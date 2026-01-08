@@ -20,7 +20,7 @@ function GMM(x::DataOrMatrix{T}; kind=:diag) where T <: AbstractFloat
         error("Unknown kind")
     end
     hist = History(@sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points",
-                            d, kind, n))
+        d, kind, n))
     return GMM(ones(T,1), μ, Σ, [hist], n)
 end
 ## Also allow a Vector, :full makes no sense
@@ -76,7 +76,7 @@ end
 function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0, parallel::Bool=true) where T <: AbstractFloat
     nₓ, d = size(x)
     hist = [History(@sprintf("Initializing GMM, %d Gaussians %s covariance %d dimensions using %d data points", n, diag, d, nₓ))]
-    @info(last(hist).s)
+    @logmsg moreInfo last(hist).s
     ## subsample x to max 1000 points per mean
     nneeded = 1000 * n
     if nₓ < nneeded
@@ -87,7 +87,7 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
         end
     else
         if isa(x, Matrix)
-            xx = x[sample(1:nₓ, nneeded, replace=false),:]
+            xx = x[sample(1:nₓ, nneeded, replace=false), :]
         else
             ## Data.  Sample an equal amount from every entry in the list x. This reads in
             ## all data, and may require a lot of memory for very long lists.
@@ -95,7 +95,7 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
             for y in x
                 ny = size(y, 1)
                 nsample = min(ny, @compat ceil(Integer, nneeded / length(x)))
-                push!(yy, y[sample(1:ny, nsample, replace=false),:])
+                push!(yy, y[sample(1:ny, nsample, replace=false), :])
             end
             xx = vcat(yy...)
         end
@@ -103,7 +103,7 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
     min_level = Logging.min_enabled_level(global_logger())
     if min_level ≤ Logging.Debug
         loglevel = :iter
-    elseif min_level ≤ Logging.Info
+    elseif min_level ≤ moreInfo
         loglevel = :final
     else
         loglevel = :none
@@ -115,12 +115,12 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
         function variance(i::Int)
             sel = km.assignments .== i
             if length(sel) < 2
-                return ones(1,d)
+                return ones(1, d)
             else
                 return var(xx[sel,:], dims=1)
             end
         end
-        Σ = convert(Matrix{T},vcat(map(variance, 1:n)...))
+        Σ = convert(Matrix{T}, vcat(map(variance, 1:n)...))
     elseif kind == :full
         function cholinvcov(i::Int)
             sel = km.assignments .== i
@@ -135,10 +135,10 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
         error("Unknown kind")
     end
     w::Vector{T} = km.counts ./ sum(km.counts)
-    nxx = size(xx,1)
+    nxx = size(xx, 1)
     ng = length(w)
-    push!(hist, History(string("K-means with ", nxx, " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter", nxx / ((d+1)ng)))))
-    @info(last(hist).s)
+    push!(hist, History(string("K-means with ", nxx, " data points using ", km.iterations, " iterations\n", @sprintf("%3.1f data points per parameter", nxx / ((d + 1)ng)))))
+    @logmsg moreInfo last(hist).s
     gmm = GMM(w, μ, Σ, hist, nxx)
     sanitycheck!(gmm)
     em!(gmm, x; nIter=nIter, sparse=sparse, parallel=parallel)
@@ -149,18 +149,18 @@ end
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.
 function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, sparse=0, parallel::Bool=true)
-    log2n = round(Int,log2(n))
+    log2n = round(Int, log2(n))
     2^log2n == n || error("n must be power of 2")
     gmm = GMM(x, kind=kind)
     tll = [avll(gmm, x)]
-    @info("0: avll = ", tll[1])
+    @logmsg moreInfo "0: avll = $(tll[1])"
     for i in 1:log2n
         gmm = gmmsplit(gmm)
-        avll = em!(gmm, x; nIter=(i==log2n ? nFinal : nIter), sparse=sparse, parallel=parallel)
-        @info(i, avll)
+        avll = em!(gmm, x; nIter=(i == log2n ? nFinal : nIter), sparse=sparse, parallel=parallel)
+        @logmsg moreInfo "$i $avll"
         append!(tll, avll)
     end
-    @info("Total log likelihood: ", tll)
+    @logmsg moreInfo "Total log likelihood: $(tll)"
     return gmm
 end
 
@@ -192,8 +192,8 @@ function gmmsplit(gmm::GMM{T}; minweight=1e-5, sep=0.2) where T
     ## In this function i, j, and k all index Gaussians
     maxi = reverse(sortperm(gmm.w))
     offInd = findall(gmm.w .< minweight)
-    if (length(offInd)>0)
-        @info("Removing Gaussians with no data");
+    if (length(offInd) > 0)
+        @warn("Removing Gaussians with no data")
     end
     for i in 1:length(offInd)
         gmm.w[maxi[i]] = gmm.w[offInd[i]] = gmm.w[maxi[i]]/2;
@@ -235,8 +235,8 @@ end
 # the log-likelihood history, per data frame per dimension
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
 ## of the data and stores this in the history.
-function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3, sparse=0, parallel::Bool=true, debug=1)
-    size(x,2)==gmm.d || error("Inconsistent size gmm and x")
+function em!(gmm::GMM, x::DataOrMatrix; nIter::Int=10, varfloor::Float64=1e-3, sparse=0, parallel::Bool=true, debug=1)
+    size(x, 2) == gmm.d || error("Inconsistent size gmm and x")
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
     initc = gmm.Σ
@@ -244,7 +244,7 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
     gmmkind = kind(gmm)
 
     @logmsg moreInfo "Running $nIter iterations EM on $gmmkind cov GMM with $ng Gaussians in $d dimensions"
-    
+
     for i in 1:nIter
         ## E-step
         nₓ, ll[i], N, F, S = stats(gmm, x, parallel=parallel)
@@ -276,7 +276,7 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int = 10, varfloor::Float64=1e-3,
         loginfo = @sprintf("iteration %d, average log likelihood %f", i, ll[i] / (nₓ * d))
         addhist!(gmm, loginfo)
     end
-    if nIter>0
+    if nIter > 0
         ll /= nₓ * d
         finalll = ll[nIter]
     else
