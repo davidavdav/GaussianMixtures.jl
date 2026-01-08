@@ -230,7 +230,7 @@ CSstats(gmm::GMM, x::DataOrMatrix) = CSstats(csstats(gmm, x, 1))
 
 ## centered stats, but not scaled by UBM covariance
 ## check full covariance...
-function cstats(gmm::GMM, x::DataOrMatrix{T}, parallel=false) where T<:AbstractFloat
+function cstats(gmm::GMM, x::DataOrMatrix{T}, parallel=false) where T <: AbstractFloat
     nₓ, llh, N, F, S = stats(gmm, x, order=2, parallel=parallel)
     Nμ = N .* gmm.μ
     ## center the statistics
@@ -239,8 +239,8 @@ function cstats(gmm::GMM, x::DataOrMatrix{T}, parallel=false) where T<:AbstractF
         S += (Nμ - 2F) .* gmm.μ
     elseif gmmkind == :full
         for i in 1:length(S)
-            μi = gmm.μ[i, :]
-            Fμi = F[i, :]' * μi
+            μi = gmm.μ[i,:]
+            Fμi = F[i,:]' * μi
             S[i] += N[i] * μi' * μi - Fμi' - Fμi
         end
     else
