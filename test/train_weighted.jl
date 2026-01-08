@@ -1,5 +1,6 @@
 
 @testset "Weighted GMM" begin
+    using LinearAlgebra: I
     Random.seed!(42)
     d = 2
     n = 1000
