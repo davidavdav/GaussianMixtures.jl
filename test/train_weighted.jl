@@ -68,4 +68,48 @@
     @test ll_full_w1 ≈ ll_full_nw atol = 1e-10
 
     println("Full Covariance tests passed.")
+
+    # Test Constructors
+    println("Testing Constructors...")
+    # GMM(x; weights)
+    gmm_c1 = GMM(x; kind=:diag, weights=w1) # weights=1
+    gmm_c_nw = GMM(x; kind=:diag)
+    @test gmm_c1.μ ≈ gmm_c_nw.μ atol = 1e-10
+    @test gmm_c1.Σ ≈ gmm_c_nw.Σ atol = 1e-10
+
+    # GMM(n, x; weights) - Kmeans
+    # Seed random for determinism in kmeans
+    Random.seed!(42)
+    gmm_k_nw = GMM(3, x; kind=:diag, nInit=1, nIter=5, method=:kmeans)
+
+    Random.seed!(42)
+    gmm_k_w1 = GMM(3, x; kind=:diag, nInit=1, nIter=5, method=:kmeans, weights=w1)
+
+    @test gmm_k_w1.μ ≈ gmm_k_nw.μ atol = 1e-10
+    @test gmm_k_w1.w ≈ gmm_k_nw.w atol = 1e-10
+
+    # GMM(n, x; weights) - Split
+    gmm_s_nw = GMM(4, x; kind=:diag, nIter=5, method=:split)
+    gmm_s_w1 = GMM(4, x; kind=:diag, nIter=5, method=:split, weights=w1)
+    # Checking if split method remains deterministic and identical with unit weights
+    # Split method uses avll history, which should be identical.
+    @test gmm_s_w1.μ ≈ gmm_s_nw.μ atol = 1e-10
+
+
+    println("Constructor tests passed.")
+
+    # Test Kmeans init disabling subsampling for weights
+    # n=5, 1000 points. nneeded = 5000 > n_x.
+    # Set n_x larger.
+    println("Testing Large Data Kmeans Init (Subsampling Skip)...")
+    nx_large = 10100
+    x_large = randn(nx_large, d)
+    w_large = ones(nx_large)
+    # If subsampling happens with weights, it might fail or behave differently.
+    # If subsampling is skipped, it should run on full data.
+    # We can't easily check internal behavior without logs, but we can check it runs successfully.
+    gmm_large = GMM(5, x_large; method=:kmeans, weights=w_large, nIter=1)
+    @test gmm_large.n == 5
+    println("Large data test passed.")
+
 end

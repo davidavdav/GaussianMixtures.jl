@@ -149,7 +149,7 @@ The element type in the GMM can be changed like you would expect.  We also have 
  - `MixtureModel(gmm)`: construct an instance of type `MixtureModel` from the GMM.  Please note that for functions like `pdf(m::MixtureModel, x::Matrix)` the data `x` run "sideways" rather than "down" as in this package. 
  - `GMM(m::MixtureModel{Multivariate,Continuous,MvNormal})`: construct a GMM from the right kind of MixtureModel. 
 
-Paralellization
+Parallelization
 ---------------
 Training a large GMM with huge quantities of data can take a significant amount of time.  We have built-in support for the parallelization infrastructure in Julia. 
 
