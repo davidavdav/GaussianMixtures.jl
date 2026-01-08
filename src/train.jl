@@ -7,40 +7,42 @@ using LinearAlgebra
 using Arpack
 
 ## Greate a GMM with only one mixture and initialize it to ML parameters
-function GMM(x::DataOrMatrix{T}; kind=:diag) where T <: AbstractFloat
-    n, sx, sxx = stats(x, kind=kind)
+function GMM(x::DataOrMatrix{T}; kind=:diag, weights::Union{Vector{T},Nothing}=nothing) where T<:AbstractFloat
+    n, sx, sxx = stats(x, kind=kind, weights=weights)
     μ = sx' ./ n                        # make this a row vector
     d = length(μ)
     if kind == :diag
-        Σ = collect((sxx' - n*μ.*μ) ./ (n-1))
+        Σ = collect((sxx' - n * μ .* μ) ./ (n - 1))
     elseif kind == :full
-        ci = cholinv((sxx - n*(μ'*μ)) / (n-1))
+        ci = cholinv((sxx - n * (μ' * μ)) / (n - 1))
         Σ = typeof(ci)[ci]
     else
         error("Unknown kind")
     end
-    hist = History(@sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points",
-        d, kind, n))
-    return GMM(ones(T,1), μ, Σ, [hist], n)
+    init_str = weights === nothing ?
+               @sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points", d, kind, n) :
+               @sprintf("Initlialized single Gaussian d=%d kind=%s with %d data points (weighted)", d, kind, n)
+    hist = History(init_str)
+    return GMM(ones(T, 1), μ, Σ, [hist], Int(n))
 end
 ## Also allow a Vector, :full makes no sense
-GMM(x::Vector{T}) where T <: AbstractFloat = GMM(reshape(x, length(x), 1))  # strange idiom...
+GMM(x::Vector{T}) where T<:AbstractFloat = GMM(reshape(x, length(x), 1))  # strange idiom...
 
 ## constructors based on data or matrix
 function GMM(n::Int, x::DataOrMatrix{T}; method::Symbol=:kmeans, kind=:diag,
-             nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0, parallel::Bool=true) where T <: AbstractFloat
+    nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0, parallel::Bool=true, weights::Union{Vector{T},Nothing}=nothing) where T<:AbstractFloat
     if n < 2
-        return GMM(x, kind=kind)
+        return GMM(x, kind=kind, weights=weights)
     elseif method == :split
-        return GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, sparse=sparse, parallel=parallel)
+        return GMM2(n, x, kind=kind, nIter=nIter, nFinal=nFinal, sparse=sparse, parallel=parallel, weights=weights)
     elseif method == :kmeans
-        return GMMk(n, x, kind=kind, nInit=nInit, nIter=nIter, sparse=sparse, parallel=parallel)
+        return GMMk(n, x, kind=kind, nInit=nInit, nIter=nIter, sparse=sparse, parallel=parallel, weights=weights)
     else
         error("Unknown method ", method)
     end
 end
 ## a 1-dimensional Gaussian can be initialized with a vector, skip kind=
-GMM(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0, parallel::Bool=true) where T <: AbstractFloat = GMM(n, reshape(x, length(x), 1); method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse, parallel=parallel)
+GMM(n::Int, x::Vector{T}; method::Symbol=:kmeans, nInit::Int=50, nIter::Int=10, nFinal::Int=nIter, sparse=0, parallel::Bool=true) where T<:AbstractFloat = GMM(n, reshape(x, length(x), 1); method=method, kind=:diag, nInit=nInit, nIter=nIter, nFinal=nFinal, sparse=sparse, parallel=parallel)
 
 ## we sometimes end up with pathological gmms
 function sanitycheck!(gmm::GMM)
@@ -73,31 +75,50 @@ end
 
 
 ## initialize GMM using Clustering.kmeans (which uses a method similar to kmeans++)
-function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0, parallel::Bool=true) where T <: AbstractFloat
+function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=10, sparse=0, parallel::Bool=true, weights::Union{Vector{T},Nothing}=nothing) where T<:AbstractFloat
     nₓ, d = size(x)
     hist = [History(@sprintf("Initializing GMM, %d Gaussians %s covariance %d dimensions using %d data points", n, diag, d, nₓ))]
     @logmsg moreInfo last(hist).s
     ## subsample x to max 1000 points per mean
     nneeded = 1000 * n
-    if nₓ < nneeded
+
+    # Handling weights for subsampling is tricky. For now, if weights are present, we might skip subsampling
+    # TODO: sample indices and pick corresponding weights.
+
+    # Existing subsampling logic
+    if nₓ < nneeded || weights !== nothing
         if isa(x, Matrix)
             xx = x
+            ww = weights
         else
             xx = collect(x)             # convert to an array
+            ww = weights
         end
     else
+        # We need to sample indices
         if isa(x, Matrix)
-            xx = x[sample(1:nₓ, nneeded, replace=false), :]
+            idx = sample(1:nₓ, nneeded, replace=false)
+            xx = x[idx, :]
+            ww = weights === nothing ? nothing : weights[idx]
         else
             ## Data.  Sample an equal amount from every entry in the list x. This reads in
             ## all data, and may require a lot of memory for very long lists.
             yy = Matrix[]
-            for y in x
-                ny = size(y, 1)
-                nsample = min(ny, @compat ceil(Integer, nneeded / length(x)))
-                push!(yy, y[sample(1:ny, nsample, replace=false), :])
+
+            if weights !== nothing
+                # Fallback to full load
+                xx = collect(x)
+                ww = weights
+            else
+                yy = Matrix[]
+                for y in x
+                    ny = size(y, 1)
+                    nsample = min(ny, @compat ceil(Integer, nneeded / length(x)))
+                    push!(yy, y[sample(1:ny, nsample, replace=false), :])
+                end
+                xx = vcat(yy...)
+                ww = nothing
             end
-            xx = vcat(yy...)
         end
     end
     min_level = Logging.min_enabled_level(global_logger())
@@ -108,7 +129,11 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
     else
         loglevel = :none
     end
-    km = Clustering.kmeans(xx'[:,:], n, maxiter=nInit, display = loglevel)
+    if ww !== nothing
+        km = Clustering.kmeans(xx'[:, :], n, maxiter=nInit, display=loglevel, weights=ww)
+    else
+        km = Clustering.kmeans(xx'[:, :], n, maxiter=nInit, display=loglevel)
+    end
     μ::Matrix{T} = km.centers'
     if kind == :diag
         ## helper that deals with centers with singleton datapoints.
@@ -141,22 +166,22 @@ function GMMk(n::Int, x::DataOrMatrix{T}; kind=:diag, nInit::Int=50, nIter::Int=
     @logmsg moreInfo last(hist).s
     gmm = GMM(w, μ, Σ, hist, nxx)
     sanitycheck!(gmm)
-    em!(gmm, x; nIter=nIter, sparse=sparse, parallel=parallel)
+    em!(gmm, x; nIter=nIter, sparse=sparse, parallel=parallel, weights=weights)
     return gmm
 end
 
 ## Train a GMM by consecutively splitting all means.  n most be a power of 2
 ## This kind of initialization is deterministic, but doesn't work particularily well, its seems
 ## We start with one Gaussian, and consecutively split.
-function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, sparse=0, parallel::Bool=true)
+function GMM2(n::Int, x::DataOrMatrix; kind=:diag, nIter::Int=10, nFinal::Int=nIter, sparse=0, parallel::Bool=true, weights::Union{Vector,Nothing}=nothing)
     log2n = round(Int, log2(n))
     2^log2n == n || error("n must be power of 2")
-    gmm = GMM(x, kind=kind)
-    tll = [avll(gmm, x)]
+    gmm = GMM(x, kind=kind, weights=weights)
+    tll = [avll(gmm, x; weights=weights)]
     @logmsg moreInfo "0: avll = $(tll[1])"
     for i in 1:log2n
         gmm = gmmsplit(gmm)
-        avll = em!(gmm, x; nIter=(i == log2n ? nFinal : nIter), sparse=sparse, parallel=parallel)
+        avll = em!(gmm, x; nIter=(i == log2n ? nFinal : nIter), sparse=sparse, parallel=parallel, weights=weights)
         @logmsg moreInfo "$i $avll"
         append!(tll, avll)
     end
@@ -235,7 +260,7 @@ end
 # the log-likelihood history, per data frame per dimension
 ## Note: 0 iterations is allowed, this just computes the average log likelihood
 ## of the data and stores this in the history.
-function em!(gmm::GMM, x::DataOrMatrix; nIter::Int=10, varfloor::Float64=1e-3, sparse=0, parallel::Bool=true, debug=1)
+function em!(gmm::GMM, x::DataOrMatrix; nIter::Int=10, varfloor::Float64=1e-3, sparse=0, parallel::Bool=true, debug=1, weights::Union{Vector,Nothing}=nothing)
     size(x, 2) == gmm.d || error("Inconsistent size gmm and x")
     d = gmm.d                   # dim
     ng = gmm.n                  # n gaussians
@@ -247,9 +272,17 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int=10, varfloor::Float64=1e-3, s
 
     for i in 1:nIter
         ## E-step
-        nₓ, ll[i], N, F, S = stats(gmm, x, parallel=parallel)
+        if weights !== nothing
+            nₓ, ll[i], N, F, S = stats(gmm, x, parallel=parallel, weights=weights)
+        else
+            nₓ, ll[i], N, F, S = stats(gmm, x, parallel=parallel)
+        end
         ## M-step
-        gmm.w = N / nₓ
+        if weights !== nothing
+            gmm.w = N / sum(weights)
+        else
+            gmm.w = N / nₓ
+        end
         gmm.μ = F ./ N
         if gmmkind == :diag
             gmm.Σ = S ./ N - gmm.μ.^2
@@ -272,19 +305,28 @@ function em!(gmm::GMM, x::DataOrMatrix; nIter::Int=10, varfloor::Float64=1e-3, s
         else
             error("Unknown kind")
         end
-        sanitycheck!(gmm)
-        loginfo = @sprintf("iteration %d, average log likelihood %f", i, ll[i] / (nₓ * d))
+        if weights !== nothing
+            sanitycheck!(gmm)
+            loginfo = @sprintf("iteration %d, average log likelihood %f", i, ll[i] / (sum(weights) * d))
+        else
+            sanitycheck!(gmm)
+            loginfo = @sprintf("iteration %d, average log likelihood %f", i, ll[i] / (nₓ * d))
+        end
         addhist!(gmm, loginfo)
     end
     if nIter > 0
-        ll /= nₓ * d
+        if weights !== nothing
+            ll /= sum(weights) * d
+        else
+            ll /= nₓ * d
+        end
         finalll = ll[nIter]
     else
-        finalll = avll(gmm, x)
+        finalll = avll(gmm, x; weights=weights)
         nₓ = size(x, 1)
     end
     gmm.nx = nₓ
-    addhist!(gmm, @sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter",nₓ,nIter,finalll,nₓ/nparams(gmm)))
+    addhist!(gmm, @sprintf("EM with %d data points %d iterations avll %f\n%3.1f data points per parameter", nₓ, nIter, finalll, nₓ / nparams(gmm)))
     return ll
 end
 
@@ -346,9 +388,13 @@ function llpg(gmm::GMM{GT,FCT}, x::Matrix{T}) where FCT <: FullCov{GT} where {GT
 end
 
 ## Average log-likelihood per data point and per dimension for a given GMM
-function avll(gmm::GMM, x::Matrix{T}) where T<:AbstractFloat
-    gmm.d == size(x,2) || error("Inconsistent size gmm and x")
-    return mean(logsumexpw(llpg(gmm, x), gmm.w)) / gmm.d
+function avll(gmm::GMM, x::Matrix{T}; weights::Union{Vector{T},Nothing}=nothing) where T<:AbstractFloat
+    gmm.d == size(x, 2) || error("Inconsistent size gmm and x")
+    if weights !== nothing
+        return sum(logsumexpw(llpg(gmm, x), gmm.w) .* weights) / sum(weights) / gmm.d
+    else
+        return mean(logsumexpw(llpg(gmm, x), gmm.w)) / gmm.d
+    end
 end
 
 ## Data version

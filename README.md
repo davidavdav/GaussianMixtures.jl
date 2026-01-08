@@ -149,7 +149,7 @@ The element type in the GMM can be changed like you would expect.  We also have 
  - `MixtureModel(gmm)`: construct an instance of type `MixtureModel` from the GMM.  Please note that for functions like `pdf(m::MixtureModel, x::Matrix)` the data `x` run "sideways" rather than "down" as in this package. 
  - `GMM(m::MixtureModel{Multivariate,Continuous,MvNormal})`: construct a GMM from the right kind of MixtureModel. 
 
-Paralellization
+Parallelization
 ---------------
 Training a large GMM with huge quantities of data can take a significant amount of time.  We have built-in support for the parallelization infrastructure in Julia. 
 
@@ -178,6 +178,20 @@ Baum-Welch statistics
 At the heart of EM training, and to many other operations with GMMs, lies the computation of the Baum-Welch statistics of the data when aligning them to the GMM.  We have optimized implementations of the basic calculation of the statistics:
 
  - `stats(gmm::GMM, x::Matrix; order=2, parallel=true)` Computes the Baum-Welch statistics up to order `order` for the alignment of the data `x` to the Universal Background GMM `gmm`.  The 1st and 2nd order statistics are retuned as an `n` x `d` matrix, so for obtaining statistics in supervector format, flattening needs to be carried out in the right direction.  Theses statistics are _uncentered_. 
+
+Weighted GMMs
+-------------
+
+You can train a GMM with weighted data points by passing a `weights` vector to the constructor or `em!`. 
+
+```julia
+# Create some data
+x = randn(1000, 2)
+w = rand(1000)
+
+# Initialize and train a weighted GMM
+gmm = GMM(3, x, weights=w)
+```
 
 Random GMMs
 -----------

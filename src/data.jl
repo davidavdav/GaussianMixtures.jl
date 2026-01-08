@@ -113,17 +113,45 @@ function dmapreduce(f::Function, op::Function, x::Data)
 end
 
 ## stats: compute nth order stats for array (this belongs in stats.jl)
-function stats(x::Matrix{T}, order::Int=2; kind=:diag, dim=1) where {T<:AbstractFloat}
+function stats(x::Matrix{T}, order::Int=2; kind=:diag, dim=1, weights::Union{Vector{T},Nothing}=nothing) where {T<:AbstractFloat}
     if dim == 1
         n, d = size(x)
     else
         d, n = size(x)
     end
+
+    if weights !== nothing
+        length(weights) == n || error("dimension mismatch for weights")
+    end
+
     if kind == :diag
         if order == 2
-            return n, vec(sum(x, dims=dim)), vec(sum(abs2, x, dims=dim))
+            if weights === nothing
+                return n, vec(sum(x, dims=dim)), vec(sum(abs2, x, dims=dim))
+            else
+                # Weighted order 2
+                if dim == 1
+                    sw = sum(weights)
+                    sx = vec(weights' * x)
+                    sxx = vec(weights' * (x .* x))
+                    return sw, sx, sxx
+                else
+                    sw = sum(weights)
+                    sx = vec(x * weights)
+                    sxx = vec((x .* x) * weights)
+                    return sw, sx, sxx
+                end
+            end
         elseif order == 1
-            return n, vec(sum(x, dims=dim))
+            if weights === nothing
+                return n, vec(sum(x, dims=dim))
+            else
+                if dim == 1
+                    return sum(weights), vec(weights' * x)
+                else
+                    return sum(weights), vec(x * weights)
+                end
+            end
         else
             sx = zeros(T, order, d)
             for j = 1:d
@@ -133,21 +161,38 @@ function stats(x::Matrix{T}, order::Int=2; kind=:diag, dim=1) where {T<:Abstract
                     else
                         xi = xp = x[j, i]
                     end
-                    sx[1, j] += xp
+                    w = (weights === nothing) ? one(T) : weights[i]
+                    sx[1, j] += xp * w
                     for o = 2:order
                         xp *= xi
-                        sx[o, j] += xp
+                        sx[o, j] += xp * w
                     end
                 end
             end
-            return tuple([n, map(i -> vec(sx[i, :]), 1:order)...]...)
+            sw = (weights === nothing) ? T(n) : sum(weights)
+            return tuple([sw, map(i -> vec(sx[i, :]), 1:order)...]...)
         end
     elseif kind == :full
         order == 2 || error("Can only do covar starts for order=2")
         ## lazy implementation
-        sx = vec(sum(x, dims=dim))
-        sxx = x' * x
-        return n, sx, sxx
+        if weights === nothing
+            sx = vec(sum(x, dims=dim))
+            sxx = x' * x
+            return n, sx, sxx
+        else
+            if dim == 1
+                sw = sum(weights)
+                sx = vec(weights' * x)
+                # Weighted covariance: X' * diag(w) * X
+                # Efficiently: (X .* sqrt(w))' * (X .* sqrt(w)) ? No.
+                # sxx_jk = sum_i w_i x_ij x_ik
+                # This is (x .* w)' * x
+                sxx = (x .* weights)' * x
+                return sw, sx, sxx
+            else
+                error(" Weighted full covar stats not implemented for dim!=1")
+            end
+        end
     else
         error("Unknown kind")
     end
