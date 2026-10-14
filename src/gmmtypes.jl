@@ -73,7 +73,7 @@ mutable struct GMM{T<:AbstractFloat, CT<:CovType{T}} <: GaussianMixture{T,CT}
         isapprox(1, sum(w)) || error("weights do not sum to one")
         d = size(μ, 2)
         n == size(μ, 1) || error("Inconsistent number of means")
-        if isa(Σ, Matrix)
+        if isa(Σ, AbstractMatrix)
             (n,d) == size(Σ) || error("Inconsistent covar dimension")
         else
             n == length(Σ) || error(@sprintf("Inconsistent number of covars %d != %d", n, length(Σ)))

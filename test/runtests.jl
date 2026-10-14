@@ -1,7 +1,9 @@
+using LinearAlgebra
 using FileIO
 using JLD2
 using GaussianMixtures
 using Distributed
+using Distributions
 using DelimitedFiles
 using RDatasets
 using Test
@@ -15,6 +17,7 @@ GM = GaussianMixtures  # alias
 
 setmem(0.1)
 include("data.jl")
+include("distributions.jl")
 include("bayes.jl")
 include("train.jl")
 include("scikitlearn.jl")

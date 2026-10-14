@@ -1,7 +1,7 @@
 ## distributions.jl (c) 2015 David A. van Leeuwen
 
 ## conversion to GMM
-function GMM(m::MixtureModel{Multivariate,Continuous,FullNormal})
+function GMM(m::MixtureModel{Multivariate,Continuous,<:FullNormal})
     Σ = eltype(FullCov{eltype(m)})[cholinv(c.Σ.mat) for c in components(m)]
     μ = hcat([c.μ for c in components(m)]...)'
     w = probs(m)
@@ -10,7 +10,7 @@ function GMM(m::MixtureModel{Multivariate,Continuous,FullNormal})
     GMM(w, μ, Σ, h, 0)
 end
 
-function GMM(m::MixtureModel{Multivariate,Continuous,DiagNormal})
+function GMM(m::MixtureModel{Multivariate,Continuous,<:DiagNormal})
     Σ = hcat([c.Σ.diag for c in components(m)]...)'
     μ = hcat([c.μ for c in components(m)]...)'
     w = probs(m)
